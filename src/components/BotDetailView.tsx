@@ -4,13 +4,14 @@ import { ArrowRight, Download, ShieldCheck, ChartLine, Info, AlertTriangle } fro
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import CodeViewer from './CodeViewer';
 import { Bot } from '../lib/mockData';
+import PerformanceChart from './PerformanceChart';
 
 interface BotDetailViewProps {
   bot: Bot;
 }
 
 const BotDetailView = ({ bot }: BotDetailViewProps) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'code'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'riskManagement' | 'instructions'>('overview');
   
   // Risk color based on risk level
   const getRiskColor = (level: number) => {
@@ -23,6 +24,42 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
     if (accuracy >= 60) return 'text-success';
     if (accuracy >= 45) return 'text-warning';
     return 'text-danger';
+  };
+
+  // Generate sample performance data for the chart
+  const generatePerformanceData = (baseAccuracy: number) => {
+    const data = [];
+    // 12 months of data
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    
+    let currentValue = baseAccuracy;
+    for (let i = 0; i < 12; i++) {
+      // Add some slight variation to accuracy (-3 to +3)
+      const variation = Math.floor(Math.random() * 7) - 3;
+      currentValue = Math.max(30, Math.min(95, baseAccuracy + variation));
+      data.push({
+        date: months[i],
+        value: currentValue
+      });
+    }
+    return data;
+  };
+
+  // Sample daily performance data for detailed chart
+  const generateDailyPerformanceData = (baseAccuracy: number) => {
+    const data = [];
+    let currentValue = baseAccuracy;
+    
+    for (let i = 1; i <= 30; i++) {
+      // Add more variation for daily data (-5 to +5)
+      const variation = Math.floor(Math.random() * 11) - 5;
+      currentValue = Math.max(30, Math.min(95, baseAccuracy + variation));
+      data.push({
+        date: `Dia ${i}`,
+        value: currentValue
+      });
+    }
+    return data;
   };
 
   // Special content for SMA Trend Runner Pro
@@ -85,23 +122,17 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
-                <h4 className="font-medium mb-2">Precisão por Operação</h4>
-                <div className="w-full bg-secondary rounded-full h-4">
-                  <div 
-                    className="bg-primary h-4 rounded-full" 
-                    style={{ width: `${bot.accuracy}%` }}
-                  >
-                  </div>
+              <div className="mb-8">
+                <h4 className="font-medium mb-4">Precisão por Operação</h4>
+                <div className="grid grid-cols-1 gap-8">
+                  <PerformanceChart 
+                    data={generateDailyPerformanceData(bot.accuracy)} 
+                    isPositive={bot.accuracy > 45}
+                    title="Assertividade Diária"
+                    yAxisLabel="Precisão %" 
+                  />
                 </div>
-                <div className="flex justify-between mt-1 text-xs">
-                  <span>0%</span>
-                  <span className={getAccuracyColor(bot.accuracy)}>
-                    {bot.accuracy}% (Assertividade média)
-                  </span>
-                  <span>100%</span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="mt-4 text-sm text-muted-foreground">
                   A assertividade individual é de <strong>40-55%</strong>, dependendo das condições do mercado.
                   O objetivo do Martingale NÃO é aumentar a taxa de acerto individual, mas sim aumentar 
                   a probabilidade de fechar uma sessão com lucro.
@@ -144,21 +175,15 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-4">
-              <h4 className="font-medium mb-2">Precisão por Operação</h4>
-              <div className="w-full bg-secondary rounded-full h-4">
-                <div 
-                  className="bg-primary h-4 rounded-full" 
-                  style={{ width: `${bot.accuracy}%` }}
-                >
-                </div>
-              </div>
-              <div className="flex justify-between mt-1 text-xs">
-                <span>0%</span>
-                <span className={getAccuracyColor(bot.accuracy)}>
-                  {bot.accuracy}% (Assertividade média)
-                </span>
-                <span>100%</span>
+            <div className="mb-8">
+              <h4 className="font-medium mb-4">Precisão por Operação</h4>
+              <div className="grid grid-cols-1 gap-8">
+                <PerformanceChart 
+                  data={generateDailyPerformanceData(bot.accuracy)} 
+                  isPositive={bot.accuracy > 45}
+                  title="Assertividade Diária"
+                  yAxisLabel="Precisão %" 
+                />
               </div>
             </div>
           </CardContent>
@@ -167,14 +192,14 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
     );
   };
 
-  // Special content for SMA Trend Runner Pro settings
-  const renderBotSpecificSettings = () => {
+  // Special content for SMA Trend Runner Pro risk management
+  const renderBotSpecificRiskManagement = () => {
     if (bot.id === "8") { // SMA Trend Runner Pro
       return (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldCheck size={18} /> Configurações Recomendadas
+              <ShieldCheck size={18} /> Gestão de Riscos Recomendada
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -272,20 +297,209 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
       );
     }
 
-    // Default settings for other bots
+    // Default risk management for other bots
     return (
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <ShieldCheck size={18} /> Configurações Recomendadas
+            <ShieldCheck size={18} /> Gestão de Riscos Recomendada
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-secondary/50 p-4 rounded-lg">
-            <h4 className="font-medium mb-2">Parâmetros da Estratégia</h4>
+            <h4 className="font-medium mb-2">Parâmetros da Gestão de Riscos</h4>
             <p className="text-sm text-muted-foreground">
               Configure os parâmetros de acordo com seu perfil de risco e objetivos de trading.
             </p>
+          </div>
+          
+          <div>
+            <h3 className="font-medium mb-2">Stop Loss Recomendado</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="border border-success/30 rounded-lg p-4">
+                <h4 className="font-medium text-success mb-2">Conservador</h4>
+                <p className="text-xs text-muted-foreground">
+                  2-5% da sua banca por sessão de trading.
+                </p>
+              </div>
+              
+              <div className="border border-primary/30 rounded-lg p-4">
+                <h4 className="font-medium text-primary mb-2">Moderado</h4>
+                <p className="text-xs text-muted-foreground">
+                  5-8% da sua banca por sessão de trading.
+                </p>
+              </div>
+              
+              <div className="border border-warning/30 rounded-lg p-4">
+                <h4 className="font-medium text-warning mb-2">Agressivo</h4>
+                <p className="text-xs text-muted-foreground">
+                  8-10% da sua banca por sessão de trading.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 className="font-medium mb-2">Stop Win Recomendado</h3>
+            <p className="text-sm text-muted-foreground mb-2">
+              Defina uma meta realista para garantir lucros consistentes.
+            </p>
+            <div className="border border-primary/30 rounded-lg p-4">
+              <p className="text-xs text-muted-foreground">
+                Recomendamos definir uma meta de lucro diária entre 3-8% da sua banca,
+                dependendo do seu perfil de risco. Quando atingida, encerre as operações
+                para o dia para proteger seus ganhos.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Instructions content
+  const renderBotInstructions = () => {
+    if (bot.id === "8") { // SMA Trend Runner Pro
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Info size={18} /> Instruções de Uso
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <h3 className="font-medium">Passo a Passo para Operar com o {bot.name}</h3>
+              
+              <ol className="list-decimal list-inside space-y-4 text-sm">
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Preparação da Plataforma</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Acesse a plataforma Deriv Bot (DBot) ou Binary Bot e faça login na sua conta.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Importação do Robô</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Clique em "Importar" no menu superior e selecione o arquivo .xml do robô SMA Trend Runner Pro.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Configuração dos Parâmetros</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Defina o Stop Loss, Stop Win e Valor Inicial conforme recomendações da aba "Gestão de Riscos".
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Seleção do Ativo</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Selecione o ativo R_100 (Índice Sintético 100) da lista de ativos disponíveis.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Definição da Duração</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Configure a duração do contrato em ticks (recomendado: 1-5 ticks).
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Execução do Robô</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Clique em "Executar" para iniciar as operações automatizadas.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Monitoramento</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Acompanhe o desempenho do robô e esteja pronto para intervir se necessário.
+                  </p>
+                </li>
+              </ol>
+              
+              <div className="bg-primary/10 p-4 rounded-lg border border-primary/30 mt-4">
+                <h4 className="font-medium mb-2 text-primary">Dica Profissional</h4>
+                <p className="text-sm">
+                  Recomendamos começar com uma conta demonstração para familiarizar-se com o comportamento
+                  do robô em diferentes condições de mercado antes de usar capital real.
+                </p>
+              </div>
+              
+              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
+                <h4 className="font-medium mb-2 text-warning">Lembre-se</h4>
+                <p className="text-sm">
+                  Trading automatizado envolve riscos. Mesmo com as melhores configurações,
+                  perdas são possíveis. Nunca invista mais do que pode perder e sempre use
+                  os limites de Stop Loss recomendados.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Default instructions for other bots
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Info size={18} /> Instruções de Uso
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <h3 className="font-medium">Como utilizar o {bot.name}</h3>
+            
+            <ol className="list-decimal list-inside space-y-4 text-sm">
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Configure o valor base da aposta</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Defina o valor inicial de acordo com o tamanho da sua banca e tolerância ao risco.
+                </p>
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Defina o Stop Loss</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Configure um limite de perdas conforme seu perfil de risco.
+                </p>
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Defina o Stop Win</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Configure seu objetivo de lucro para a sessão de trading.
+                </p>
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Escolha o mercado adequado</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Selecione um dos mercados recomendados para este bot.
+                </p>
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Execute o robô</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Inicie as operações e monitore o desempenho regularmente.
+                </p>
+              </li>
+            </ol>
+            
+            <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
+              <h4 className="font-medium mb-2 text-warning">Importante</h4>
+              <p className="text-sm">
+                Todas as operações automatizadas envolvem risco. Teste o bot em uma conta
+                de demonstração antes de utilizar com capital real.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -374,45 +588,48 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             Visão Geral
           </button>
           <button 
-            onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2 ${activeTab === 'settings' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
+            onClick={() => setActiveTab('riskManagement')}
+            className={`px-4 py-2 ${activeTab === 'riskManagement' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
           >
-            Configurações
+            Gestão de Riscos
           </button>
           <button 
-            onClick={() => setActiveTab('code')}
-            className={`px-4 py-2 ${activeTab === 'code' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
+            onClick={() => setActiveTab('instructions')}
+            className={`px-4 py-2 ${activeTab === 'instructions' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
           >
-            Código
+            Instruções
           </button>
         </div>
         
         {/* Tab Content */}
         <div className="min-h-[400px]">
           {activeTab === 'overview' && renderBotSpecificOverview()}
-          {activeTab === 'settings' && renderBotSpecificSettings()}
-          {activeTab === 'code' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Código Fonte</CardTitle>
-                <CardDescription>
-                  {bot.id === "8" ? "Estratégia SMA para contratos Run High/Run Low com Martingale especializado" : 
-                   `Estratégia de ${bot.strategy}`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CodeViewer code={bot.code} language="javascript" />
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === 'riskManagement' && renderBotSpecificRiskManagement()}
+          {activeTab === 'instructions' && renderBotInstructions()}
         </div>
       </div>
       
       {/* Right Column - Additional Info */}
       <div className="space-y-6">
+        {/* Accuracy Chart Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Aplicação Recomendada</CardTitle>
+            <CardTitle className="text-lg">Histórico de Assertividade</CardTitle>
+            <CardDescription>Desempenho do bot nos últimos 12 meses</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            <PerformanceChart 
+              data={generatePerformanceData(bot.accuracy)}
+              isPositive={bot.accuracy > 45}
+              title=""
+              yAxisLabel="Precisão %" 
+            />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Instruções de Uso</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -443,33 +660,6 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Instruções de Uso</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {bot.id === "8" ? (
-              <ol className="list-decimal list-inside space-y-2 text-sm">
-                <li>Acesse a plataforma Deriv Bot (DBot) ou Binary Bot</li>
-                <li>Importe o arquivo .xml do robô SMA Trend Runner Pro</li>
-                <li>Configure os parâmetros (Stop Loss, Stop Win, Valor Inicial)</li>
-                <li>Selecione o ativo R_100</li>
-                <li>Defina a duração do contrato em ticks (1-5 recomendado)</li>
-                <li>Clique em "Executar" para iniciar o robô</li>
-                <li>Monitore o desempenho e esteja pronto para intervir se necessário</li>
-              </ol>
-            ) : (
-              <ol className="list-decimal list-inside space-y-2 text-sm">
-                <li>Configure o valor base da aposta</li>
-                <li>Defina o Stop Loss conforme seu perfil de risco</li>
-                <li>Defina o Stop Win conforme seu objetivo de lucro</li>
-                <li>Execute nos mercados adequados</li>
-                <li>Monitore as operações para garantir funcionamento adequado</li>
-              </ol>
-            )}
           </CardContent>
         </Card>
         
