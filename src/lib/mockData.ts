@@ -399,6 +399,103 @@ function onTradeResult(result) {
   // Log the result
   console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
 }
+`,
+  
+  smaTrendFollower: `// SMA Trend Follower - SMA Crossover Strategy for Higher/Lower Contracts
+function initialize() {
+  // Define indicators
+  this.fastSMA = SMA(1);  // Essentially the current price
+  this.slowSMA = SMA(20); // 20-period SMA for trend identification
+  
+  // Strategy parameters
+  this.initialStake = 0.35;        // Initial stake amount
+  this.stopLoss = 10.0;            // Max acceptable loss
+  this.targetProfit = 5.0;         // Expected profit
+  this.ticksDuration = 10;         // Contract duration in ticks
+  
+  // Tracking variables
+  this.totalProfit = 0;
+  this.lastTradeResult = null;
+  this.waitingForSignal = false;
+}
+
+function onTick(tick) {
+  // Check if we've reached stop conditions
+  if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
+    this.stop("Target reached: " + this.totalProfit);
+    return;
+  }
+  
+  if (this.waitingForSignal) {
+    return; // Skip this tick if we're waiting for signal confirmation
+  }
+  
+  // Calculate indicator values
+  const fastValue = this.fastSMA.calculate(tick.close);
+  const slowValue = this.slowSMA.calculate(tick.close);
+  
+  // SMA crossover logic
+  if (fastValue > slowValue) {
+    // Potential uptrend - Buy CALL
+    this.waitingForSignal = true;
+    
+    // Wait 1 second for confirmation
+    setTimeout(() => {
+      // Double-check the signal
+      const currentFast = this.fastSMA.calculate(this.getLatestTick().close);
+      const currentSlow = this.slowSMA.calculate(this.getLatestTick().close);
+      
+      if (currentFast > currentSlow) {
+        // Signal confirmed - Buy CALL
+        const stakeAmount = this.calculateStake();
+        this.buyCall(tick.symbol, stakeAmount, this.ticksDuration);
+      }
+      this.waitingForSignal = false;
+    }, 1000);
+  } 
+  else if (fastValue < slowValue) {
+    // Potential downtrend - Buy PUT
+    this.waitingForSignal = true;
+    
+    // Wait 1 second for confirmation
+    setTimeout(() => {
+      // Double-check the signal
+      const currentFast = this.fastSMA.calculate(this.getLatestTick().close);
+      const currentSlow = this.slowSMA.calculate(this.getLatestTick().close);
+      
+      if (currentFast < currentSlow) {
+        // Signal confirmed - Buy PUT
+        const stakeAmount = this.calculateStake();
+        this.buyPut(tick.symbol, stakeAmount, this.ticksDuration);
+      }
+      this.waitingForSignal = false;
+    }, 1000);
+  }
+}
+
+function calculateStake() {
+  // Special Martingale recovery system
+  if (this.lastTradeResult && this.lastTradeResult.profit < 0) {
+    if (this.totalProfit >= -1) {
+      // Small overall loss - use fixed stake
+      return 0.35;
+    } else {
+      // Significant loss - aggressive recovery
+      return this.totalProfit * -0.45;
+    }
+  }
+  
+  // Default or after win
+  return this.initialStake;
+}
+
+function onTradeResult(result) {
+  this.lastTradeResult = result;
+  this.totalProfit += result.profit;
+  
+  // Log the result
+  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+}
 `
 };
 
@@ -555,6 +652,25 @@ export const bots: Bot[] = [
     riskLevel: 7,
     tradedAssets: ["R_100"],
     code: strategyCode.smaTrendRunner
+  },
+  {
+    id: "9",
+    name: "SMA Trend Follower",
+    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Higher/Lower contracts with a specialized Martingale recovery system.",
+    strategy: "Seguidor de Tendência",
+    accuracy: 52,
+    downloads: 487,
+    imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-02-15",
+    updatedAt: "2024-05-07",
+    version: "1.2.1",
+    author: "TrendTech Trading",
+    profitFactor: 1.7,
+    expectancy: 0.42,
+    drawdown: 22,
+    riskLevel: 6,
+    tradedAssets: ["R_100"],
+    code: strategyCode.smaTrendFollower
   }
 ];
 

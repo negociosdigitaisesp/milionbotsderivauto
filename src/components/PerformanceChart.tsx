@@ -1,6 +1,16 @@
 
 import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  ReferenceLine,
+  Legend
+} from 'recharts';
 
 interface PerformanceData {
   date: string;
@@ -12,6 +22,8 @@ interface PerformanceChartProps {
   isPositive: boolean;
   title: string;
   yAxisLabel?: string;
+  showAverage?: boolean;
+  animationActive?: boolean;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -47,7 +59,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const PerformanceChart = ({ data, isPositive, title, yAxisLabel }: PerformanceChartProps) => {
+const PerformanceChart = ({ 
+  data, 
+  isPositive, 
+  title, 
+  yAxisLabel,
+  showAverage = true,
+  animationActive = true
+}: PerformanceChartProps) => {
   // Calculate min and max for better visualization
   const values = data.map(item => item.value);
   const minValue = Math.max(0, Math.floor(Math.min(...values) - 5));
@@ -56,9 +75,26 @@ const PerformanceChart = ({ data, isPositive, title, yAxisLabel }: PerformanceCh
   // Find average value
   const avgValue = values.reduce((sum, val) => sum + val, 0) / values.length;
   
+  // Determine chart colors based on average value
+  let areaColor, areaGradientId, referenceLineColor;
+  
+  if (isPositive) {
+    areaColor = "#4CAF50";
+    areaGradientId = "colorPositive";
+    referenceLineColor = "rgba(76,175,80,0.6)";
+  } else if (avgValue >= 50) {
+    areaColor = "#FFA726";
+    areaGradientId = "colorNeutral";
+    referenceLineColor = "rgba(255,167,38,0.6)";
+  } else {
+    areaColor = "#F44336";
+    areaGradientId = "colorNegative";
+    referenceLineColor = "rgba(244,67,54,0.6)";
+  }
+  
   return (
     <div className="rounded-lg bg-card">
-      {title && <h3 className="text-base font-medium mb-2 px-2">{title}</h3>}
+      {title && <h3 className="text-base font-medium mb-2 px-4 pt-4">{title}</h3>}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
@@ -104,35 +140,49 @@ const PerformanceChart = ({ data, isPositive, title, yAxisLabel }: PerformanceCh
               }}
             />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine 
-              y={50} 
-              stroke="rgba(255,255,255,0.3)" 
-              strokeDasharray="3 3" 
-              label={{ 
-                value: "50%", 
-                position: "right",
-                fill: "rgba(255,255,255,0.5)",
-                fontSize: 10
-              }} 
-            />
-            <ReferenceLine 
-              y={avgValue} 
-              stroke={isPositive ? "rgba(76,175,80,0.6)" : "rgba(244,67,54,0.6)"} 
-              strokeDasharray="3 3"
-              label={{ 
-                value: `Média: ${avgValue.toFixed(1)}%`, 
-                position: "left",
-                fill: isPositive ? "rgba(76,175,80,0.8)" : "rgba(244,67,54,0.8)",
-                fontSize: 10
-              }}
-            />
+            {showAverage && (
+              <>
+                <ReferenceLine 
+                  y={50} 
+                  stroke="rgba(255,255,255,0.3)" 
+                  strokeDasharray="3 3" 
+                  label={{ 
+                    value: "50%", 
+                    position: "right",
+                    fill: "rgba(255,255,255,0.5)",
+                    fontSize: 10
+                  }} 
+                />
+                <ReferenceLine 
+                  y={avgValue} 
+                  stroke={referenceLineColor} 
+                  strokeDasharray="3 3"
+                  label={{ 
+                    value: `Média: ${avgValue.toFixed(1)}%`, 
+                    position: "left",
+                    fill: referenceLineColor.replace(/0\.\d+\)$/, "0.8)"),
+                    fontSize: 10
+                  }}
+                />
+              </>
+            )}
             <Area 
               type="monotone" 
               dataKey="value" 
-              stroke={isPositive ? "#4CAF50" : avgValue >= 50 ? "#FFA726" : "#F44336"} 
+              stroke={areaColor} 
               fillOpacity={0.8}
-              fill={isPositive ? "url(#colorPositive)" : avgValue >= 50 ? "url(#colorNeutral)" : "url(#colorNegative)"} 
+              fill={`url(#${areaGradientId})`} 
               activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
+              animationDuration={animationActive ? 1500 : 0}
+              animationEasing="ease-out"
+            />
+            <Legend 
+              verticalAlign="top" 
+              height={36}
+              formatter={(value) => {
+                if (value === 'value') return 'Assertividade (%)';
+                return value;
+              }}
             />
           </AreaChart>
         </ResponsiveContainer>
