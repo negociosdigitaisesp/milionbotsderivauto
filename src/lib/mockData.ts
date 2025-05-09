@@ -1,4 +1,3 @@
-
 // Mock data for the TradeBots Dashboard
 
 export interface Bot {
@@ -254,7 +253,56 @@ function executeArbitrage(path) {
   // Trading logic to execute the arbitrage
   console.log("Executing arbitrage path: " + path);
   // Implementation details omitted for brevity
-}`
+}`,
+
+  contrarian: `// Impulso Contrário Pro - Contrarian Martingale Strategy
+function initialize() {
+  // Strategy parameters
+  this.baseStake = 0.35;        // Base stake amount
+  this.maxLoss = 5.0;           // Max acceptable loss (moderate setting)
+  this.targetProfit = 3.0;      // Expected profit (moderate setting)
+  this.martingaleFactor = 1.071; // Multiplier for stake after loss
+  this.nextCondition = "Rise";  // Initial condition
+  
+  // Tracking variables
+  this.currentBalance = 0;
+  this.initialBalance = this.getBalance();
+  this.currentStake = this.baseStake;
+}
+
+function onTick(tick) {
+  // Check if we've reached stop conditions
+  if (this.currentBalance <= -this.maxLoss || this.currentBalance >= this.targetProfit) {
+    this.stop("Target reached: " + this.currentBalance);
+    return;
+  }
+  
+  // Contrarian entry logic
+  if (this.nextCondition === "Rise") {
+    // If next expected is Rise, we bet on opposite (PUT)
+    this.buyPut(tick.symbol, this.currentStake);
+  } else {
+    // If next expected is Fall, we bet on opposite (CALL)
+    this.buyCall(tick.symbol, this.currentStake);
+  }
+}
+
+function onTradeResult(result) {
+  if (result.profit > 0) {
+    // Winning trade - reset stake to base amount
+    this.currentStake = this.baseStake;
+    this.currentBalance += result.profit;
+  } else {
+    // Losing trade - increase stake using martingale and invert condition
+    const loss = Math.abs(result.profit);
+    this.currentStake = loss * this.martingaleFactor;
+    this.currentBalance += result.profit;
+    
+    // Alternate condition after a loss
+    this.nextCondition = this.nextCondition === "Rise" ? "Fall" : "Rise";
+  }
+}
+`
 };
 
 // Bot mock data
@@ -372,6 +420,25 @@ export const bots: Bot[] = [
     riskLevel: 5,
     tradedAssets: ["EUR/USD", "USD/JPY", "S&P 500", "Gold"],
     code: strategyCode.movingAverage // Reusing code for simplicity
+  },
+  {
+    id: "7",
+    name: "Impulso Contrário Pro",
+    description: "Bot que utiliza estratégia Martingale com lógica contrária e alternância de condição após perdas, operando no mercado de índices aleatórios com timeframe de 1 tick.",
+    strategy: "Martingale",
+    accuracy: 48,
+    downloads: 876,
+    imageUrl: "https://images.unsplash.com/photo-1535320903710-d993d3d77d29?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-04-01",
+    updatedAt: "2024-05-08",
+    version: "2.0.1",
+    author: "ContraTrend Labs",
+    profitFactor: 1.4,
+    expectancy: 0.31,
+    drawdown: 28,
+    riskLevel: 6,
+    tradedAssets: ["R_25", "R_50", "R_75", "R_100"],
+    code: strategyCode.contrarian
   }
 ];
 
@@ -409,5 +476,9 @@ export const filterOptions = {
     { label: "GBP/USD", value: "GBP/USD" },
     { label: "S&P 500", value: "S&P 500" },
     { label: "Gold", value: "Gold" },
+    { label: "R_25", value: "R_25" },
+    { label: "R_50", value: "R_50" },
+    { label: "R_75", value: "R_75" },
+    { label: "R_100", value: "R_100" },
   ]
 };
