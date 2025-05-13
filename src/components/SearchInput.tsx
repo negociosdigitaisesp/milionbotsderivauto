@@ -8,7 +8,7 @@ interface SearchInputProps {
   placeholder?: string;
 }
 
-const SearchInput = ({ value, onChange, placeholder = "Buscar bots..." }: SearchInputProps) => {
+const SearchInput = ({ value = '', onChange, placeholder = "Buscar bots..." }: SearchInputProps) => {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value);
   };

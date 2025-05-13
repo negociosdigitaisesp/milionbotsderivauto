@@ -13,14 +13,20 @@ interface FilterBarProps {
   onFilterChange: (filters: FilterOption[]) => void;
 }
 
-const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
+const FilterBar = ({ filters = [], onFilterChange }: FilterBarProps) => {
   const handleFilterClick = (id: string) => {
+    if (!filters || !Array.isArray(filters)) return;
+    
     const updatedFilters = filters.map(filter => ({
       ...filter,
       active: filter.id === id ? !filter.active : filter.active
     }));
     onFilterChange(updatedFilters);
   };
+
+  if (!filters || !Array.isArray(filters) || filters.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-wrap gap-2">
