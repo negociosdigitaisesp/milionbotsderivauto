@@ -293,7 +293,7 @@ const BotDetailView = ({
           </div>
           
           <div>
-            <h3 className="font-medium mb-2">Stop Loss Recomendado</h3>
+            <h3 className="font-medium mb-2">Stop Loss Padrão - $20 USD</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="border border-success/30 rounded-lg p-4">
                 <h4 className="font-medium text-success mb-2">Conservador</h4>
@@ -319,7 +319,7 @@ const BotDetailView = ({
           </div>
           
           <div>
-            <h3 className="font-medium mb-2">Stop Win Recomendado</h3>
+            <h3 className="font-medium mb-2">Stop Win Padrão - $20 USD</h3>
             <p className="text-sm text-muted-foreground mb-2">
               Defina uma meta realista para garantir lucros consistentes.
             </p>
