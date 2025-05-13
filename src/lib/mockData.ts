@@ -603,6 +603,59 @@ function onTradeResult(result) {
   // Log the result
   console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
 }
+`,
+
+  quantumBot: `// Quantum Bot - Simple Alternating Direction Strategy with Martingale
+function initialize() {
+  // Strategy parameters
+  this.baseStake = 0.35;         // Initial stake amount
+  this.stopLoss = 20.0;          // Max acceptable loss
+  this.targetProfit = 20.0;      // Expected profit
+  this.martingaleFactor = 1.065; // Multiplier for stake after loss
+  this.nextCondition = "Rise";   // Initial condition - will alternate on loss
+  
+  // Tracking variables
+  this.totalProfit = 0;
+  this.lastTradeResult = null;
+  this.currentStake = this.baseStake;
+}
+
+function onTick(tick) {
+  // Check if we've reached stop conditions
+  if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
+    this.stop(\`Target reached: \${this.totalProfit}\`);
+    return;
+  }
+  
+  // Simple alternating direction strategy
+  if (this.nextCondition === "Rise") {
+    // Buy CALL (Rise)
+    this.buyCall(tick.symbol, this.currentStake, 1); // 1 tick duration
+  } else {
+    // Buy PUT (Fall)
+    this.buyPut(tick.symbol, this.currentStake, 1); // 1 tick duration
+  }
+}
+
+function onTradeResult(result) {
+  if (result.profit > 0) {
+    // Winning trade
+    this.totalProfit += result.profit;
+    this.currentStake = this.baseStake; // Reset to base stake
+    // Keep same condition after win
+  } else {
+    // Losing trade
+    this.totalProfit += result.profit;
+    const loss = Math.abs(result.profit);
+    this.currentStake = loss * this.martingaleFactor; // Martingale increase
+    
+    // Alternate condition after a loss
+    this.nextCondition = this.nextCondition === "Rise" ? "Fall" : "Rise";
+  }
+  
+  // Log the result
+  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}, Next: \${this.nextCondition}\`);
+}
 `
 };
 
@@ -797,6 +850,25 @@ export const bots: Bot[] = [
     riskLevel: 8,
     tradedAssets: ["R_100"],
     code: strategyCode.hunterPro
+  },
+  {
+    id: "11",
+    name: "Quantum Bot",
+    description: "Bot com estratégia de alternância simples de direção e Martingale. Opera no mercado de índices sintéticos (R_100) com contratos de 1 tick de duração.",
+    strategy: "Martingale",
+    accuracy: 50,
+    downloads: 245,
+    imageUrl: "https://images.unsplash.com/photo-1639762681057-408e52192e55?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-04-18",
+    updatedAt: "2024-05-13",
+    version: "1.0.0",
+    author: "QuantumTech Trading",
+    profitFactor: 1.4,
+    expectancy: 0.35,
+    drawdown: 28,
+    riskLevel: 7,
+    tradedAssets: ["R_100"],
+    code: strategyCode.quantumBot
   }
 ];
 
