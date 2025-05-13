@@ -496,6 +496,113 @@ function onTradeResult(result) {
   // Log the result
   console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
 }
+`,
+
+  hunterPro: `// Hunter Pro - Penultimate Digit Filter with SMA Strategy
+function initialize() {
+  // Define indicators
+  this.fastSMA = SMA(1);  // Current price
+  this.slowSMA = SMA(20); // 20-period SMA for trend identification
+  
+  // Strategy parameters
+  this.initialStake = 0.35;        // Initial stake amount
+  this.stopLoss = 10.0;            // Max acceptable loss
+  this.targetProfit = 5.0;         // Expected profit
+  this.ticksDuration = 5;          // Contract duration in ticks
+  
+  // Tracking variables
+  this.totalProfit = 0;
+  this.lastTradeResult = null;
+  this.waitingForSignal = false;
+}
+
+function onTick(tick) {
+  // Check if we've reached stop conditions
+  if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
+    this.stop("Target reached: " + this.totalProfit);
+    return;
+  }
+  
+  if (this.waitingForSignal) {
+    return; // Skip this tick if we're waiting for signal confirmation
+  }
+  
+  // Get the tick price and extract the penultimate digit
+  const price = tick.close;
+  const priceStr = price.toFixed(2); // Format to 2 decimal places
+  const penultimateDigit = priceStr[priceStr.length - 2];
+  
+  // Primary filter: Only proceed if the penultimate digit is 7
+  if (penultimateDigit !== '7') {
+    return; // Skip this tick
+  }
+  
+  // Calculate indicator values for secondary confirmation
+  const fastValue = this.fastSMA.calculate(tick.close);
+  const slowValue = this.slowSMA.calculate(tick.close);
+  
+  // SMA crossover logic
+  if (fastValue > slowValue) {
+    // Potential uptrend - Buy CALL
+    this.waitingForSignal = true;
+    
+    // Wait 1 second for confirmation
+    setTimeout(() => {
+      // Double-check the signal
+      const currentFast = this.fastSMA.calculate(this.getLatestTick().close);
+      const currentSlow = this.slowSMA.calculate(this.getLatestTick().close);
+      
+      if (currentFast > currentSlow) {
+        // Signal confirmed - Buy CALL
+        const stakeAmount = this.calculateStake();
+        this.buyCall(tick.symbol, stakeAmount, this.ticksDuration);
+      }
+      this.waitingForSignal = false;
+    }, 1000);
+  } 
+  else if (fastValue < slowValue) {
+    // Potential downtrend - Buy PUT
+    this.waitingForSignal = true;
+    
+    // Wait 1 second for confirmation
+    setTimeout(() => {
+      // Double-check the signal
+      const currentFast = this.fastSMA.calculate(this.getLatestTick().close);
+      const currentSlow = this.slowSMA.calculate(this.getLatestTick().close);
+      
+      if (currentFast < currentSlow) {
+        // Signal confirmed - Buy PUT
+        const stakeAmount = this.calculateStake();
+        this.buyPut(tick.symbol, stakeAmount, this.ticksDuration);
+      }
+      this.waitingForSignal = false;
+    }, 1000);
+  }
+}
+
+function calculateStake() {
+  // Special Martingale recovery system - more aggressive than other bots
+  if (this.lastTradeResult && this.lastTradeResult.profit < 0) {
+    if (this.totalProfit >= -1) {
+      // Small overall loss - use fixed stake
+      return 0.35;
+    } else {
+      // Significant loss - aggressive recovery (0.5 multiplier instead of 0.45)
+      return this.totalProfit * -0.5;
+    }
+  }
+  
+  // Default or after win
+  return this.initialStake;
+}
+
+function onTradeResult(result) {
+  this.lastTradeResult = result;
+  this.totalProfit += result.profit;
+  
+  // Log the result
+  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+}
 `
 };
 
@@ -671,6 +778,25 @@ export const bots: Bot[] = [
     riskLevel: 6,
     tradedAssets: ["R_100"],
     code: strategyCode.smaTrendFollower
+  },
+  {
+    id: "10",
+    name: "Hunter Pro",
+    description: "Bot que combina análise do penúltimo dígito do preço tick (filtrado para 7) com estratégia de cruzamento de SMAs para operações Rise/Fall em índices aleatórios, com recuperação Martingale agressiva.",
+    strategy: "Digital Filter",
+    accuracy: 45,
+    downloads: 312,
+    imageUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-03-15",
+    updatedAt: "2024-05-12",
+    version: "1.0.0",
+    author: "HunterTech Trading",
+    profitFactor: 1.5,
+    expectancy: 0.38,
+    drawdown: 30,
+    riskLevel: 8,
+    tradedAssets: ["R_100"],
+    code: strategyCode.hunterPro
   }
 ];
 
@@ -700,6 +826,7 @@ export const filterOptions = {
     { label: "Arbitragem", value: "Arbitragem" },
     { label: "Breakout", value: "Breakout" },
     { label: "Scalping", value: "Scalping" },
+    { label: "Digital Filter", value: "Digital Filter" },
   ],
   assets: [
     { label: "BTC/USD", value: "BTC/USD" },
