@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,7 +20,7 @@ const Index = () => {
     setFilters(updatedFilters);
   };
 
-  const handleFavoriteToggle = (botId: number) => {
+  const handleFavoriteToggle = (botId: string) => {
     // This would typically update the server/state
     console.log(`Toggle favorite for bot ${botId}`);
   };
@@ -42,7 +43,7 @@ const Index = () => {
     const activeFilters = filters.filter(f => f.active).map(f => f.id);
     
     if (activeFilters.includes('highSuccess')) {
-      result = result.filter(bot => bot.successRate >= 70);
+      result = result.filter(bot => bot.accuracy >= 70);
     }
     
     if (activeFilters.includes('favorites')) {
@@ -55,7 +56,7 @@ const Index = () => {
   const topBots = useMemo(() => {
     if (!bots) return [];
     return [...bots]
-      .sort((a, b) => b.successRate - a.successRate)
+      .sort((a, b) => b.accuracy - a.accuracy)
       .slice(0, 3);
   }, [bots]);
 
@@ -83,7 +84,7 @@ const Index = () => {
       <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h1 className="text-3xl font-bold">Bots de Trading</h1>
         <div className="flex gap-2">
-          <SearchInput value={searchQuery} onChange={setSearchQuery} />
+          <SearchInput value={searchQuery} onChange={(value) => setSearchQuery(value)} />
           <FilterBar filters={filters} onFilterChange={handleFilterChange} />
         </div>
       </div>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { useBots } from '@/hooks/useBots';
+import { Bot } from '@/lib/mockData';
 
 const MyBots = () => {
   const { data: bots, isLoading, error } = useBots();
@@ -15,13 +16,14 @@ const MyBots = () => {
 
   const favoriteBots = bots?.filter(bot => bot.isFavorite) || [];
 
-  const handleRemoveFromFavorites = (botId: number) => {
+  const handleRemoveFromFavorites = (botId: string) => {
     // Get current bots
     const currentBots = queryClient.getQueryData(['bots']);
     
     // Update the favorite status
-    queryClient.setQueryData(['bots'], (oldData: any) => {
-      return oldData.map((bot: any) => {
+    queryClient.setQueryData(['bots'], (oldData: Bot[] | undefined) => {
+      if (!oldData) return oldData;
+      return oldData.map((bot) => {
         if (bot.id === botId) {
           return { ...bot, isFavorite: false };
         }
@@ -104,12 +106,12 @@ const MyBots = () => {
               <CardContent className="pt-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Assertividade</span>
-                  <span className="font-medium">{bot.successRate}%</span>
+                  <span className="font-medium">{bot.accuracy}%</span>
                 </div>
                 <div className="w-full bg-muted h-2 rounded-full mt-1 mb-3">
                   <div 
                     className="h-2 rounded-full bg-primary" 
-                    style={{ width: `${bot.successRate}%` }}
+                    style={{ width: `${bot.accuracy}%` }}
                   ></div>
                 </div>
               </CardContent>
