@@ -288,8 +288,8 @@ const BotDetailView = ({
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-secondary/50 p-4 rounded-lg">
-            <h4 className="font-medium mb-2">Valor del Operacão </h4>
-            <p className="text-sm text-muted-foreground">Recomendamos colocar 0.35 como valor inicial</p>
+            <h4 className="font-medium mb-2">A Gestão de Riscos já vem pré-configurada</h4>
+            <p className="text-sm text-muted-foreground">Esse robô é ideal para quem quer lucrar $20 dólares por dia e perder $20 dólare</p>
           </div>
           
           <div>
