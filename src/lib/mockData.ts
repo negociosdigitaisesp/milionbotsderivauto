@@ -6,7 +6,7 @@ export interface Bot {
   description: string;
   strategy: string;
   accuracy: number;
-  operations: number; // Changed from downloads to operations
+  operations: number;
   imageUrl: string;
   createdAt: string;
   updatedAt: string;
@@ -18,8 +18,8 @@ export interface Bot {
   riskLevel: number;
   tradedAssets: string[];
   code: string;
-  isFavorite?: boolean; // New field for favorites
-  ranking?: number; // New field for ranking
+  isFavorite?: boolean;
+  ranking?: number;
 }
 
 export interface PerformanceData {
@@ -784,4 +784,11 @@ export const filterOptions = {
     { label: "R_75", value: "R_75" },
     { label: "R_100", value: "R_100" },
   ]
+};
+
+// Export the getBots function to be used in useBots hook
+export const getBots = async (): Promise<Bot[]> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return bots;
 };
