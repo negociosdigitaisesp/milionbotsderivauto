@@ -8,8 +8,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Index from "./pages/Index";
 import BotDetail from "./pages/BotDetail";
-import MyBots from "./pages/MyBots";
-import BestHours from "./pages/BestHours";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,8 +32,6 @@ const App = () => {
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/bot/:id" element={<BotDetail />} />
-                <Route path="/my-bots" element={<MyBots />} />
-                <Route path="/best-hours" element={<BestHours />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </main>

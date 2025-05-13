@@ -2,47 +2,69 @@
 import React from 'react';
 import { Filter } from 'lucide-react';
 
-export interface FilterOption {
-  id: string;
+interface FilterOption {
   label: string;
-  active: boolean;
+  value: string;
 }
 
 interface FilterBarProps {
-  filters: FilterOption[];
-  onFilterChange: (filters: FilterOption[]) => void;
+  strategies: FilterOption[];
+  assets: FilterOption[];
+  onStrategyChange: (strategy: string) => void;
+  onAssetChange: (asset: string) => void;
+  onSortChange: (sort: string) => void;
 }
 
-const FilterBar = ({ filters = [], onFilterChange }: FilterBarProps) => {
-  const handleFilterClick = (id: string) => {
-    if (!filters || !Array.isArray(filters)) return;
-    
-    const updatedFilters = filters.map(filter => ({
-      ...filter,
-      active: filter.id === id ? !filter.active : filter.active
-    }));
-    onFilterChange(updatedFilters);
-  };
-
-  if (!filters || !Array.isArray(filters) || filters.length === 0) {
-    return null;
-  }
-
+const FilterBar = ({ 
+  strategies, 
+  assets, 
+  onStrategyChange, 
+  onAssetChange, 
+  onSortChange 
+}: FilterBarProps) => {
   return (
-    <div className="flex flex-wrap gap-2">
-      {filters.map(filter => (
-        <button
-          key={filter.id}
-          onClick={() => handleFilterClick(filter.id)}
-          className={`px-3 py-1 text-sm rounded-full transition-colors ${
-            filter.active 
-              ? 'bg-primary text-primary-foreground' 
-              : 'bg-muted hover:bg-muted/80'
-          }`}
+    <div className="bg-secondary rounded-lg p-3 mb-6 flex flex-wrap gap-3 items-center">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Filter size={16} />
+        <span className="text-sm font-medium">Filtros:</span>
+      </div>
+      
+      <div className="flex flex-wrap gap-3 items-center">
+        <select 
+          className="bg-background text-sm rounded-md border border-border/50 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+          onChange={(e) => onStrategyChange(e.target.value)}
         >
-          {filter.label}
-        </button>
-      ))}
+          <option value="">Todas as estratégias</option>
+          {strategies.map((strategy) => (
+            <option key={strategy.value} value={strategy.value}>
+              {strategy.label}
+            </option>
+          ))}
+        </select>
+        
+        <select 
+          className="bg-background text-sm rounded-md border border-border/50 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+          onChange={(e) => onAssetChange(e.target.value)}
+        >
+          <option value="">Todos os ativos</option>
+          {assets.map((asset) => (
+            <option key={asset.value} value={asset.value}>
+              {asset.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      
+      <div className="ml-auto">
+        <select 
+          className="bg-background text-sm rounded-md border border-border/50 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+          onChange={(e) => onSortChange(e.target.value)}
+        >
+          <option value="popularity">Mais populares</option>
+          <option value="performance">Melhor performance</option>
+          <option value="newest">Mais recentes</option>
+        </select>
+      </div>
     </div>
   );
 };
