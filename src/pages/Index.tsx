@@ -1,19 +1,21 @@
 
 import React, { useState } from 'react';
-import { Bot, ChartLine, Download, User } from 'lucide-react';
+import { Bot, ChartLine, Clock, User } from 'lucide-react';
 import SearchInput from '../components/SearchInput';
 import StatCard from '../components/StatCard';
 import BotCard from '../components/BotCard';
 import FilterBar from '../components/FilterBar';
 import PerformanceChart from '../components/PerformanceChart';
 import { bots, dashboardStats, performanceData, filterOptions } from '../lib/mockData';
+import BestHoursExplanation from '../components/BestHoursExplanation';
 
 const Index = () => {
   const [filteredBots, setFilteredBots] = useState(bots);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentStrategy, setCurrentStrategy] = useState('');
   const [currentAsset, setCurrentAsset] = useState('');
-  const [sortBy, setSortBy] = useState('popularity');
+  const [sortBy, setSortBy] = useState('performance');
+  const [showRanking, setShowRanking] = useState(true);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value;
@@ -49,9 +51,6 @@ const Index = () => {
     
     // Sort the results
     switch (sort) {
-      case 'popularity':
-        result = result.sort((a, b) => b.downloads - a.downloads);
-        break;
       case 'performance':
         result = result.sort((a, b) => b.accuracy - a.accuracy);
         break;
@@ -60,8 +59,19 @@ const Index = () => {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         break;
+      case 'operations':
+        result = result.sort((a, b) => b.operations - a.operations);
+        break;
       default:
         break;
+    }
+    
+    // Update rankings based on accuracy after filtering
+    if (showRanking) {
+      result = [...result].map((bot, index) => ({
+        ...bot,
+        ranking: index + 1
+      }));
     }
     
     setFilteredBots(result);
@@ -90,9 +100,9 @@ const Index = () => {
             trend={{ value: 8.3, isPositive: true }}
           />
           <StatCard 
-            title="Downloads"
-            value={dashboardStats.totalDownloads}
-            icon={<Download size={24} />}
+            title="Operações"
+            value={dashboardStats.totalOperations}
+            icon={<Clock size={24} />}
             trend={{ value: 12.5, isPositive: true }}
           />
           <StatCard 
@@ -135,10 +145,27 @@ const Index = () => {
         </div>
       </section>
       
+      {/* Best Hours Explanation */}
+      <section className="px-6 py-4">
+        <BestHoursExplanation />
+      </section>
+      
       {/* Bots Library Section */}
       <section className="px-6 py-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Biblioteca de Bots</h2>
+          <h2 className="text-xl font-semibold">Ranking de Bots</h2>
+          <div className="flex items-center gap-2">
+            <label htmlFor="show-ranking" className="text-sm">
+              Mostrar Ranking
+            </label>
+            <input 
+              type="checkbox" 
+              id="show-ranking" 
+              checked={showRanking} 
+              onChange={() => setShowRanking(!showRanking)} 
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </div>
         </div>
         
         <FilterBar 
@@ -159,8 +186,10 @@ const Index = () => {
                 description={bot.description}
                 strategy={bot.strategy}
                 accuracy={bot.accuracy}
-                downloads={bot.downloads}
+                operations={bot.operations}
                 imageUrl={bot.imageUrl}
+                ranking={showRanking ? bot.ranking : undefined}
+                isFavorite={bot.isFavorite}
               />
             ))
           ) : (

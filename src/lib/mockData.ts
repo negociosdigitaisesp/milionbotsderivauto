@@ -6,7 +6,7 @@ export interface Bot {
   description: string;
   strategy: string;
   accuracy: number;
-  downloads: number;
+  operations: number; // Changed from downloads to operations
   imageUrl: string;
   createdAt: string;
   updatedAt: string;
@@ -18,6 +18,8 @@ export interface Bot {
   riskLevel: number;
   tradedAssets: string[];
   code: string;
+  isFavorite?: boolean; // New field for favorites
+  ranking?: number; // New field for ranking
 }
 
 export interface PerformanceData {
@@ -659,148 +661,15 @@ function onTradeResult(result) {
 `
 };
 
-// Bot mock data
+// Bot mock data - Filtered to remove specific bots
 export const bots: Bot[] = [
-  {
-    id: "1",
-    name: "MovingAverage Crossover Pro",
-    description: "Trading bot that uses fast and slow moving averages to identify trend changes and generate buy/sell signals.",
-    strategy: "Seguidor de Tendência",
-    accuracy: 68,
-    downloads: 1254,
-    imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2023-09-15",
-    updatedAt: "2024-03-20",
-    version: "2.1.0",
-    author: "TradingLab",
-    profitFactor: 1.8,
-    expectancy: 0.45,
-    drawdown: 15,
-    riskLevel: 3,
-    tradedAssets: ["BTC/USD", "ETH/USD", "S&P 500", "EUR/USD"],
-    code: strategyCode.movingAverage
-  },
-  {
-    id: "2",
-    name: "Grid Master",
-    description: "Grid trading strategy that places buy and sell orders at regular price intervals to profit from market volatility.",
-    strategy: "Grid Trading",
-    accuracy: 75,
-    downloads: 987,
-    imageUrl: "https://images.unsplash.com/photo-1642790551116-18e150f248e7?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2023-11-05",
-    updatedAt: "2024-02-18",
-    version: "1.5.0",
-    author: "GridMasters",
-    profitFactor: 2.1,
-    expectancy: 0.62,
-    drawdown: 12,
-    riskLevel: 2,
-    tradedAssets: ["BTC/USD", "ETH/USD", "XRP/USD"],
-    code: strategyCode.gridTrading
-  },
-  {
-    id: "3",
-    name: "RSI Reversal",
-    description: "Uses RSI (Relative Strength Index) to identify overbought and oversold conditions to find potential market reversals.",
-    strategy: "Retorno à Média",
-    accuracy: 63,
-    downloads: 875,
-    imageUrl: "https://images.unsplash.com/photo-1640340434855-6084b1f4901c?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2023-12-10",
-    updatedAt: "2024-04-05",
-    version: "1.2.0",
-    author: "QuantTraders",
-    profitFactor: 1.6,
-    expectancy: 0.38,
-    drawdown: 18,
-    riskLevel: 4,
-    tradedAssets: ["EUR/USD", "GBP/USD", "USD/JPY", "Gold"],
-    code: strategyCode.rsi
-  },
-  {
-    id: "4",
-    name: "Martingale Recovery",
-    description: "Advanced martingale strategy that increases position size after losses to recover previous losses plus a small profit.",
-    strategy: "Martingale",
-    accuracy: 52,
-    downloads: 543,
-    imageUrl: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2024-01-20",
-    updatedAt: "2024-03-10",
-    version: "1.0.0",
-    author: "RiskMasters",
-    profitFactor: 1.3,
-    expectancy: 0.25,
-    drawdown: 35,
-    riskLevel: 7,
-    tradedAssets: ["EUR/USD", "USD/CAD", "AUD/USD"],
-    code: strategyCode.martingale
-  },
-  {
-    id: "5",
-    name: "Crypto Arbitrage Hunter",
-    description: "Identifies and exploits price differences between cryptocurrency exchanges for risk-free profit opportunities.",
-    strategy: "Arbitragem",
-    accuracy: 89,
-    downloads: 1432,
-    imageUrl: "https://images.unsplash.com/photo-1620321023374-d1a68fbc720d?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2023-08-05",
-    updatedAt: "2024-04-15",
-    version: "3.2.1",
-    author: "ArbitrageAI",
-    profitFactor: 3.2,
-    expectancy: 0.85,
-    drawdown: 8,
-    riskLevel: 2,
-    tradedAssets: ["BTC/USD", "ETH/USD", "BTC/EUR", "ETH/EUR"],
-    code: strategyCode.arbitrage
-  },
-  {
-    id: "6",
-    name: "Bollinger Breakout",
-    description: "Identifies breakouts from Bollinger Bands to capture strong momentum moves with trailing stop loss.",
-    strategy: "Breakout",
-    accuracy: 58,
-    downloads: 687,
-    imageUrl: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2024-02-15",
-    updatedAt: "2024-04-10",
-    version: "1.1.0",
-    author: "MomentumLab",
-    profitFactor: 1.7,
-    expectancy: 0.42,
-    drawdown: 22,
-    riskLevel: 5,
-    tradedAssets: ["EUR/USD", "USD/JPY", "S&P 500", "Gold"],
-    code: strategyCode.movingAverage // Reusing code for simplicity
-  },
-  {
-    id: "7",
-    name: "Impulso Contrário Pro",
-    description: "Bot que utiliza estratégia Martingale com lógica contrária e alternância de condição após perdas, operando no mercado de índices aleatórios com timeframe de 1 tick.",
-    strategy: "Martingale",
-    accuracy: 48,
-    downloads: 876,
-    imageUrl: "https://images.unsplash.com/photo-1535320903710-d993d3d77d29?q=80&w=500&auto=format&fit=crop",
-    createdAt: "2024-04-01",
-    updatedAt: "2024-05-08",
-    version: "2.0.1",
-    author: "ContraTrend Labs",
-    profitFactor: 1.4,
-    expectancy: 0.31,
-    drawdown: 28,
-    riskLevel: 6,
-    tradedAssets: ["R_25", "R_50", "R_75", "R_100"],
-    code: strategyCode.contrarian
-  },
   {
     id: "8",
     name: "SMA Trend Runner Pro",
     description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",
     strategy: "Seguidor de Tendência",
     accuracy: 48,
-    downloads: 632,
+    operations: 632, // Changed from downloads to operations
     imageUrl: "https://images.unsplash.com/photo-1559526324-593bc073d938?q=80&w=500&auto=format&fit=crop",
     createdAt: "2024-01-10",
     updatedAt: "2024-05-01",
@@ -811,7 +680,9 @@ export const bots: Bot[] = [
     drawdown: 25,
     riskLevel: 7,
     tradedAssets: ["R_100"],
-    code: strategyCode.smaTrendRunner
+    code: strategyCode.smaTrendRunner,
+    isFavorite: false,
+    ranking: 3
   },
   {
     id: "9",
@@ -819,7 +690,7 @@ export const bots: Bot[] = [
     description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Higher/Lower contracts with a specialized Martingale recovery system.",
     strategy: "Seguidor de Tendência",
     accuracy: 52,
-    downloads: 487,
+    operations: 487, // Changed from downloads to operations
     imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=500&auto=format&fit=crop",
     createdAt: "2024-02-15",
     updatedAt: "2024-05-07",
@@ -830,7 +701,9 @@ export const bots: Bot[] = [
     drawdown: 22,
     riskLevel: 6,
     tradedAssets: ["R_100"],
-    code: strategyCode.smaTrendFollower
+    code: strategyCode.smaTrendFollower,
+    isFavorite: false,
+    ranking: 1
   },
   {
     id: "10",
@@ -838,7 +711,7 @@ export const bots: Bot[] = [
     description: "Bot que combina análise do penúltimo dígito do preço tick (filtrado para 7) com estratégia de cruzamento de SMAs para operações Rise/Fall em índices aleatórios, com recuperação Martingale agressiva.",
     strategy: "Digital Filter",
     accuracy: 45,
-    downloads: 312,
+    operations: 312, // Changed from downloads to operations
     imageUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=500&auto=format&fit=crop",
     createdAt: "2024-03-15",
     updatedAt: "2024-05-12",
@@ -849,7 +722,9 @@ export const bots: Bot[] = [
     drawdown: 30,
     riskLevel: 8,
     tradedAssets: ["R_100"],
-    code: strategyCode.hunterPro
+    code: strategyCode.hunterPro,
+    isFavorite: false,
+    ranking: 4
   },
   {
     id: "11",
@@ -857,7 +732,7 @@ export const bots: Bot[] = [
     description: "Bot com estratégia de alternância simples de direção e Martingale. Opera no mercado de índices sintéticos (R_100) com contratos de 1 tick de duração.",
     strategy: "Martingale",
     accuracy: 50,
-    downloads: 245,
+    operations: 245, // Changed from downloads to operations
     imageUrl: "https://images.unsplash.com/photo-1639762681057-408e52192e55?q=80&w=500&auto=format&fit=crop",
     createdAt: "2024-04-18",
     updatedAt: "2024-05-13",
@@ -868,14 +743,22 @@ export const bots: Bot[] = [
     drawdown: 28,
     riskLevel: 7,
     tradedAssets: ["R_100"],
-    code: strategyCode.quantumBot
+    code: strategyCode.quantumBot,
+    isFavorite: false,
+    ranking: 2
   }
 ];
+
+// Sort bots by accuracy for ranking
+bots.sort((a, b) => b.accuracy - a.accuracy);
+bots.forEach((bot, index) => {
+  bot.ranking = index + 1;
+});
 
 // Dashboard stats
 export const dashboardStats = {
   totalBots: bots.length,
-  totalDownloads: bots.reduce((sum, bot) => sum + bot.downloads, 0),
+  totalOperations: bots.reduce((sum, bot) => sum + bot.operations, 0), // Changed from downloads to operations
   averageAccuracy: Math.round(bots.reduce((sum, bot) => sum + bot.accuracy, 0) / bots.length),
   activeUsers: 587,
   growth: 12.5
@@ -892,21 +775,10 @@ export const performanceData = {
 export const filterOptions = {
   strategies: [
     { label: "Seguidor de Tendência", value: "Seguidor de Tendência" },
-    { label: "Grid Trading", value: "Grid Trading" },
-    { label: "Retorno à Média", value: "Retorno à Média" },
     { label: "Martingale", value: "Martingale" },
-    { label: "Arbitragem", value: "Arbitragem" },
-    { label: "Breakout", value: "Breakout" },
-    { label: "Scalping", value: "Scalping" },
     { label: "Digital Filter", value: "Digital Filter" },
   ],
   assets: [
-    { label: "BTC/USD", value: "BTC/USD" },
-    { label: "ETH/USD", value: "ETH/USD" },
-    { label: "EUR/USD", value: "EUR/USD" },
-    { label: "GBP/USD", value: "GBP/USD" },
-    { label: "S&P 500", value: "S&P 500" },
-    { label: "Gold", value: "Gold" },
     { label: "R_25", value: "R_25" },
     { label: "R_50", value: "R_50" },
     { label: "R_75", value: "R_75" },

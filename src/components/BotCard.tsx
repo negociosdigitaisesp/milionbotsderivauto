@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, ArrowRight } from 'lucide-react';
+import { ArrowRight, Star, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useToast } from '../hooks/use-toast';
 
 interface BotCardProps {
   id: string;
@@ -10,8 +11,10 @@ interface BotCardProps {
   description: string;
   strategy: string;
   accuracy: number;
-  downloads: number;
+  operations: number;
   imageUrl: string;
+  ranking?: number;
+  isFavorite?: boolean;
 }
 
 const BotCard = ({ 
@@ -20,19 +23,61 @@ const BotCard = ({
   description, 
   strategy, 
   accuracy, 
-  downloads, 
-  imageUrl 
+  operations, 
+  imageUrl,
+  ranking,
+  isFavorite: initialFavorite = false
 }: BotCardProps) => {
+  const [isFavorite, setIsFavorite] = useState(initialFavorite);
+  const { toast } = useToast();
+
+  const toggleFavorite = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFavorite(!isFavorite);
+    
+    toast({
+      title: !isFavorite ? "Bot adicionado aos favoritos!" : "Bot removido dos favoritos!",
+      description: !isFavorite ? `${name} foi adicionado à sua lista de favoritos.` : `${name} foi removido da sua lista de favoritos.`,
+      duration: 3000
+    });
+  };
+
   return (
-    <div className="bot-card">
+    <div className="bot-card relative">
+      {/* Ranking badge */}
+      {ranking && (
+        <div className="absolute top-0 left-0 z-10 bg-gradient-to-r from-primary/90 to-primary/70 text-white px-3 py-1 rounded-br-lg font-semibold shadow-md">
+          #{ranking}
+        </div>
+      )}
+      
+      {/* Favorite button */}
+      <button 
+        onClick={toggleFavorite}
+        className={cn(
+          "absolute top-2 right-2 z-10 bg-black/50 rounded-full p-2 transition-all",
+          "hover:bg-black/70 focus:outline-none"
+        )}
+        aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+      >
+        <Star 
+          size={16} 
+          className={cn(
+            "transition-colors", 
+            isFavorite ? "fill-yellow-400 text-yellow-400" : "text-white"
+          )} 
+        />
+      </button>
+
       <div className="relative mb-3">
         <img 
           src={imageUrl} 
           alt={name}
           className="w-full h-32 object-cover rounded-md"
         />
-        <div className="absolute top-2 right-2 bg-black/70 rounded-full px-2 py-1 text-xs">
-          {downloads} <Download size={12} className="inline ml-1" />
+        <div className="absolute bottom-2 right-2 bg-black/70 rounded-full px-2 py-1 text-xs flex items-center text-white">
+          <Clock size={12} className="mr-1" /> {operations} ops
         </div>
       </div>
       
