@@ -491,8 +491,8 @@ const BotDetailView = ({
                 <span className="text-lg font-semibold">{bot.expectancy}</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Downloads</span>
-                <span className="text-lg font-semibold">{bot.downloads.toLocaleString()}</span>
+                <span className="text-xs text-muted-foreground">Operações</span>
+                <span className="text-lg font-semibold">{bot.operations.toLocaleString()}</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-xs text-muted-foreground">Fator de Lucro</span>
