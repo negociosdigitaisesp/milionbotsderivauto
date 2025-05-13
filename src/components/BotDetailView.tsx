@@ -1,25 +1,23 @@
-
 import React, { useState } from 'react';
 import { ArrowRight, Download, ShieldCheck, ChartLine, Info, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import CodeViewer from './CodeViewer';
 import { Bot } from '../lib/mockData';
 import PerformanceChart from './PerformanceChart';
-
 interface BotDetailViewProps {
   bot: Bot;
 }
-
-const BotDetailView = ({ bot }: BotDetailViewProps) => {
+const BotDetailView = ({
+  bot
+}: BotDetailViewProps) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'riskManagement' | 'instructions'>('overview');
-  
+
   // Risk color based on risk level
   const getRiskColor = (level: number) => {
     if (level <= 3) return 'text-success bg-success/10';
     if (level <= 5) return 'text-warning bg-warning/10';
     return 'text-danger bg-danger/10';
   };
-  
   const getAccuracyColor = (accuracy: number) => {
     if (accuracy >= 60) return 'text-success';
     if (accuracy >= 45) return 'text-warning';
@@ -31,7 +29,6 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
     const data = [];
     // 12 months of data
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    
     let currentValue = baseAccuracy;
     for (let i = 0; i < 12; i++) {
       // Add some slight variation to accuracy (-3 to +3)
@@ -49,7 +46,6 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
   const generateDailyPerformanceData = (baseAccuracy: number) => {
     const data = [];
     let currentValue = baseAccuracy;
-    
     for (let i = 1; i <= 30; i++) {
       // Add more variation for daily data (-5 to +5)
       const variation = Math.floor(Math.random() * 11) - 5;
@@ -64,9 +60,9 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
 
   // Special content for SMA Trend Runner Pro
   const renderBotSpecificOverview = () => {
-    if (bot.id === "8") { // SMA Trend Runner Pro
-      return (
-        <div className="space-y-6">
+    if (bot.id === "8") {
+      // SMA Trend Runner Pro
+      return <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -125,12 +121,7 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
               <div className="mb-8">
                 <h4 className="font-medium mb-4">Precisão por Operação</h4>
                 <div className="grid grid-cols-1 gap-8">
-                  <PerformanceChart 
-                    data={generateDailyPerformanceData(bot.accuracy)} 
-                    isPositive={bot.accuracy > 45}
-                    title="Assertividade Diária"
-                    yAxisLabel="Precisão %" 
-                  />
+                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Assertividade Diária" yAxisLabel="Precisão %" />
                 </div>
                 <p className="mt-4 text-sm text-muted-foreground">
                   A assertividade individual é de <strong>40-55%</strong>, dependendo das condições do mercado.
@@ -140,13 +131,11 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
               </div>
             </CardContent>
           </Card>
-        </div>
-      );
+        </div>;
     }
 
     // Default content for other bots
-    return (
-      <div className="space-y-6">
+    return <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -178,25 +167,19 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             <div className="mb-8">
               <h4 className="font-medium mb-4">Precisão por Operação</h4>
               <div className="grid grid-cols-1 gap-8">
-                <PerformanceChart 
-                  data={generateDailyPerformanceData(bot.accuracy)} 
-                  isPositive={bot.accuracy > 45}
-                  title="Assertividade Diária"
-                  yAxisLabel="Precisão %" 
-                />
+                <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Assertividade Diária" yAxisLabel="Precisão %" />
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>
-    );
+      </div>;
   };
 
   // Special content for SMA Trend Runner Pro risk management
   const renderBotSpecificRiskManagement = () => {
-    if (bot.id === "8") { // SMA Trend Runner Pro
-      return (
-        <Card>
+    if (bot.id === "8") {
+      // SMA Trend Runner Pro
+      return <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <ShieldCheck size={18} /> Gestão de Riscos Recomendada
@@ -293,13 +276,11 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
               </div>
             </div>
           </CardContent>
-        </Card>
-      );
+        </Card>;
     }
 
     // Default risk management for other bots
-    return (
-      <Card>
+    return <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <ShieldCheck size={18} /> Gestão de Riscos Recomendada
@@ -307,10 +288,8 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-secondary/50 p-4 rounded-lg">
-            <h4 className="font-medium mb-2">Parâmetros da Gestão de Riscos</h4>
-            <p className="text-sm text-muted-foreground">
-              Configure os parâmetros de acordo com seu perfil de risco e objetivos de trading.
-            </p>
+            <h4 className="font-medium mb-2">Valor del Operacão </h4>
+            <p className="text-sm text-muted-foreground">Recomendamos colocar 0.35 como valor inicial</p>
           </div>
           
           <div>
@@ -353,15 +332,14 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             </div>
           </div>
         </CardContent>
-      </Card>
-    );
+      </Card>;
   };
 
   // Instructions content
   const renderBotInstructions = () => {
-    if (bot.id === "8") { // SMA Trend Runner Pro
-      return (
-        <Card>
+    if (bot.id === "8") {
+      // SMA Trend Runner Pro
+      return <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Info size={18} /> Instruções de Uso
@@ -440,13 +418,11 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
               </div>
             </div>
           </CardContent>
-        </Card>
-      );
+        </Card>;
     }
 
     // Default instructions for other bots
-    return (
-      <Card>
+    return <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Info size={18} /> Instruções de Uso
@@ -502,12 +478,9 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             </div>
           </div>
         </CardContent>
-      </Card>
-    );
+      </Card>;
   };
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  return <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Column - Main Info */}
       <div className="lg:col-span-2 space-y-6">
         {/* Header Card */}
@@ -555,11 +528,9 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             </div>
             
             <div className="flex flex-wrap gap-2 mb-4">
-              {bot.tradedAssets.map((asset) => (
-                <span key={asset} className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+              {bot.tradedAssets.map(asset => <span key={asset} className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
                   {asset}
-                </span>
-              ))}
+                </span>)}
             </div>
             
             <div className="flex justify-between items-center">
@@ -581,22 +552,13 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
         
         {/* Tab Navigation */}
         <div className="flex border-b border-border">
-          <button 
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 ${activeTab === 'overview' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
-          >
+          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 ${activeTab === 'overview' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}>
             Visão Geral
           </button>
-          <button 
-            onClick={() => setActiveTab('riskManagement')}
-            className={`px-4 py-2 ${activeTab === 'riskManagement' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
-          >
+          <button onClick={() => setActiveTab('riskManagement')} className={`px-4 py-2 ${activeTab === 'riskManagement' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}>
             Gestão de Riscos
           </button>
-          <button 
-            onClick={() => setActiveTab('instructions')}
-            className={`px-4 py-2 ${activeTab === 'instructions' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}
-          >
+          <button onClick={() => setActiveTab('instructions')} className={`px-4 py-2 ${activeTab === 'instructions' ? 'border-b-2 border-primary' : 'text-muted-foreground'}`}>
             Instruções
           </button>
         </div>
@@ -618,12 +580,7 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
             <CardDescription>Desempenho do bot nos últimos 12 meses</CardDescription>
           </CardHeader>
           <CardContent className="h-72">
-            <PerformanceChart 
-              data={generatePerformanceData(bot.accuracy)}
-              isPositive={bot.accuracy > 45}
-              title=""
-              yAxisLabel="Precisão %" 
-            />
+            <PerformanceChart data={generatePerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="" yAxisLabel="Precisão %" />
           </CardContent>
         </Card>
         
@@ -636,27 +593,21 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
               <div>
                 <h4 className="font-medium text-sm mb-1">Mercados</h4>
                 <p className="text-xs text-muted-foreground">
-                  {bot.id === "8" ? 
-                    "Otimizado especificamente para o índice sintético R_100 da Deriv." : 
-                    `Otimizado para ${bot.tradedAssets.join(', ')}.`}
+                  {bot.id === "8" ? "Otimizado especificamente para o índice sintético R_100 da Deriv." : `Otimizado para ${bot.tradedAssets.join(', ')}.`}
                 </p>
               </div>
               
               <div>
                 <h4 className="font-medium text-sm mb-1">Timeframes</h4>
                 <p className="text-xs text-muted-foreground">
-                  {bot.id === "8" ? 
-                    "Ultra curto prazo (1-5 ticks). Ideal para contratos Run High/Run Low." : 
-                    "Múltiplos timeframes, de curto a médio prazo."}
+                  {bot.id === "8" ? "Ultra curto prazo (1-5 ticks). Ideal para contratos Run High/Run Low." : "Múltiplos timeframes, de curto a médio prazo."}
                 </p>
               </div>
               
               <div>
                 <h4 className="font-medium text-sm mb-1">Capital Recomendado</h4>
                 <p className="text-xs text-muted-foreground">
-                  {bot.id === "8" ? 
-                    "Mínimo 20x o valor do Stop Loss escolhido, devido ao sistema Martingale." : 
-                    "Depende da sua tolerância ao risco e configurações."}
+                  {bot.id === "8" ? "Mínimo 20x o valor do Stop Loss escolhido, devido ao sistema Martingale." : "Depende da sua tolerância ao risco e configurações."}
                 </p>
               </div>
             </div>
@@ -669,8 +620,7 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
-              {bot.id === "8" ? (
-                <>
+              {bot.id === "8" ? <>
                 <li className="flex justify-between items-center">
                   <span className="text-sm">MovingAverage Crossover Pro</span>
                   <a href="/bot/1" className="text-xs text-primary hover:text-primary/80 flex items-center gap-1">
@@ -683,9 +633,7 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
                     Ver <ArrowRight size={12} />
                   </a>
                 </li>
-                </>
-              ) : (
-                <>
+                </> : <>
                 <li className="flex justify-between items-center">
                   <span className="text-sm">Martingale Recovery</span>
                   <a href="#" className="text-xs text-primary hover:text-primary/80 flex items-center gap-1">
@@ -698,14 +646,11 @@ const BotDetailView = ({ bot }: BotDetailViewProps) => {
                     Ver <ArrowRight size={12} />
                   </a>
                 </li>
-                </>
-              )}
+                </>}
             </ul>
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default BotDetailView;
