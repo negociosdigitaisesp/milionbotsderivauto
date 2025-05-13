@@ -770,6 +770,121 @@ function onTradeResult(result) {
 `
 };
 
+// Código para o NexusBot
+const nexusBotCode = `// NexusBot - Análise Sequencial de Ticks para Rise/Fall com Venda Antecipada
+function initialize() {
+  // Parâmetros da estratégia
+  this.initialStake = 0.35;        // Valor inicial da ordem
+  this.stopLoss = 10.0;            // Limite de perda máximo
+  this.targetProfit = 5.0;         // Meta de lucro
+  this.contractDuration = 5;       // Duração do contrato em minutos
+  
+  // Variáveis de rastreamento
+  this.totalProfit = 0;
+  this.lastTradeResult = null;
+  this.tickHistory = [];
+}
+
+function onTick(tick) {
+  // Verificar se atingimos condições de parada
+  if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
+    this.stop(`Meta atingida: ${this.totalProfit}`);
+    return;
+  }
+  
+  // Adicionar o tick atual ao histórico
+  this.tickHistory.push(tick.close);
+  
+  // Manter apenas os últimos 9 ticks
+  if (this.tickHistory.length > 9) {
+    this.tickHistory.shift();
+  }
+  
+  // Precisamos de pelo menos 5 ticks para análise
+  if (this.tickHistory.length < 5) {
+    return;
+  }
+  
+  // Analisar a sequência de ticks
+  const tick1 = this.tickHistory[this.tickHistory.length - 1]; // Tick mais recente
+  const tick2 = this.tickHistory[this.tickHistory.length - 2];
+  const tick3 = this.tickHistory[this.tickHistory.length - 3];
+  const tick4 = this.tickHistory[this.tickHistory.length - 4];
+  const tick5 = this.tickHistory[this.tickHistory.length - 5];
+  
+  // Sinal de compra PUT (Desce)
+  if (tick5 > tick4 && tick4 > tick3 && tick3 > tick2 && tick1 < tick2) {
+    // Sequência de alta seguida por uma possível reversão
+    const stakeAmount = this.calculateStake();
+    this.buyPut(tick.symbol, stakeAmount, this.contractDuration * 60); // Converter minutos para segundos
+    
+    // Registrar a operação
+    console.log(`Sinal PUT detectado. Stake: ${stakeAmount}`);
+  }
+  // Sinal de compra CALL (Sobe)
+  else if (tick5 < tick4 && tick4 < tick3 && tick3 < tick2 && tick1 > tick2) {
+    // Sequência de baixa seguida por uma possível reversão
+    const stakeAmount = this.calculateStake();
+    this.buyCall(tick.symbol, stakeAmount, this.contractDuration * 60); // Converter minutos para segundos
+    
+    // Registrar a operação
+    console.log(`Sinal CALL detectado. Stake: ${stakeAmount}`);
+  }
+  else {
+    // Nenhuma sequência identificada, aguardar
+    setTimeout(() => {
+      // Reanalisar após 3.8 segundos
+      this.analyzeAgain();
+    }, 3800);
+  }
+}
+
+function analyzeAgain() {
+  // Função para reanálise após espera
+  console.log("Reanalisando sequência de ticks...");
+  // A lógica real seria executada no próximo onTick
+}
+
+function checkSell(contract) {
+  // Verificar se o contrato está disponível para venda
+  if (contract.canBeSold) {
+    // Calcular o lucro atual
+    const currentProfit = contract.profit;
+    const sellThreshold = (contract.buyPrice / 100) * 5; // 5% do valor da aposta
+    
+    // Vender se o lucro for maior que o limite
+    if (currentProfit > sellThreshold) {
+      this.sellContract(contract.id);
+      console.log(`Contrato vendido antecipadamente. Lucro: ${currentProfit}`);
+    }
+  }
+}
+
+function calculateStake() {
+  // Sistema Martingale específico
+  if (this.lastTradeResult && this.lastTradeResult.profit < 0) {
+    if (this.totalProfit >= -1.4) {
+      // Pequenas perdas - usar stake fixo
+      return 0.35;
+    } else {
+      // Grandes perdas - recuperação com fator 0.35
+      return this.totalProfit * -0.35;
+    }
+  }
+  
+  // Padrão ou após vitória
+  return this.initialStake;
+}
+
+function onTradeResult(result) {
+  this.lastTradeResult = result;
+  this.totalProfit += result.profit;
+  
+  // Registrar o resultado
+  console.log(`Operação concluída: ${result.type}, Lucro: ${result.profit}, Total: ${this.totalProfit}`);
+}
+`;
+
 // Bot mock data
 export const bots: Bot[] = [
   {
@@ -876,6 +991,48 @@ export const bots: Bot[] = [
     code: strategyCode.xbot,
     isFavorite: false,
     ranking: 5
+  },
+  {
+    id: "13",
+    name: "AlphaBot",
+    description: "Estratégia automatizada para o Índice Sintético R_100 na Deriv. Opera com contratos de Dígitos Over/Under, baseando suas previsões na análise dos últimos 10 dígitos de ticks anteriores (convertidos para um padrão binário). Utiliza um Martingale agressivo para recuperação de perdas.",
+    strategy: "Digital Filter",
+    accuracy: 48,
+    operations: 215,
+    imageUrl: "https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-05-15",
+    updatedAt: "2024-05-20",
+    version: "1.0.0",
+    author: "AlphaTech Trading",
+    profitFactor: 1.3,
+    expectancy: 0.32,
+    drawdown: 32,
+    riskLevel: 8,
+    tradedAssets: ["R_100"],
+    code: strategyCode.contrarian,
+    isFavorite: false,
+    ranking: 3
+  },
+  {
+    id: "14",
+    name: "NexusBot",
+    description: "O NexusBot opera no Índice Sintético RDBEAR (Random Daily Bear Market Index) da Deriv. Sua estratégia é baseada na análise sequencial de múltiplos ticks anteriores para identificar um padrão de alta ou baixa, realizando operações Rise/Fall (Sobe/Desce) com duração de 5 minutos. Possui um sistema de venda antecipada e um Martingale específico para recuperação de perdas.",
+    strategy: "Análise Sequencial",
+    accuracy: 47,
+    operations: 185,
+    imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-05-25",
+    updatedAt: "2024-05-25",
+    version: "1.0.0",
+    author: "NexusTech Trading",
+    profitFactor: 1.4,
+    expectancy: 0.36,
+    drawdown: 28,
+    riskLevel: 6,
+    tradedAssets: ["RDBEAR"],
+    code: nexusBotCode,
+    isFavorite: false,
+    ranking: 4
   }
 ];
 
@@ -907,11 +1064,13 @@ export const filterOptions = {
     { label: "Seguidor de Tendência", value: "Seguidor de Tendência" },
     { label: "Martingale", value: "Martingale" },
     { label: "Digital Filter", value: "Digital Filter" },
+    { label: "Análise Sequencial", value: "Análise Sequencial" },
   ],
   assets: [
     { label: "R_25", value: "R_25" },
     { label: "R_50", value: "R_50" },
     { label: "R_75", value: "R_75" },
     { label: "R_100", value: "R_100" },
+    { label: "RDBEAR", value: "RDBEAR" },
   ]
 };
