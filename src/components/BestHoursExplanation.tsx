@@ -1,12 +1,8 @@
-
 import React, { useState } from 'react';
 import { Clock } from 'lucide-react';
-
 const BestHoursExplanation = () => {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  return (
-    <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg p-6 animate-fade-in">
+  return <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg p-6 animate-fade-in">
       <div className="flex items-center gap-3 mb-3">
         <div className="bg-primary/20 p-3 rounded-full">
           <Clock className="text-primary" size={24} />
@@ -24,27 +20,24 @@ const BestHoursExplanation = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
           <div className="bg-background rounded-lg p-4 shadow-sm border border-border">
             <h3 className="font-medium mb-2 text-primary">1. Teste na Conta Demo</h3>
-            <p className="text-sm">Sempre inicie testando o bot na conta demonstração para observar seu comportamento atual e 
-            familiarizar-se com seu funcionamento antes de considerar usar em conta real.</p>
+            <p className="text-sm">Sempre inicie testando o bot na conta demonstração para observar se está tendo uma boa assertividade. Se estiver assertivo, coloque na conta real. Caso contrário volte outro horário.</p>
           </div>
 
           <div className="bg-background rounded-lg p-4 shadow-sm border border-border">
             <h3 className="font-medium mb-2 text-primary">2. Analise o Cenário</h3>
-            <p className="text-sm">Observe se o bot está apresentando uma sequência positiva ou negativa. Mercados aleatórios como 
-            o R_100 podem apresentar fases mais favoráveis a certos algoritmos.</p>
+            <p className="text-sm">Observe se o bot está apresentando uma sequência positiva ou negativa. Caso o robô esteja com uma sequência positiva, mude para a real caso esteja negativa volte outro horário.</p>
           </div>
 
           <div className="bg-background rounded-lg p-4 shadow-sm border border-border">
             <h3 className="font-medium mb-2 text-primary">3. Gestão de Risco</h3>
-            <p className="text-sm">Mais importante que o horário é definir limites claros de perdas (Stop Loss) e ganhos (Stop Win) 
-            antes de iniciar qualquer operação automatizada.</p>
+            <p className="text-sm">Mais importante que o horário é definir limites claros de perdas (Stop Loss) e ganhos (Stop Win) antes de iniciar qualquer operação automatizada. Simule sua gestão de riscos na conta demo antes de iniciar na real. </p>
           </div>
         </div>
 
         <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
           <h3 className="font-medium mb-2 text-primary flex items-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
             Dica Profissional
           </h3>
@@ -66,27 +59,12 @@ const BestHoursExplanation = () => {
         </div>
       </div>
       
-      <button 
-        onClick={() => setIsExpanded(!isExpanded)} 
-        className="mt-4 text-primary hover:text-primary/80 text-sm font-medium flex items-center mx-auto"
-      >
+      <button onClick={() => setIsExpanded(!isExpanded)} className="mt-4 text-primary hover:text-primary/80 text-sm font-medium flex items-center mx-auto">
         {isExpanded ? 'Mostrar menos' : 'Saiba mais sobre horários'}
-        <svg 
-          width="20" 
-          height="20" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          className={`ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-        >
-          <path d="M19 9l-7 7-7-7"/>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+          <path d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-    </div>
-  );
+    </div>;
 };
-
 export default BestHoursExplanation;
