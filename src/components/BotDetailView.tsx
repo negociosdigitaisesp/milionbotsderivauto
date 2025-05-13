@@ -433,21 +433,13 @@ const BotDetailView = ({
             <h3 className="font-medium">Como utilizar o {bot.name}</h3>
             
             <ol className="list-decimal list-inside space-y-4 text-sm">
-              <li className="p-3 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Defina sua Meta de Lucro</span>
-                <p className="mt-1 text-muted-foreground pl-5">Configure seu objetivo de lucro para a sessão de trading. </p>
-              </li>
+              
+              
+              
               
               <li className="p-3 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Defina o Stop Loss</span>
-                <p className="mt-1 text-muted-foreground pl-5">
-                  Configure um limite de perdas conforme seu perfil de risco.
-                </p>
-              </li>
-              
-              <li className="p-3 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Defina o Valor Inicial</span>
-                <p className="mt-1 text-muted-foreground pl-5">Recomendamos colocar 0.35</p>
+                <span className="font-medium">Gestão de Riscos Pré-Configurada</span>
+                <p className="mt-1 text-muted-foreground pl-5">O robô já vem com stop loss e stop win automáticos.</p>
               </li>
               
               <li className="p-3 bg-secondary/20 rounded-lg">
