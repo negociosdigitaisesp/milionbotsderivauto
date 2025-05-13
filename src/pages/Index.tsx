@@ -1,205 +1,137 @@
-
-import React, { useState } from 'react';
-import { Bot, ChartLine, Clock, User } from 'lucide-react';
-import SearchInput from '../components/SearchInput';
-import StatCard from '../components/StatCard';
-import BotCard from '../components/BotCard';
-import FilterBar from '../components/FilterBar';
-import PerformanceChart from '../components/PerformanceChart';
-import { bots, dashboardStats, performanceData, filterOptions } from '../lib/mockData';
-import BestHoursExplanation from '../components/BestHoursExplanation';
+import React, { useState, useMemo } from 'react';
+import { Bot } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useBots } from '@/hooks/useBots';
+import BotCard from '@/components/BotCard';
+import SearchInput from '@/components/SearchInput';
+import FilterBar, { FilterOption } from '@/components/FilterBar';
 
 const Index = () => {
-  const [filteredBots, setFilteredBots] = useState(bots);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentStrategy, setCurrentStrategy] = useState('');
-  const [currentAsset, setCurrentAsset] = useState('');
-  const [sortBy, setSortBy] = useState('performance');
-  const [showRanking, setShowRanking] = useState(true);
+  const { data: bots, isLoading } = useBots();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<FilterOption[]>([
+    { id: 'all', label: 'Todos', active: true },
+    { id: 'highSuccess', label: 'Alta Assertividade', active: false },
+    { id: 'favorites', label: 'Favoritos', active: false },
+  ]);
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
+  const handleFilterChange = (updatedFilters: FilterOption[]) => {
+    setFilters(updatedFilters);
+  };
+
+  const handleFavoriteToggle = (botId: number) => {
+    // This would typically update the server/state
+    console.log(`Toggle favorite for bot ${botId}`);
+  };
+
+  const filteredBots = useMemo(() => {
+    if (!bots) return [];
     
-    filterBots(term, currentStrategy, currentAsset, sortBy);
-  };
-
-  const handleStrategyChange = (strategy: string) => {
-    setCurrentStrategy(strategy);
-    filterBots(searchTerm, strategy, currentAsset, sortBy);
-  };
-
-  const handleAssetChange = (asset: string) => {
-    setCurrentAsset(asset);
-    filterBots(searchTerm, currentStrategy, asset, sortBy);
-  };
-
-  const handleSortChange = (sort: string) => {
-    setSortBy(sort);
-    filterBots(searchTerm, currentStrategy, currentAsset, sort);
-  };
-
-  const filterBots = (term: string, strategy: string, asset: string, sort: string) => {
-    let result = bots.filter(bot => {
-      return (
-        (term === '' || bot.name.toLowerCase().includes(term.toLowerCase()) || 
-         bot.description.toLowerCase().includes(term.toLowerCase())) &&
-        (strategy === '' || bot.strategy === strategy) &&
-        (asset === '' || bot.tradedAssets.includes(asset))
+    let result = [...bots];
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(bot => 
+        bot.name.toLowerCase().includes(query) || 
+        bot.description.toLowerCase().includes(query)
       );
-    });
-    
-    // Sort the results
-    switch (sort) {
-      case 'performance':
-        result = result.sort((a, b) => b.accuracy - a.accuracy);
-        break;
-      case 'newest':
-        result = result.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        break;
-      case 'operations':
-        result = result.sort((a, b) => b.operations - a.operations);
-        break;
-      default:
-        break;
     }
     
-    // Update rankings based on accuracy after filtering
-    if (showRanking) {
-      result = [...result].map((bot, index) => ({
-        ...bot,
-        ranking: index + 1
-      }));
+    // Apply category filters
+    const activeFilters = filters.filter(f => f.active).map(f => f.id);
+    
+    if (activeFilters.includes('highSuccess')) {
+      result = result.filter(bot => bot.successRate >= 70);
     }
     
-    setFilteredBots(result);
-  };
+    if (activeFilters.includes('favorites')) {
+      result = result.filter(bot => bot.isFavorite);
+    }
+    
+    return result;
+  }, [bots, searchQuery, filters]);
+
+  const topBots = useMemo(() => {
+    if (!bots) return [];
+    return [...bots]
+      .sort((a, b) => b.successRate - a.successRate)
+      .slice(0, 3);
+  }, [bots]);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="mb-6 flex justify-between items-center">
+          <div className="h-8 w-48 bg-muted rounded animate-pulse"></div>
+          <div className="h-10 w-64 bg-muted rounded animate-pulse"></div>
+        </div>
+        <div className="mb-8">
+          <div className="h-7 w-40 bg-muted rounded animate-pulse mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-64 bg-muted rounded animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background animate-fade-in">
-      {/* Header Section */}
-      <section className="px-6 pt-6 pb-4">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard de Bots de Trading</h1>
-            <p className="text-muted-foreground">Gerencie e analise bots de trading</p>
-          </div>
-          <SearchInput onChange={handleSearch} />
+    <div className="container mx-auto p-6">
+      <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-3xl font-bold">Bots de Trading</h1>
+        <div className="flex gap-2">
+          <SearchInput value={searchQuery} onChange={setSearchQuery} />
+          <FilterBar filters={filters} onFilterChange={handleFilterChange} />
         </div>
-      </section>
-      
-      {/* Stats Cards Section */}
-      <section className="px-6 py-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard 
-            title="Total de Bots"
-            value={dashboardStats.totalBots}
-            icon={<Bot size={24} />}
-            trend={{ value: 8.3, isPositive: true }}
-          />
-          <StatCard 
-            title="Operações"
-            value={dashboardStats.totalOperations}
-            icon={<Clock size={24} />}
-            trend={{ value: 12.5, isPositive: true }}
-          />
-          <StatCard 
-            title="Assertividade Média"
-            value={`${dashboardStats.averageAccuracy}%`}
-            icon={<ChartLine size={24} />}
-            trend={{ value: 3.2, isPositive: true }}
-          />
-          <StatCard 
-            title="Usuários Ativos"
-            value={dashboardStats.activeUsers}
-            icon={<User size={24} />}
-            trend={{ value: 5.1, isPositive: true }}
-          />
-        </div>
-      </section>
-      
-      {/* Charts Section */}
-      <section className="px-6 py-4">
-        <h2 className="text-xl font-semibold mb-4">Analytics</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <PerformanceChart 
-            data={performanceData.profitLoss} 
-            isPositive={true}
-            title="Performance (P&L)"
-            yAxisLabel="Valor ($)"
-          />
-          <PerformanceChart 
-            data={performanceData.accuracy} 
-            isPositive={true}
-            title="Assertividade"
-            yAxisLabel="%"
-          />
-          <PerformanceChart 
-            data={performanceData.volatility} 
-            isPositive={false}
-            title="Volatilidade"
-            yAxisLabel="Índice"
-          />
-        </div>
-      </section>
-      
-      {/* Best Hours Explanation */}
-      <section className="px-6 py-4">
-        <BestHoursExplanation />
-      </section>
-      
-      {/* Bots Library Section */}
-      <section className="px-6 py-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Ranking de Bots</h2>
-          <div className="flex items-center gap-2">
-            <label htmlFor="show-ranking" className="text-sm">
-              Mostrar Ranking
-            </label>
-            <input 
-              type="checkbox" 
-              id="show-ranking" 
-              checked={showRanking} 
-              onChange={() => setShowRanking(!showRanking)} 
-              className="rounded border-gray-300 text-primary focus:ring-primary"
-            />
-          </div>
-        </div>
-        
-        <FilterBar 
-          strategies={filterOptions.strategies}
-          assets={filterOptions.assets}
-          onStrategyChange={handleStrategyChange}
-          onAssetChange={handleAssetChange}
-          onSortChange={handleSortChange}
-        />
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filteredBots.length > 0 ? (
-            filteredBots.map(bot => (
+      </div>
+
+      {/* Ranking section */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Ranking de Bots</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {topBots.map((bot, index) => (
+            <div key={bot.id} className="relative">
+              <div 
+                className={cn(
+                  "absolute -top-3 -left-3 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                  index === 0 ? "bg-yellow-400 text-yellow-900" : 
+                  index === 1 ? "bg-gray-300 text-gray-700" : 
+                  "bg-amber-700 text-amber-100"
+                )}
+              >
+                {index + 1}
+              </div>
               <BotCard 
-                key={bot.id}
-                id={bot.id}
-                name={bot.name}
-                description={bot.description}
-                strategy={bot.strategy}
-                accuracy={bot.accuracy}
-                operations={bot.operations}
-                imageUrl={bot.imageUrl}
-                ranking={showRanking ? bot.ranking : undefined}
-                isFavorite={bot.isFavorite}
+                bot={bot} 
+                onFavoriteToggle={handleFavoriteToggle}
               />
-            ))
-          ) : (
-            <div className="col-span-full py-12 text-center text-muted-foreground">
-              <p>Nenhum bot encontrado com os filtros atuais.</p>
-              <p className="mt-2">Tente ajustar os filtros ou pesquisar por outros termos.</p>
             </div>
-          )}
+          ))}
         </div>
-      </section>
+      </div>
+
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Todos os Bots</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredBots.map(bot => (
+            <BotCard 
+              key={bot.id} 
+              bot={bot} 
+              onFavoriteToggle={handleFavoriteToggle}
+            />
+          ))}
+        </div>
+        {filteredBots.length === 0 && (
+          <div className="text-center py-12 bg-muted/30 rounded-lg">
+            <Bot className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-medium text-foreground mb-2">Nenhum bot encontrado</h2>
+            <p className="text-muted-foreground">Tente ajustar seus filtros ou busca para encontrar o que procura.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
