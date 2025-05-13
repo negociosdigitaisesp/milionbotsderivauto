@@ -658,10 +658,119 @@ function onTradeResult(result) {
   // Log the result
   console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}, Next: \${this.nextCondition}\`);
 }
+`,
+
+  xbot: `// XBot - Digit Filter & SMA Strategy with aggressive Martingale
+function initialize() {
+  // Define indicators
+  this.fastSMA = SMA(1);  // Current price
+  this.slowSMA = SMA(20); // 20-period SMA for trend identification
+  
+  // Strategy parameters
+  this.initialStake = 0.35;  // Initial stake amount
+  this.stopLoss = 20.0;      // Max acceptable loss
+  this.targetProfit = 20.0;  // Expected profit
+  this.ticksDuration = 5;    // Contract duration in ticks
+  
+  // Tracking variables
+  this.totalProfit = 0;
+  this.lastTradeResult = null;
+  this.waitingForSignal = false;
+}
+
+function onTick(tick) {
+  // Check if we've reached stop conditions
+  if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
+    this.stop(\`Target reached: \${this.totalProfit}\`);
+    return;
+  }
+  
+  if (this.waitingForSignal) {
+    return; // Skip this tick if we're waiting for signal confirmation
+  }
+  
+  // Get the tick price as a string for digit analysis
+  const priceStr = tick.close.toString();
+  
+  // Primary filter: Check for digit '7' at specific positions
+  const firstSevenIndex = priceStr.indexOf('7');
+  
+  // Check if '7' is at position 6 OR (position 6 AND position 4)
+  // Note: The second condition is logically impossible as the first occurrence can't be in two places
+  if (firstSevenIndex !== 6) {
+    return; // Skip this tick if digit filter condition isn't met
+  }
+  
+  // Calculate indicator values for secondary confirmation
+  const fastValue = this.fastSMA.calculate(tick.close);
+  const slowValue = this.slowSMA.calculate(tick.close);
+  
+  // SMA crossover logic - Both conditions lead to CALL (this appears to be a logical flaw)
+  if (fastValue > slowValue) {
+    // Uptrend - Buy CALL
+    this.waitingForSignal = true;
+    
+    // Wait 1 second for confirmation
+    setTimeout(() => {
+      // Double-check the signal
+      const currentFast = this.fastSMA.calculate(this.getLatestTick().close);
+      const currentSlow = this.slowSMA.calculate(this.getLatestTick().close);
+      
+      if (currentFast > currentSlow) {
+        // Signal confirmed - Buy CALL
+        const stakeAmount = this.calculateStake();
+        this.buyCall(tick.symbol, stakeAmount, this.ticksDuration);
+      }
+      this.waitingForSignal = false;
+    }, 1000);
+  } 
+  else if (fastValue < slowValue) {
+    // Downtrend - Still Buy CALL (logical flaw in the strategy)
+    this.waitingForSignal = true;
+    
+    // Wait 1 second for confirmation
+    setTimeout(() => {
+      // Double-check the signal
+      const currentFast = this.fastSMA.calculate(this.getLatestTick().close);
+      const currentSlow = this.slowSMA.calculate(this.getLatestTick().close);
+      
+      if (currentFast < currentSlow) {
+        // Signal confirmed - But still buying CALL (logical flaw)
+        const stakeAmount = this.calculateStake();
+        this.buyCall(tick.symbol, stakeAmount, this.ticksDuration);
+      }
+      this.waitingForSignal = false;
+    }, 1000);
+  }
+}
+
+function calculateStake() {
+  // Extremely aggressive Martingale recovery system
+  if (this.lastTradeResult && this.lastTradeResult.profit < 0) {
+    if (this.totalProfit >= -1) {
+      // Small overall loss - use fixed stake
+      return 0.35;
+    } else {
+      // Significant loss - extremely aggressive recovery (1.07 multiplier)
+      return this.totalProfit * -1.07;
+    }
+  }
+  
+  // Default or after win
+  return this.initialStake;
+}
+
+function onTradeResult(result) {
+  this.lastTradeResult = result;
+  this.totalProfit += result.profit;
+  
+  // Log the result
+  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+}
 `
 };
 
-// Bot mock data - Filtered to remove specific bots
+// Bot mock data
 export const bots: Bot[] = [
   {
     id: "8",
@@ -746,6 +855,27 @@ export const bots: Bot[] = [
     code: strategyCode.quantumBot,
     isFavorite: false,
     ranking: 2
+  },
+  {
+    id: "12",
+    name: "XBot",
+    description: "Bot que combina análise específica do dígito '7' no preço do tick com estratégia de cruzamento de SMAs para operações Rise/Fall, mas sempre comprando CALL. Utiliza um sistema Martingale extremamente agressivo com fator -1.07.",
+    strategy: "Digital Filter",
+    accuracy: 40,
+    operations: 178,
+    imageUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=500&auto=format&fit=crop",
+    createdAt: "2024-05-12",
+    updatedAt: "2024-05-13",
+    version: "1.0.0",
+    author: "XTech Trading",
+    profitFactor: 1.2,
+    expectancy: 0.25,
+    drawdown: 35,
+    riskLevel: 9,
+    tradedAssets: ["R_100"],
+    code: strategyCode.xbot,
+    isFavorite: false,
+    ranking: 5
   }
 ];
 
