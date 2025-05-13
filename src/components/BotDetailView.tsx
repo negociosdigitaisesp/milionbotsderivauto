@@ -465,10 +465,7 @@ const BotDetailView = ({
             
             <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
               <h4 className="font-medium mb-2 text-warning">Importante</h4>
-              <p className="text-sm">
-                Todas as operações automatizadas envolvem risco. Teste o bot em uma conta
-                de demonstração antes de utilizar com capital real.
-              </p>
+              <p className="text-sm">Nunca ative na conta real, sem testar na conta demonstração. Todas as operações automatizadas envolvem risco. Retornos passados não garantem retorno futuros. Teste o bot em uma conta de demonstração antes de utilizar com capital real.</p>
             </div>
           </div>
         </CardContent>
