@@ -434,10 +434,8 @@ const BotDetailView = ({
             
             <ol className="list-decimal list-inside space-y-4 text-sm">
               <li className="p-3 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Configure o valor base da aposta</span>
-                <p className="mt-1 text-muted-foreground pl-5">
-                  Defina o valor inicial de acordo com o tamanho da sua banca e tolerância ao risco.
-                </p>
+                <span className="font-medium">Defina sua Meta de Lucro</span>
+                <p className="mt-1 text-muted-foreground pl-5">Configure seu objetivo de lucro para a sessão de trading. </p>
               </li>
               
               <li className="p-3 bg-secondary/20 rounded-lg">
@@ -448,17 +446,13 @@ const BotDetailView = ({
               </li>
               
               <li className="p-3 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Defina o Stop Win</span>
-                <p className="mt-1 text-muted-foreground pl-5">
-                  Configure seu objetivo de lucro para a sessão de trading.
-                </p>
+                <span className="font-medium">Defina o Valor Inicial</span>
+                <p className="mt-1 text-muted-foreground pl-5">Recomendamos colocar 0.35</p>
               </li>
               
               <li className="p-3 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Escolha o mercado adequado</span>
-                <p className="mt-1 text-muted-foreground pl-5">
-                  Selecione um dos mercados recomendados para este bot.
-                </p>
+                <span className="font-medium">Ative na Conta Demonstração</span>
+                <p className="mt-1 text-muted-foreground pl-5">Ative na conta demo primeiro, se após ativar na conta demo o robô estiver com uma alta taxa de assertividade. Significa que está em uma boa sessão de mercado e você pode migrar para a real.</p>
               </li>
               
               <li className="p-3 bg-secondary/20 rounded-lg">
