@@ -24,7 +24,7 @@ const Auth = () => {
       if (isSignIn) {
         const { error, success } = await signIn(email, password);
         if (error) {
-          toast.error('Error al iniciar sesión: ' + error.message);
+          toast.error('Error al iniciar sesión: ' + (error.message || 'Verifica tus credenciales'));
         } else if (success) {
           toast.success('¡Inicio de sesión exitoso!');
           navigate('/');
@@ -32,14 +32,14 @@ const Auth = () => {
       } else {
         const { error, success } = await signUp(email, password);
         if (error) {
-          toast.error('Error al crear cuenta: ' + error.message);
+          toast.error('Error al crear cuenta: ' + (error.message || 'Verifica los datos ingresados'));
         } else if (success) {
           toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
           setIsSignIn(true);
         }
       }
     } catch (error: any) {
-      toast.error('Ocurrió un error: ' + error.message);
+      toast.error('Ocurrió un error: ' + (error.message || 'Intenta nuevamente'));
     } finally {
       setLoading(false);
     }
