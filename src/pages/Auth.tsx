@@ -24,22 +24,22 @@ const Auth = () => {
       if (isSignIn) {
         const { error, success } = await signIn(email, password);
         if (error) {
-          toast.error('Erro ao fazer login: ' + error.message);
+          toast.error('Error al iniciar sesión: ' + error.message);
         } else if (success) {
-          toast.success('Login realizado com sucesso!');
+          toast.success('¡Inicio de sesión exitoso!');
           navigate('/');
         }
       } else {
         const { error, success } = await signUp(email, password);
         if (error) {
-          toast.error('Erro ao criar conta: ' + error.message);
+          toast.error('Error al crear cuenta: ' + error.message);
         } else if (success) {
-          toast.success('Conta criada! Por favor verifique seu email para confirmação.');
+          toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
           setIsSignIn(true);
         }
       }
     } catch (error: any) {
-      toast.error('Ocorreu um erro: ' + error.message);
+      toast.error('Ocurrió un error: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -55,14 +55,14 @@ const Auth = () => {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-foreground">Million Bots</h1>
             <p className="text-muted-foreground mt-2">
-              {isSignIn ? 'Entre na sua conta' : 'Crie sua conta'}
+              {isSignIn ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
-                Email
+                Correo electrónico
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -71,7 +71,7 @@ const Auth = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
+                  placeholder="tu@correo.com"
                   className="pl-10"
                   required
                 />
@@ -80,7 +80,7 @@ const Auth = () => {
 
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">
-                Senha
+                Contraseña
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -111,12 +111,12 @@ const Auth = () => {
               {loading ? (
                 <span className="flex items-center justify-center">
                   <span className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
-                  Carregando...
+                  Cargando...
                 </span>
               ) : isSignIn ? (
-                'Entrar'
+                'Iniciar sesión'
               ) : (
-                'Criar conta'
+                'Crear cuenta'
               )}
             </Button>
           </form>
@@ -128,8 +128,8 @@ const Auth = () => {
               className="text-primary hover:text-primary/80 font-medium"
             >
               {isSignIn
-                ? 'Não tem uma conta? Crie agora'
-                : 'Já tem uma conta? Faça login'}
+                ? '¿No tienes una cuenta? Regístrate ahora'
+                : '¿Ya tienes una cuenta? Inicia sesión'}
             </button>
           </div>
         </div>
