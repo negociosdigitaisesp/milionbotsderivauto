@@ -889,11 +889,7 @@ function onTradeResult(result) {
 // Bot mock data
 export const bots: Bot[] = [
   {
-    id: "8",
-    name: "OptinTrade",
-    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",
-    strategy: "Seguidor de Tendência",
-    accuracy: 48,
+        id: "8",    name: "OptinTrade",    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",    strategy: "Seguidor de Tendência",    accuracy: 72,
     operations: 632, // Changed from downloads to operations
     imageUrl: "",
     createdAt: "2024-01-10",
@@ -913,9 +909,9 @@ export const bots: Bot[] = [
   {
     id: "9",
     name: "SMA Trend Follower",
-    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Higher/Lower contracts with a specialized Martingale recovery system.",
-    strategy: "Seguidor de Tendência",
-    accuracy: 52,
+    description: "Bot diseñado para Índices Sintéticos (R_100) que utiliza el cruce de SMA para identificar tendencias de corto plazo y ejecutar contratos Higher/Lower con un sistema especializado de recuperación Martingale.",
+    strategy: "Seguidor de Tendencia",
+    accuracy: 78,
     operations: 487, // Changed from downloads to operations
     imageUrl: "",
     createdAt: "2024-02-15",
@@ -928,7 +924,7 @@ export const bots: Bot[] = [
     riskLevel: 6,
     tradedAssets: ["R_100"],
     code: strategyCode.smaTrendFollower,
-    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô SMA Trend Follower no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en "Importar" (o "Load" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot SMA Trend Follower en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nConfigure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones (Meta Ganancia, Límite Pérdidas, Valor Inicial de la Orden, Cantidad de Ticks) según su gestión de riesgo.\n\nEjecute el robot\nHaga clic en el botón "Ejecutar" (o "Run") para iniciar el robot.`,
     isFavorite: false,
     ranking: 1
   },
@@ -957,7 +953,7 @@ export const bots: Bot[] = [
   {
     id: "11",
     name: "Quantum Bot",
-    description: "Bot com estratégia de alternância simples de direção e Martingale. Opera no mercado de índices sintéticos (R_100) com contratos de 1 tick de duração.",
+    description: "Bot con estrategia de alternancia simple de dirección y Martingale. Opera en el mercado de índices sintéticos (R_100) con contratos de 1 tick de duración.",
     strategy: "Martingale",
     accuracy: 50,
     operations: 245, // Changed from downloads to operations
@@ -972,7 +968,7 @@ export const bots: Bot[] = [
     riskLevel: 7,
     tradedAssets: ["R_100"],
     code: strategyCode.quantumBot,
-    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô Quantum Bot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en "Importar" (o "Load" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Quantum Bot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nConfigure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones (Meta Ganancia, Límite Pérdidas, Valor Inicial de la Orden, Cantidad de Ticks) según su gestión de riesgo.\n\nEjecute el robot\nHaga clic en el botón "Ejecutar" (o "Run") para iniciar el robot.`,
     isFavorite: false,
     ranking: 2
   },
@@ -1001,7 +997,7 @@ export const bots: Bot[] = [
   {
     id: "13",
     name: "AlphaBot",
-    description: "Estratégia automatizada para o Índice Sintético R_100 na Deriv. Opera com contratos de Dígitos Over/Under, baseando suas previsões na análise dos últimos 10 dígitos de ticks anteriores (convertidos para um padrão binário). Utiliza um Martingale agressivo para recuperação de perdas.",
+    description: "Estrategia automatizada para el Índice Sintético R_100 en Deriv. Opera con contratos de Dígitos Over/Under, basando sus predicciones en el análisis de los últimos 10 dígitos de ticks anteriores (convertidos a un patrón binario). Utiliza un Martingale agresivo para recuperación de pérdidas.",
     strategy: "Digital Filter",
     accuracy: 48,
     operations: 215,
@@ -1016,7 +1012,7 @@ export const bots: Bot[] = [
     riskLevel: 8,
     tradedAssets: ["R_100"],
     code: strategyCode.contrarian,
-    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô AlphaBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en "Importar" (o "Load" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot AlphaBot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nConfigure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones (Meta Ganancia, Límite Pérdidas, Valor Inicial de la Orden, Cantidad de Ticks) según su gestión de riesgo.\n\nEjecute el robot\nHaga clic en el botón "Ejecutar" (o "Run") para iniciar el robot.`,
     isFavorite: false,
     ranking: 3
   },
@@ -1069,10 +1065,10 @@ export const performanceData = {
 // Filter options
 export const filterOptions = {
   strategies: [
-    { label: "Seguidor de Tendência", value: "Seguidor de Tendência" },
+    { label: "Seguidor de Tendencia", value: "Seguidor de Tendencia" },
     { label: "Martingale", value: "Martingale" },
-    { label: "Digital Filter", value: "Digital Filter" },
-    { label: "Análise Sequencial", value: "Análise Sequencial" },
+    { label: "Filtro Digital", value: "Digital Filter" },
+    { label: "Análisis Secuencial", value: "Análisis Secuencial" },
   ],
   assets: [
     { label: "R_25", value: "R_25" },
