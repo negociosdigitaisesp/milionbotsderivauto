@@ -39,6 +39,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile, saveUserProfile, getUserProfile } from '../services/userService';
 import { toast } from 'sonner';
+import { supabase } from '../lib/supabaseClient';
 
 // Define tab types for better type safety
 type SettingsTab = 'account' | 'security';
