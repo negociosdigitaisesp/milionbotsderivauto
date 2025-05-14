@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   User, 
@@ -36,11 +36,15 @@ import {
   Clock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
+import { UserProfile, saveUserProfile, getUserProfile } from '../services/userService';
+import { toast } from 'sonner';
 
 // Define tab types for better type safety
 type SettingsTab = 'account' | 'security';
 
 const SettingsPage = () => {
+  const { user } = useAuth();
   // Active tab state
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   
@@ -52,12 +56,12 @@ const SettingsPage = () => {
   const [compactMode, setCompactMode] = useState<boolean>(false);
   
   // User profile states
-  const [userName, setUserName] = useState<string>('John Doe');
-  const [userEmail, setUserEmail] = useState<string>('john.doe@example.com');
-  const [userPhone, setUserPhone] = useState<string>('+55 (11) 98765-4321');
-  const [userCompany, setUserCompany] = useState<string>('Trading Corp');
-  const [userLocation, setUserLocation] = useState<string>('São Paulo, Brasil');
-  const [userBio, setUserBio] = useState<string>('Trader profissional especializado em análise técnica e automação.');
+  const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [userPhone, setUserPhone] = useState<string>('');
+  const [userCompany, setUserCompany] = useState<string>('');
+  const [userLocation, setUserLocation] = useState<string>('');
+  const [userBio, setUserBio] = useState<string>('');
   
   // Notification states
   const [emailNotifications, setEmailNotifications] = useState<boolean>(true);
@@ -105,6 +109,72 @@ const SettingsPage = () => {
   const [newEmail, setNewEmail] = useState<string>('');
   const [emailChangeSuccess, setEmailChangeSuccess] = useState<boolean>(false);
   
+  // Loading states
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  
+  // Fetch user profile on mount
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserProfile(user.id);
+    }
+  }, [user]);
+  
+  // Fetch user profile from Supabase
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      setIsLoading(true);
+      const profile = await getUserProfile(userId);
+      
+      if (profile) {
+        // Populate states with profile data
+        setUserName(profile.name || '');
+        setUserEmail(profile.email || user?.email || '');
+        setUserPhone(profile.phone || '');
+        setUserCompany(profile.company || '');
+        setUserLocation(profile.location || '');
+        setUserBio(profile.bio || '');
+        
+        // Theme settings
+        setTheme(profile.theme || 'system');
+        setAccentColor(profile.accent_color || 'violet');
+        setAnimationsEnabled(profile.animations_enabled !== undefined ? profile.animations_enabled : true);
+        setReduceMotion(profile.reduce_motion || false);
+        setCompactMode(profile.compact_mode || false);
+        
+        // Notifications
+        setEmailNotifications(profile.email_notifications !== undefined ? profile.email_notifications : true);
+        setPushNotifications(profile.push_notifications !== undefined ? profile.push_notifications : true);
+        setTradingAlerts(profile.trading_alerts !== undefined ? profile.trading_alerts : true);
+        setNewsUpdates(profile.news_updates || false);
+        setCriticalAlertsEnabled(profile.critical_alerts_enabled !== undefined ? profile.critical_alerts_enabled : true);
+        setSoundsEnabled(profile.sounds_enabled !== undefined ? profile.sounds_enabled : true);
+        
+        // Preferences
+        setLanguage(profile.language || 'pt-BR');
+        setTimeFormat(profile.time_format || '24h');
+        setCurrency(profile.currency || 'BRL');
+        setDateFormat(profile.date_format || 'DD/MM/YYYY');
+        setTimezone(profile.timezone || 'America/Sao_Paulo');
+        
+        // Security
+        setTwoFactorEnabled(profile.two_factor_enabled || false);
+        setSessionTimeout(profile.session_timeout || 30);
+        setIpWhitelisting(profile.ip_whitelisting || false);
+        setLoginNotifications(profile.login_notifications !== undefined ? profile.login_notifications : true);
+      } else {
+        // Set default values if no profile exists
+        if (user?.email) {
+          setUserEmail(user.email);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar perfil:', error);
+      toast.error('Não foi possível carregar seu perfil.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Toggle functions
   const toggleEmailNotifications = () => setEmailNotifications(!emailNotifications);
   const togglePushNotifications = () => setPushNotifications(!pushNotifications);
@@ -127,10 +197,58 @@ const SettingsPage = () => {
     // Here you would actually change the theme
   };
 
-  // Save settings
-  const saveSettings = () => {
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 3000);
+  // Save settings to Supabase
+  const saveSettings = async () => {
+    if (!user?.id) {
+      toast.error('Você precisa estar autenticado para salvar as configurações.');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const userProfile: UserProfile = {
+        user_id: user.id,
+        name: userName,
+        email: userEmail,
+        phone: userPhone,
+        company: userCompany,
+        location: userLocation,
+        bio: userBio,
+        theme: theme,
+        accent_color: accentColor,
+        animations_enabled: animationsEnabled,
+        reduce_motion: reduceMotion,
+        compact_mode: compactMode,
+        email_notifications: emailNotifications,
+        push_notifications: pushNotifications,
+        trading_alerts: tradingAlerts,
+        news_updates: newsUpdates,
+        critical_alerts_enabled: criticalAlertsEnabled,
+        sounds_enabled: soundsEnabled,
+        language: language,
+        time_format: timeFormat,
+        currency: currency,
+        date_format: dateFormat,
+        timezone: timezone,
+        two_factor_enabled: twoFactorEnabled,
+        session_timeout: sessionTimeout,
+        ip_whitelisting: ipWhitelisting,
+        login_notifications: loginNotifications,
+      };
+      
+      await saveUserProfile(userProfile);
+      
+      setSettingsSaved(true);
+      toast.success('Configurações salvas com sucesso!');
+      
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+      toast.error('Não foi possível salvar suas configurações.');
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const accentColors = [
@@ -143,7 +261,9 @@ const SettingsPage = () => {
   ];
 
   // Password functions
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
+    if (!user) return;
+    
     if (newPassword !== confirmPassword) {
       setPasswordError('As senhas não coincidem');
       return;
@@ -154,28 +274,65 @@ const SettingsPage = () => {
       return;
     }
     
-    // Aqui você implementaria a lógica real de mudança de senha
-    setPasswordError('');
-    setPasswordSuccess(true);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    setIsLoading(true);
     
-    setTimeout(() => {
-      setPasswordSuccess(false);
-    }, 3000);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setPasswordError('');
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      toast.success('Sua senha foi atualizada com sucesso!');
+      
+      setTimeout(() => {
+        setPasswordSuccess(false);
+      }, 3000);
+    } catch (error: any) {
+      setPasswordError(error.message || 'Erro ao atualizar senha');
+      toast.error('Não foi possível atualizar sua senha.');
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Email change function
-  const handleEmailChange = () => {
-    // Aqui você implementaria a lógica real de mudança de email
-    setUserEmail(newEmail);
-    setEmailChangeSuccess(true);
-    setNewEmail('');
+  const handleEmailChange = async () => {
+    if (!user) return;
     
-    setTimeout(() => {
-      setEmailChangeSuccess(false);
-    }, 3000);
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.updateUser({
+        email: newEmail
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setUserEmail(newEmail);
+      setEmailChangeSuccess(true);
+      setNewEmail('');
+      
+      toast.success('Um email de confirmação foi enviado para o novo endereço.');
+      
+      setTimeout(() => {
+        setEmailChangeSuccess(false);
+      }, 3000);
+    } catch (error: any) {
+      toast.error('Não foi possível atualizar seu email: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Render the main content based on active tab
@@ -579,10 +736,20 @@ const SettingsPage = () => {
           
           <button
             onClick={saveSettings}
-            className="mt-4 md:mt-0 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md flex items-center gap-2 transition-colors"
+            disabled={isLoading}
+            className="mt-4 md:mt-0 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={16} />
-            Salvar Alterações
+            {isLoading ? (
+              <>
+                <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                <span>Salvando...</span>
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                <span>Salvar Alterações</span>
+              </>
+            )}
           </button>
         </div>
         
@@ -666,8 +833,8 @@ const SettingsPage = () => {
               <div className="h-20 w-20 rounded-full bg-primary/20 border-4 border-background flex items-center justify-center text-primary mb-3">
                 <User size={32} />
               </div>
-              <h3 className="font-medium">{userName}</h3>
-              <p className="text-sm text-muted-foreground">{userEmail}</p>
+              <h3 className="font-medium">{userName || user?.email}</h3>
+              <p className="text-sm text-muted-foreground">{userEmail || user?.email}</p>
               <div className="mt-2 inline-flex items-center text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
                 Plano Pro
               </div>
@@ -701,7 +868,13 @@ const SettingsPage = () => {
 
         {/* Main settings content */}
         <div className="md:col-span-3">
-          {renderContent()}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            renderContent()
+          )}
         </div>
       </div>
       
@@ -720,4 +893,4 @@ const SettingsPage = () => {
   );
 };
 
-export default SettingsPage; 
+export default SettingsPage;

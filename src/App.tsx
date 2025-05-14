@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -13,6 +14,9 @@ import BestHours from "./pages/BestHours";
 import Analytics from "./pages/Analytics";
 import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
+import Auth from "./pages/Auth";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -24,30 +28,89 @@ const App = () => {
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <div className="min-h-screen bg-background">
-            <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
-            
-            <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+    <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <div className="min-h-screen bg-background">
               <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/bot/:id" element={<BotDetail />} />
-                <Route path="/library" element={<Library />} />
-                <Route path="/installation-tutorial" element={<InstallationTutorial />} />
-                <Route path="/mejores-horarios" element={<BestHours />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/login" element={<Auth />} />
+                
+                {/* Rotas protegidas */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <Index />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/bot/:id" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <BotDetail />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/library" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <Library />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/installation-tutorial" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <InstallationTutorial />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/mejores-horarios" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <BestHours />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/analytics" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <Analytics />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/settings" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <SettingsPage />
+                      </main>
+                    </>
+                  } />
+                </Route>
+                
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </main>
-          </div>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+            </div>
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </BrowserRouter>
   );
 };
 
