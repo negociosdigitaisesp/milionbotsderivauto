@@ -9,6 +9,9 @@ const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY
 
+// Determinar si estamos en modo de demostración
+const isDemoMode = supabaseUrl === DEFAULT_SUPABASE_URL || supabaseAnonKey === DEFAULT_SUPABASE_ANON_KEY
+
 // Crear cliente de Supabase con manejo de errores mejorado
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -19,7 +22,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     fetch: (...args) => {
       // Si estamos en modo de demostración, simular un inicio de sesión local
-      if (supabaseUrl === DEFAULT_SUPABASE_URL) {
+      if (isDemoMode) {
         console.warn('⚠️ Usando modo de demostración (offline) de Supabase. Algunas funciones estarán limitadas.')
         
         // Si es una solicitud de autenticación, simular un éxito para permitir el acceso sin DB
@@ -27,28 +30,67 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         if (url.includes('/auth/v1')) {
           console.info('🔑 Modo de demostración: Simulando autenticación exitosa')
           
-          // Guardar usuario falso en localStorage para simular sesión
-          if (url.includes('/signup') || url.includes('/token?grant_type=password')) {
+          // Simular confirmación de correo y autenticación exitosa
+          if (url.includes('/signup')) {
+            const requestBody = JSON.parse(args[1].body);
+            const email = requestBody.email || 'demo@example.com';
+            
+            // Crear usuario simulado con email confirmado automáticamente
             const demoUser = {
-              id: 'demo-user-id',
-              email: 'demo@example.com',
-              role: 'authenticated'
+              id: `demo-${Date.now()}`,
+              email: email,
+              email_confirmed_at: new Date().toISOString(),
+              role: 'authenticated',
+              confirmed_at: new Date().toISOString()
             }
+            
+            // Guardar en localStorage para simular sesión activa
             localStorage.setItem('supabase.auth.token', JSON.stringify({
-              access_token: 'demo-access-token',
+              access_token: `demo-token-${Date.now()}`,
               user: demoUser
             }))
+            
+            // Devolver respuesta simulada de registro exitoso
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                user: demoUser,
+                access_token: `demo-token-${Date.now()}`,
+                refresh_token: `demo-refresh-${Date.now()}`
+              }),
+            })
           }
           
-          // Devolver respuesta simulada para evitar errores
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              access_token: 'demo-access-token',
-              refresh_token: 'demo-refresh-token',
-              user: { id: 'demo-user-id', email: 'demo@example.com' }
-            }),
-          })
+          // Manejar inicio de sesión
+          if (url.includes('/token?grant_type=password')) {
+            const requestBody = JSON.parse(args[1].body);
+            const email = requestBody.email || 'demo@example.com';
+            
+            // Crear usuario simulado
+            const demoUser = {
+              id: `demo-${Date.now()}`,
+              email: email,
+              email_confirmed_at: new Date().toISOString(),
+              role: 'authenticated',
+              confirmed_at: new Date().toISOString()
+            }
+            
+            // Guardar en localStorage
+            localStorage.setItem('supabase.auth.token', JSON.stringify({
+              access_token: `demo-token-${Date.now()}`,
+              user: demoUser
+            }))
+            
+            // Devolver respuesta simulada
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                access_token: `demo-token-${Date.now()}`,
+                refresh_token: `demo-refresh-${Date.now()}`,
+                user: demoUser
+              }),
+            })
+          }
         }
       }
       
@@ -58,14 +100,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
+// Exportar la variable que indica si estamos en modo de demostración
+export const isSupabaseDemoMode = isDemoMode
+
 // Mostrar advertencias claras en la consola
-if (supabaseUrl === DEFAULT_SUPABASE_URL) {
-  console.warn('⚠️ IMPORTANTE: Estás utilizando una URL de Supabase de demostración. Para habilitar la funcionalidad completa:')
+if (isDemoMode) {
+  console.warn('⚠️ IMPORTANTE: Estás utilizando Supabase en modo de demostración. Para habilitar la funcionalidad completa:')
   console.warn('1. Crea un proyecto en https://supabase.com')
   console.warn('2. Configura las variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en un archivo .env.local')
   console.warn('3. Reinicia la aplicación')
 }
 
-if (supabaseAnonKey === DEFAULT_SUPABASE_ANON_KEY) {
-  console.warn('⚠️ Usando clave anónima predeterminada de Supabase.')
-}

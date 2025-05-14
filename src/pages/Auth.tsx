@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '../components/ui/alert';
 
 const Auth = () => {
   const [isSignIn, setIsSignIn] = useState(true);
@@ -13,7 +14,7 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, isDemoMode } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,10 +34,11 @@ const Auth = () => {
         const { error, success } = await signUp(email, password);
         if (error) {
           toast.error('Error al crear cuenta: ' + (error.message || 'Verifica los datos ingresados'));
-        } else if (success) {
+        } else if (success && !isDemoMode) {
           toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
           setIsSignIn(true);
         }
+        // El caso de éxito en modo demo se maneja dentro de la función signUp
       }
     } catch (error: any) {
       toast.error('Ocurrió un error: ' + (error.message || 'Intenta nuevamente'));
@@ -58,6 +60,15 @@ const Auth = () => {
               {isSignIn ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta'}
             </p>
           </div>
+
+          {isDemoMode && (
+            <Alert className="mb-6 bg-yellow-50 border-yellow-200">
+              <AlertCircle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-700">
+                Modo de demostración activo: La autenticación es simulada y no se requiere confirmación por correo electrónico.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">

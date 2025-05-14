@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, isSupabaseDemoMode } from '../lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ interface AuthContextType {
   }>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
+  isDemoMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,9 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Verificar si estamos en modo offline (usando valores predeterminados)
     const checkOfflineMode = () => {
       const demoToken = localStorage.getItem('supabase.auth.token');
-      if (demoToken && demoToken.includes('demo-access-token')) {
+      if (demoToken && demoToken.includes('demo-token')) {
         setIsOfflineMode(true);
-        console.info('🔑 Modo de demostración activo: Algunas funciones están limitadas');
+        console.info('🔑 Modo de demostración activo: Autenticación simulada habilitada');
       }
     };
 
@@ -66,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Configurar listener para cambios de autenticación
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        console.log('Evento de autenticación:', event);
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setLoading(false);
@@ -103,18 +105,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      
+      // En modo de demostración, simplemente hacemos el registro sin requerir confirmación
+      if (isSupabaseDemoMode) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            // En modo demo fingimos que el email ya está confirmado
+            emailRedirectTo: window.location.origin
+          }
+        });
 
-      if (error) {
-        toast.error(`Error al crear cuenta: ${error.message}`);
-        return { error, success: false };
+        if (error) {
+          toast.error(`Error al crear cuenta: ${error.message}`);
+          return { error, success: false };
+        }
+
+        // En modo demo, consideramos que el registro fue exitoso y dirigimos al usuario directamente
+        toast.success('¡Cuenta creada con éxito! Iniciando sesión...');
+        await signIn(email, password);
+        navigate('/');
+        return { error: null, success: true };
+      } else {
+        // Comportamiento normal con Supabase real
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/login`
+          }
+        });
+
+        if (error) {
+          toast.error(`Error al crear cuenta: ${error.message}`);
+          return { error, success: false };
+        }
+
+        toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
+        return { error: null, success: true };
       }
-
-      toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
-      return { error: null, success: true };
     } catch (error: any) {
       toast.error(`Ocurrió un error inesperado: ${error.message}`);
       return { error, success: false };
@@ -142,6 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signOut,
     isAuthenticated: !!session || isOfflineMode,
+    isDemoMode: isSupabaseDemoMode
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
