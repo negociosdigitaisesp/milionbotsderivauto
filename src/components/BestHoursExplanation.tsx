@@ -7,30 +7,30 @@ const BestHoursExplanation = () => {
         <div className="bg-primary/20 p-3 rounded-full">
           <Clock className="text-primary" size={24} />
         </div>
-        <h2 className="text-xl font-semibold">Melhores Horários dos Robôs</h2>
+        <h2 className="text-xl font-semibold">Mejores Horarios de los Robots</h2>
       </div>
 
       <div className={`overflow-hidden transition-all duration-500 ${isExpanded ? 'max-h-[1000px]' : 'max-h-28'}`}>
         <p className="text-muted-foreground mb-4">
-          <strong className="text-foreground">Não existe um horário "melhor" para operar os robôs.</strong> O desempenho dos bots 
-          no mercado de índices sintéticos, como o R_100, não é previsível por horário do dia, já que estes mercados são baseados 
-          em algoritmos de números pseudoaleatórios que não seguem padrões temporais.
+          <strong className="text-foreground">No existe un horario "mejor" para operar los robots.</strong> El rendimiento de los bots 
+          en el mercado de índices sintéticos, como el R_100, no es predecible por horario del día, ya que estos mercados están basados 
+          en algoritmos de números pseudoaleatorios que no siguen patrones temporales.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
           <div className="bg-background rounded-lg p-4 shadow-sm border border-border">
-            <h3 className="font-medium mb-2 text-primary">1. Teste na Conta Demo</h3>
-            <p className="text-sm">Sempre inicie testando o bot na conta demonstração para observar se está tendo uma boa assertividade. Se estiver assertivo, coloque na conta real. Caso contrário volte outro horário.</p>
+            <h3 className="font-medium mb-2 text-primary">1. Prueba en Cuenta Demo</h3>
+            <p className="text-sm">Siempre comienza probando el bot en la cuenta de demostración para observar si está teniendo una buena asertividad. Si es asertivo, colócalo en la cuenta real. De lo contrario, vuelve en otro horario.</p>
           </div>
 
           <div className="bg-background rounded-lg p-4 shadow-sm border border-border">
-            <h3 className="font-medium mb-2 text-primary">2. Analise o Cenário</h3>
-            <p className="text-sm">Observe se o bot está apresentando uma sequência positiva ou negativa. Caso o robô esteja com uma sequência positiva, mude para a real caso esteja negativa volte outro horário.</p>
+            <h3 className="font-medium mb-2 text-primary">2. Analiza el Escenario</h3>
+            <p className="text-sm">Observa si el bot está presentando una secuencia positiva o negativa. Si el robot está con una secuencia positiva, cambia a la cuenta real; si está negativa, vuelve en otro horario.</p>
           </div>
 
           <div className="bg-background rounded-lg p-4 shadow-sm border border-border">
-            <h3 className="font-medium mb-2 text-primary">3. Gestão de Risco</h3>
-            <p className="text-sm">Mais importante que o horário é definir limites claros de perdas (Stop Loss) e ganhos (Stop Win) antes de iniciar qualquer operação automatizada. Simule sua gestão de riscos na conta demo antes de iniciar na real. </p>
+            <h3 className="font-medium mb-2 text-primary">3. Gestión de Riesgo</h3>
+            <p className="text-sm">Más importante que el horario es definir límites claros de pérdidas (Stop Loss) y ganancias (Stop Win) antes de iniciar cualquier operación automatizada. Simula tu gestión de riesgos en la cuenta demo antes de iniciar en la real.</p>
           </div>
         </div>
 
@@ -39,28 +39,28 @@ const BestHoursExplanation = () => {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
-            Dica Profissional
+            Consejo Profesional
           </h3>
-          <p className="text-sm">Em vez de focar em horários específicos, concentre-se em:</p>
+          <p className="text-sm">En vez de enfocarte en horarios específicos, concéntrate en:</p>
           <ul className="text-sm mt-2 space-y-2">
             <li className="flex items-start">
               <span className="bg-primary/20 text-primary rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">✓</span>
-              <span>Testar o bot em diferentes momentos para entender seu comportamento em vários cenários</span>
+              <span>Probar el bot en diferentes momentos para entender su comportamiento en varios escenarios</span>
             </li>
             <li className="flex items-start">
               <span className="bg-primary/20 text-primary rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">✓</span>
-              <span>Ajustar os parâmetros de gerenciamento de risco com base nos resultados observados</span>
+              <span>Ajustar los parámetros de gestión de riesgo basados en los resultados observados</span>
             </li>
             <li className="flex items-start">
               <span className="bg-primary/20 text-primary rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">✓</span>
-              <span>Sempre usar valores que você pode se dar ao luxo de perder</span>
+              <span>Siempre usar valores que puedas permitirte perder</span>
             </li>
           </ul>
         </div>
       </div>
       
       <button onClick={() => setIsExpanded(!isExpanded)} className="mt-4 text-primary hover:text-primary/80 text-sm font-medium flex items-center mx-auto">
-        {isExpanded ? 'Mostrar menos' : 'Saiba mais sobre horários'}
+        {isExpanded ? 'Mostrar menos' : 'Conoce más sobre horarios'}
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
           <path d="M19 9l-7 7-7-7" />
         </svg>

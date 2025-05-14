@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bot, ChartLine, Clock, User } from 'lucide-react';
 import SearchInput from '../components/SearchInput';
@@ -7,7 +6,6 @@ import BotCard from '../components/BotCard';
 import FilterBar from '../components/FilterBar';
 import PerformanceChart from '../components/PerformanceChart';
 import { bots, dashboardStats, performanceData, filterOptions } from '../lib/mockData';
-import BestHoursExplanation from '../components/BestHoursExplanation';
 
 const Index = () => {
   const [filteredBots, setFilteredBots] = useState(bots);
@@ -83,8 +81,8 @@ const Index = () => {
       <section className="px-6 pt-6 pb-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Dashboard de Bots de Trading</h1>
-            <p className="text-muted-foreground">Gerencie e analise bots de trading</p>
+            <h1 className="text-2xl font-bold">Panel de Bots de Trading</h1>
+            <p className="text-muted-foreground">Gestiona y analiza bots de trading</p>
           </div>
           <SearchInput onChange={handleSearch} />
         </div>
@@ -100,19 +98,19 @@ const Index = () => {
             trend={{ value: 8.3, isPositive: true }}
           />
           <StatCard 
-            title="Operações"
+            title="Operaciones"
             value={dashboardStats.totalOperations}
             icon={<Clock size={24} />}
             trend={{ value: 12.5, isPositive: true }}
           />
           <StatCard 
-            title="Assertividade Média"
+            title="Asertividad Media"
             value={`${dashboardStats.averageAccuracy}%`}
             icon={<ChartLine size={24} />}
             trend={{ value: 3.2, isPositive: true }}
           />
           <StatCard 
-            title="Usuários Ativos"
+            title="Usuarios Activos"
             value={dashboardStats.activeUsers}
             icon={<User size={24} />}
             trend={{ value: 5.1, isPositive: true }}
@@ -122,32 +120,27 @@ const Index = () => {
       
       {/* Charts Section */}
       <section className="px-6 py-4">
-        <h2 className="text-xl font-semibold mb-4">Analytics</h2>
+        <h2 className="text-xl font-semibold mb-4">Analítica</h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <PerformanceChart 
             data={performanceData.profitLoss} 
             isPositive={true}
-            title="Performance (P&L)"
+            title="Rendimiento (P&L)"
             yAxisLabel="Valor ($)"
           />
           <PerformanceChart 
             data={performanceData.accuracy} 
             isPositive={true}
-            title="Assertividade"
+            title="Asertividad"
             yAxisLabel="%"
           />
           <PerformanceChart 
             data={performanceData.volatility} 
             isPositive={false}
-            title="Volatilidade"
+            title="Volatilidad"
             yAxisLabel="Índice"
           />
         </div>
-      </section>
-      
-      {/* Best Hours Explanation */}
-      <section className="px-6 py-4">
-        <BestHoursExplanation />
       </section>
       
       {/* Bots Library Section */}
@@ -194,8 +187,8 @@ const Index = () => {
             ))
           ) : (
             <div className="col-span-full py-12 text-center text-muted-foreground">
-              <p>Nenhum bot encontrado com os filtros atuais.</p>
-              <p className="mt-2">Tente ajustar os filtros ou pesquisar por outros termos.</p>
+              <p>No se encontraron bots con los filtros actuales.</p>
+              <p className="mt-2">Intenta ajustar los filtros o buscar con otros términos.</p>
             </div>
           )}
         </div>

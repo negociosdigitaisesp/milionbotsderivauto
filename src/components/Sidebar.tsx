@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Home, BookOpen, ChartLine, Settings, Bot } from 'lucide-react';
+import { Menu, X, Home, BookOpen, ChartLine, Settings, Bot, FileText, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -13,10 +12,12 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
   const location = useLocation();
 
   const navItems = [
-    { name: 'Dashboard', icon: <Home size={20} />, path: '/' },
+    { name: 'Inicio', icon: <Home size={20} />, path: '/' },
     { name: 'Biblioteca', icon: <BookOpen size={20} />, path: '/library' },
-    { name: 'Analytics', icon: <ChartLine size={20} />, path: '/analytics' },
-    { name: 'Settings', icon: <Settings size={20} />, path: '/settings' }
+    { name: 'Analítica', icon: <ChartLine size={20} />, path: '/analytics' },
+    { name: 'Mejores Horarios', icon: <Clock size={20} />, path: '/mejores-horarios' },
+    { name: 'Tutorial de Instalación', icon: <FileText size={20} />, path: '/installation-tutorial' },
+    { name: 'Configuración', icon: <Settings size={20} />, path: '/settings' }
   ];
 
   return (
@@ -25,7 +26,7 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
         <div className="flex items-center justify-between p-4 border-b border-border/50">
           <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
             <Bot size={24} className="text-primary" />
-            {!collapsed && <span className="font-bold text-lg text-primary">TradeBots</span>}
+            {!collapsed && <span className="font-bold text-lg text-primary">Million Bots</span>}
           </div>
           <button 
             onClick={toggleSidebar} 
@@ -64,7 +65,7 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
             </div>
             {!collapsed && (
               <div className="flex flex-col">
-                <span className="text-sm font-medium">User</span>
+                <span className="text-sm font-medium">Usuario</span>
                 <span className="text-xs text-muted-foreground">Admin</span>
               </div>
             )}

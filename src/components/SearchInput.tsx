@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Search } from 'lucide-react';
 
@@ -7,7 +6,7 @@ interface SearchInputProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const SearchInput = ({ placeholder = "Search bots...", onChange }: SearchInputProps) => {
+const SearchInput = ({ placeholder = "Buscar bots...", onChange }: SearchInputProps) => {
   return (
     <div className="relative w-full max-w-md">
       <div className="absolute inset-y-0 left-0 flex items-center pl-3">

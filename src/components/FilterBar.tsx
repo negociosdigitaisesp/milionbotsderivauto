@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Filter } from 'lucide-react';
 
@@ -34,7 +33,7 @@ const FilterBar = ({
           className="bg-background text-sm rounded-md border border-border/50 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
           onChange={(e) => onStrategyChange(e.target.value)}
         >
-          <option value="">Todas as estratégias</option>
+          <option value="">Todas las estrategias</option>
           {strategies.map((strategy) => (
             <option key={strategy.value} value={strategy.value}>
               {strategy.label}
@@ -46,7 +45,7 @@ const FilterBar = ({
           className="bg-background text-sm rounded-md border border-border/50 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
           onChange={(e) => onAssetChange(e.target.value)}
         >
-          <option value="">Todos os ativos</option>
+          <option value="">Todos los activos</option>
           {assets.map((asset) => (
             <option key={asset.value} value={asset.value}>
               {asset.label}
@@ -60,9 +59,9 @@ const FilterBar = ({
           className="bg-background text-sm rounded-md border border-border/50 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
           onChange={(e) => onSortChange(e.target.value)}
         >
-          <option value="popularity">Mais populares</option>
-          <option value="performance">Melhor performance</option>
-          <option value="newest">Mais recentes</option>
+          <option value="popularity">Más populares</option>
+          <option value="performance">Mejor rendimiento</option>
+          <option value="newest">Más recientes</option>
         </select>
       </div>
     </div>

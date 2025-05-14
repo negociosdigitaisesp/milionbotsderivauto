@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { bots } from '../lib/mockData';
@@ -11,16 +10,16 @@ const BotDetail = () => {
   if (!bot) {
     return (
       <div className="container mx-auto py-12 text-center">
-        <h1 className="text-2xl font-bold mb-4">Bot não encontrado</h1>
-        <p className="text-muted-foreground">O bot que você está procurando não existe ou foi removido.</p>
-        <a href="/" className="mt-4 inline-block text-primary hover:underline">Voltar para a biblioteca</a>
+        <h1 className="text-2xl font-bold mb-4">Bot no encontrado</h1>
+        <p className="text-muted-foreground">El bot que estás buscando no existe o fue eliminado.</p>
+        <a href="/" className="mt-4 inline-block text-primary hover:underline">Volver a la biblioteca</a>
       </div>
     );
   }
   
   return (
     <div className="container mx-auto p-6">
-      <a href="/" className="text-primary hover:underline mb-8 block">&larr; Voltar para a biblioteca</a>
+      <a href="/" className="text-primary hover:underline mb-8 block">&larr; Volver a la biblioteca</a>
       <BotDetailView bot={bot} />
     </div>
   );

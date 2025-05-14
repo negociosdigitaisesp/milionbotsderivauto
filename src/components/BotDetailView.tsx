@@ -28,7 +28,7 @@ const BotDetailView = ({
   const generatePerformanceData = (baseAccuracy: number) => {
     const data = [];
     // 12 months of data
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     let currentValue = baseAccuracy;
     for (let i = 0; i < 12; i++) {
       // Add some slight variation to accuracy (-3 to +3)
@@ -51,7 +51,7 @@ const BotDetailView = ({
       const variation = Math.floor(Math.random() * 11) - 5;
       currentValue = Math.max(30, Math.min(95, baseAccuracy + variation));
       data.push({
-        date: `Dia ${i}`,
+        date: `Día ${i}`,
         value: currentValue
       });
     }
@@ -60,6 +60,80 @@ const BotDetailView = ({
 
   // Special content for bots
   const renderBotSpecificOverview = () => {
+    if (bot.id === "8") {
+      // Optin Trade
+      return <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Info size={18} /> Estrategia Explicada
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p>
+                El robot <strong>Optin Trade</strong> está diseñado para el mercado de Índices Sintéticos (R_100) 
+                en Deriv. Identifica tendencias de muy corto plazo usando el cruce de 
+                Medias Móviles Simples (SMA) y opera con contratos tipo "Runs" (Run High / Run Low).
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-secondary/50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Análisis de Tendencia (SMA)</h4>
+                  <p className="text-sm text-muted-foreground">
+                    El robot utiliza dos SMAs: una <strong>Rápida</strong> (período 1) y una 
+                    <strong> Lenta</strong> (período 20). Cuando la SMA Rápida cruza por encima de la SMA Lenta, 
+                    compra un contrato <strong>RUNHIGH</strong>. Cuando cruza por debajo, 
+                    compra un contrato <strong>RUNLOW</strong>.
+                  </p>
+                </div>
+                
+                <div className="bg-secondary/50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Sistema de Martingale Especializado</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Después de una pérdida, el robot utiliza una lógica de recuperación especial:
+                    si la pérdida total es pequeña, usa stake fijo de <strong>0.35</strong>; 
+                    si es significativa, calcula el siguiente stake como <strong>pérdida total × -0.45</strong>.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30">
+                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
+                  <AlertTriangle size={16} />
+                  Aviso de Riesgo Elevado
+                </h4>
+                <p className="text-sm text-danger/80">
+                  Debido a la naturaleza de la estrategia de Martingale, especialmente la forma agresiva implementada 
+                  cuando las pérdidas se acumulan, este robot presenta RIESGO ELEVADO. Es imperativo que lo pruebe
+                  exhaustivamente en una cuenta demo antes de considerar su uso en una cuenta real.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ChartLine size={18} /> Rendimiento Esperado
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-8">
+                <h4 className="font-medium mb-4">Precisión por Operación</h4>
+                <div className="grid grid-cols-1 gap-8">
+                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Asertividad Diaria" yAxisLabel="Precisión %" />
+                </div>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  La asertividad individual es de <strong>40-55%</strong>, dependiendo de las condiciones del mercado.
+                  El objetivo del Martingale NO es aumentar la tasa de acierto individual, sino aumentar 
+                  la probabilidad de cerrar una sesión con ganancias.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>;
+    }
+    
     if (bot.id === "14") {
       // NexusBot
       return (
@@ -67,36 +141,36 @@ const BotDetailView = ({
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Info size={18} /> Estratégia Explicada
+                <Info size={18} /> Estrategia Explicada
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p>
-                O <strong>NexusBot</strong> opera no Índice Sintético <strong>RDBEAR</strong> (Random Daily Bear Market Index) 
-                da Deriv. Sua estratégia é baseada na análise sequencial de múltiplos ticks anteriores para identificar 
-                um padrão de alta ou baixa, realizando operações "Rise/Fall" (Sobe/Desce) com duração de 5 minutos.
+                El <strong>NexusBot</strong> opera en el Índice Sintético <strong>RDBEAR</strong> (Random Daily Bear Market Index) 
+                de Deriv. Su estrategia se basa en el análisis secuencial de múltiples ticks anteriores para identificar 
+                un patrón de subida o bajada, realizando operaciones "Rise/Fall" (Sube/Baja) con duración de 5 minutos.
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Análise de Tendência (Sequência de Ticks)</h4>
+                  <h4 className="font-medium mb-2">Análisis de Tendencia (Secuencia de Ticks)</h4>
                   <p className="text-sm text-muted-foreground">
-                    O robô coleta os últimos 9 ticks e analisa padrões específicos:
+                    El robot recopila los últimos 9 ticks y analiza patrones específicos:
                     <ul className="list-disc list-inside mt-2">
-                      <li><strong>Sinal de Compra "PUT" (Desce):</strong>
+                      <li><strong>Señal de Compra "PUT" (Baja):</strong>
                         <ul className="list-disc list-inside ml-4 mt-1">
-                          <li>Se o Tick 5 > Tick 4, E</li>
-                          <li>Se o Tick 4 > Tick 3, E</li>
-                          <li>Se o Tick 3 > Tick 2, E</li>
-                          <li>Se o Tick 1 < Tick 2 (indicando uma possível reversão após uma sequência de alta)</li>
+                          <li>Si el Tick 5 {'>'} Tick 4, Y</li>
+                          <li>Si el Tick 4 {'>'} Tick 3, Y</li>
+                          <li>Si el Tick 3 {'>'} Tick 2, Y</li>
+                          <li>Si el Tick 1 {'<'} Tick 2 (indicando una posible reversión después de una secuencia de subida)</li>
                         </ul>
                       </li>
-                      <li className="mt-2"><strong>Sinal de Compra "CALL" (Sobe):</strong>
+                      <li className="mt-2"><strong>Señal de Compra "CALL" (Sube):</strong>
                         <ul className="list-disc list-inside ml-4 mt-1">
-                          <li>Se o Tick 5 < Tick 4, E</li>
-                          <li>Se o Tick 4 < Tick 3, E</li>
-                          <li>Se o Tick 3 < Tick 2, E</li>
-                          <li>Se o Tick 1 > Tick 2 (indicando uma possível reversão após uma sequência de baixa)</li>
+                          <li>Si el Tick 5 {'<'} Tick 4, Y</li>
+                          <li>Si el Tick 4 {'<'} Tick 3, Y</li>
+                          <li>Si el Tick 3 {'<'} Tick 2, Y</li>
+                          <li>Si el Tick 1 {'>'} Tick 2 (indicando una posible reversión después de una secuencia de bajada)</li>
                         </ul>
                       </li>
                     </ul>
@@ -104,19 +178,19 @@ const BotDetailView = ({
                 </div>
                 
                 <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Gerenciamento Durante a Operação</h4>
+                  <h4 className="font-medium mb-2">Gestión Durante la Operación</h4>
                   <p className="text-sm text-muted-foreground">
-                    <strong>Venda Antecipada:</strong> Após a compra, se o contrato estiver disponível para venda:
+                    <strong>Venta Anticipada:</strong> Después de la compra, si el contrato está disponible para venta:
                     <ul className="list-disc list-inside mt-2">
-                      <li>Se o lucro atual da venda for maior que <strong>(Valor da Compra / 100) * 5</strong> (ou seja, 5% do valor da aposta), o robô vende o contrato no mercado.</li>
+                      <li>Si la ganancia actual de la venta es mayor que <strong>(Valor de la Compra / 100) * 5</strong> (es decir, 5% del valor de la apuesta), el robot vende el contrato en el mercado.</li>
                     </ul>
                   </p>
                   <div className="mt-3">
-                    <h5 className="font-medium text-sm">Tipo de Operação:</h5>
+                    <h5 className="font-medium text-sm">Tipo de Operación:</h5>
                     <p className="text-sm text-muted-foreground">
                       <ul className="list-disc list-inside mt-1">
-                        <li>Contratos "Rise/Fall" (Sobe/Desce)</li>
-                        <li>Duração: Fixo em <strong>5 minutos</strong></li>
+                        <li>Contratos "Rise/Fall" (Sube/Baja)</li>
+                        <li>Duración: Fijo en <strong>5 minutos</strong></li>
                       </ul>
                     </p>
                   </div>
@@ -124,14 +198,14 @@ const BotDetailView = ({
               </div>
               
               <div className="bg-secondary/50 p-4 rounded-lg mt-4">
-                <h4 className="font-medium mb-2">Gerenciamento de Aposta (Martingale Específico)</h4>
+                <h4 className="font-medium mb-2">Gestión de Apuesta (Martingale Específico)</h4>
                 <p className="text-sm text-muted-foreground">
                   <ul className="list-disc list-inside">
-                    <li><strong>Após Vitória:</strong> A próxima aposta retorna ao "Valor Inicial da Ordem" definido pelo usuário.</li>
-                    <li><strong>Após Perda:</strong>
+                    <li><strong>Después de una Ganancia:</strong> La siguiente apuesta vuelve al "Valor Inicial de la Orden" definido por el usuario.</li>
+                    <li><strong>Después de una Pérdida:</strong>
                       <ul className="list-disc list-inside ml-4 mt-1">
-                        <li><strong>Pequenas Perdas</strong> (Prejuízo Total ≥ -1.4 USD): A próxima aposta é fixada em <strong>0.35 USD</strong>.</li>
-                        <li><strong>Grandes Perdas</strong> (Prejuízo Total < -1.4 USD): A próxima aposta é calculada como <strong>(Prejuízo Total Acumulado * -0.35)</strong>.</li>
+                        <li><strong>Pequeñas Pérdidas</strong> (Pérdida Total ≥ -1.4 USD): La siguiente apuesta se fija en <strong>0.35 USD</strong>.</li>
+                        <li><strong>Grandes Pérdidas</strong> (Pérdida Total {'<'} -1.4 USD): La siguiente apuesta se calcula como <strong>(Pérdida Total Acumulada * -0.35)</strong>.</li>
                       </ul>
                     </li>
                   </ul>
@@ -141,12 +215,12 @@ const BotDetailView = ({
               <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
                 <h4 className="font-medium mb-2 flex items-center gap-2 text-warning">
                   <AlertTriangle size={16} />
-                  Aviso de Risco
+                  Aviso de Riesgo
                 </h4>
                 <p className="text-sm text-warning/80">
-                  Este robô utiliza um Martingale peculiar, pois usa um fator negativo e menor que 1 sobre o prejuízo total. 
-                  Isso significa que a próxima aposta será 35% do prejuízo total, mas como o fator é negativo, ele tenta "apostar contra" 
-                  o prejuízo de uma forma que pode não ser matematicamente ideal para recuperação total imediata.
+                  Este robot utiliza un Martingale peculiar, ya que usa un factor negativo y menor que 1 sobre la pérdida total. 
+                  Esto significa que la siguiente apuesta será el 35% de la pérdida total, pero como el factor es negativo, intenta "apostar contra" 
+                  la pérdida de una forma que puede no ser matemáticamente ideal para una recuperación total inmediata.
                 </p>
               </div>
             </CardContent>
@@ -155,47 +229,47 @@ const BotDetailView = ({
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <ChartLine size={18} /> Projeções de Lucros e Riscos
+                <ChartLine size={18} /> Proyecciones de Ganancias y Riesgos
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="mb-8">
-                <h4 className="font-medium mb-4">Precisão por Operação</h4>
+                <h4 className="font-medium mb-4">Precisión por Operación</h4>
                 <div className="grid grid-cols-1 gap-8">
-                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Assertividade Diária" yAxisLabel="Precisão %" />
+                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Asertividad Diaria" yAxisLabel="Precisión %" />
                 </div>
                 <p className="mt-4 text-sm text-muted-foreground">
-                  A assertividade individual é de <strong>45-50%</strong>, dependendo das condições do mercado.
-                  Operações de 5 minutos podem ter payouts interessantes se a tendência se confirmar.
-                  A venda antecipada (se lucrativa) pode garantir pequenos ganhos antes do vencimento do contrato.
+                  La asertividad individual es de <strong>45-50%</strong>, dependiendo de las condiciones del mercado.
+                  Operaciones de 5 minutos pueden tener payouts interesantes si la tendencia se confirma.
+                  La venta anticipada (si es rentable) puede garantizar pequeñas ganancias antes del vencimiento del contrato.
                 </p>
               </div>
               
               <div className="bg-primary/10 p-4 rounded-lg border border-primary/30 mt-4">
-                <h4 className="font-medium mb-2 text-primary">Exemplo de Risco com Martingale</h4>
+                <h4 className="font-medium mb-2 text-primary">Ejemplo de Riesgo con Martingale</h4>
                 <p className="text-sm">
-                  O Martingale com fator <strong>-0.35</strong> sobre o prejuízo total é incomum. Exemplo:
+                  El Martingale con factor <strong>-0.35</strong> sobre la pérdida total es inusual. Ejemplo:
                   <ul className="list-disc list-inside mt-2">
-                    <li>Perda 1 (Stake $0.35): $0.35 (Total Perdido: $0.35) → Próxima Aposta: $0.35</li>
-                    <li>Perda 2 (Stake $0.35): $0.35 (Total Perdido: $0.70) → Próxima Aposta: $0.35</li>
-                    <li>Perda 3 (Stake $0.35): $0.35 (Total Perdido: $1.05) → Próxima Aposta: $0.35</li>
-                    <li>Perda 4 (Stake $0.35): $0.35 (Total Perdido: $1.40) → Próxima Aposta: $1.40 * 0.35 = ~$0.49</li>
-                    <li>Perda 5 (Stake $0.49): $0.49 (Total Perdido: $1.89) → Próxima Aposta: $1.89 * 0.35 = ~$0.66</li>
+                    <li>Pérdida 1 (Stake $0.35): $0.35 (Total Perdido: $0.35) → Siguiente Apuesta: $0.35</li>
+                    <li>Pérdida 2 (Stake $0.35): $0.35 (Total Perdido: $0.70) → Siguiente Apuesta: $0.35</li>
+                    <li>Pérdida 3 (Stake $0.35): $0.35 (Total Perdido: $1.05) → Siguiente Apuesta: $0.35</li>
+                    <li>Pérdida 4 (Stake $0.35): $0.35 (Total Perdido: $1.40) → Siguiente Apuesta: $1.40 * 0.35 = ~$0.49</li>
+                    <li>Pérdida 5 (Stake $0.49): $0.49 (Total Perdido: $1.89) → Siguiente Apuesta: $1.89 * 0.35 = ~$0.66</li>
                   </ul>
                 </p>
                 <p className="text-sm mt-2">
-                  Este Martingale é mais lento na progressão do stake comparado a fatores maiores, o que pode permitir mais 
-                  tentativas de recuperação antes de atingir um Stop Loss alto, mas também significa que a recuperação total 
-                  de um prejuízo grande levará mais vitórias.
+                  Este Martingale es más lento en la progresión del stake comparado con factores mayores, lo que puede permitir más 
+                  intentos de recuperación antes de alcanzar un Stop Loss alto, pero también significa que la recuperación total 
+                  de una pérdida grande requerirá más victorias.
                 </p>
               </div>
               
               <div className="mt-6">
-                <h4 className="font-medium mb-4">Visualização Risco vs. Recompensa</h4>
+                <h4 className="font-medium mb-4">Visualización Riesgo vs. Recompensa</h4>
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span>Meta de Lucro (Ex: +$2.50 em banca de $50)</span>
+                      <span>Meta de Ganancia (Ej: +$2.50 en balance de $50)</span>
                       <span>+$2.50</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-4">
@@ -205,7 +279,7 @@ const BotDetailView = ({
                   
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span>Limite de Perda (Ex: -$7.50 em banca de $50)</span>
+                      <span>Límite de Pérdida (Ej: -$7.50 en balance de $50)</span>
                       <span className="text-danger">-$7.50</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-4">
@@ -216,7 +290,8 @@ const BotDetailView = ({
               </div>
             </CardContent>
           </Card>
-        </div>;
+        </div>
+      );
     }
     
     if (bot.id === "13") {
@@ -225,62 +300,62 @@ const BotDetailView = ({
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Info size={18} /> Estratégia Explicada
+                <Info size={18} /> Estrategia Explicada
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p>
-                O <strong>AlphaBot</strong> é uma estratégia automatizada para o Índice Sintético R_100 
-                na Deriv. Ele opera com contratos de Dígitos Over/Under, baseando suas previsões na análise 
-                dos últimos 10 dígitos de ticks anteriores (convertidos para um padrão binário).
+                El <strong>AlphaBot</strong> es una estrategia automatizada para el Índice Sintético R_100 
+                en Deriv. Opera con contratos de Dígitos Over/Under, basando sus predicciones en el análisis 
+                de los últimos 10 dígitos de ticks anteriores (convertidos a un patrón binario).
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Análise de Dígitos (Padrão Binário)</h4>
+                  <h4 className="font-medium mb-2">Análisis de Dígitos (Patrón Binario)</h4>
                   <p className="text-sm text-muted-foreground">
-                    O robô coleta os últimos 10 dígitos finais dos preços dos ticks. Para cada dígito:
+                    El robot recopila los últimos 10 dígitos finales de los precios de los ticks. Para cada dígito:
                     <ul className="list-disc list-inside mt-2">
-                      <li>Se for 8 ou 9, converte para 1</li>
-                      <li>Se for de 0 a 7, converte para 0</li>
+                      <li>Si es 8 o 9, lo convierte a 1</li>
+                      <li>Si es de 0 a 7, lo convierte a 0</li>
                     </ul>
-                    Em seguida, soma esses 10 valores binários (0s e 1s).
+                    Luego, suma estos 10 valores binarios (0s y 1s).
                   </p>
                 </div>
                 
                 <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Definição da Previsão (Over/Under)</h4>
+                  <h4 className="font-medium mb-2">Definición de la Predicción (Over/Under)</h4>
                   <p className="text-sm text-muted-foreground">
                     <ul className="list-disc list-inside">
-                      <li>Soma ≥ 2: Define a "Previsão" como 6 (aposta em OVER 6)</li>
-                      <li>Soma &lt; 2: Define a "Previsão" como 3 (aposta em UNDER 3)</li>
+                      <li>Suma ≥ 2: Define la "Predicción" como 6 (apuesta en OVER 6)</li>
+                      <li>Suma {'<'} 2: Define la "Predicción" como 3 (apuesta en UNDER 3)</li>
                     </ul>
-                    <p className="mt-2"><em>Adaptação:</em> Se um dígito específico (0-9) se repetir muito após perdas, a previsão pode ser invertida e a contagem de dígitos zerada.</p>
+                    <p className="mt-2"><em>Adaptación:</em> Si un dígito específico (0-9) se repite mucho después de pérdidas, la predicción puede ser invertida y el conteo de dígitos reiniciado.</p>
                   </p>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Tipo de Operação</h4>
+                  <h4 className="font-medium mb-2">Tipo de Operación</h4>
                   <p className="text-sm text-muted-foreground">
                     <ul className="list-disc list-inside">
-                      <li><strong>DIGITOVER:</strong> Ganha se o último dígito for MAIOR que a "Previsão"</li>
-                      <li><strong>DIGITUNDER:</strong> Ganha se o último dígito for MENOR que a "Previsão"</li>
-                      <li>Duração: Fixo em 1 tick</li>
+                      <li><strong>DIGITOVER:</strong> Gana si el último dígito es MAYOR que la "Predicción"</li>
+                      <li><strong>DIGITUNDER:</strong> Gana si el último dígito es MENOR que la "Predicción"</li>
+                      <li>Duración: Fijo en 1 tick</li>
                     </ul>
                   </p>
                 </div>
                 
                 <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Gerenciamento de Aposta (Martingale Agressivo)</h4>
+                  <h4 className="font-medium mb-2">Gestión de Apuesta (Martingale Agresivo)</h4>
                   <p className="text-sm text-muted-foreground">
                     <ul className="list-disc list-inside">
-                      <li><strong>Após Vitória:</strong> A aposta retorna ao "Valor Inicial da Ordem"</li>
-                      <li><strong>Após Perda:</strong>
+                      <li><strong>Después de una Ganancia:</strong> La apuesta vuelve al "Valor Inicial de la Orden"</li>
+                      <li><strong>Después de una Pérdida:</strong>
                         <ul className="list-disc list-inside ml-4 mt-1">
-                          <li>Pequenas Perdas (Prejuízo Total ≥ -1 USD): Próxima aposta = 0.35 USD</li>
-                          <li>Grandes Perdas (Prejuízo Total &lt; -1 USD): Próxima aposta = (Prejuízo Total Acumulado * -1.07)</li>
+                          <li>Pequeñas Pérdidas (Pérdida Total ≥ -1 USD): Siguiente apuesta = 0.35 USD</li>
+                          <li>Grandes Pérdidas (Pérdida Total &lt; -1 USD): Siguiente apuesta = (Pérdida Total Acumulada * -1.07)</li>
                         </ul>
                       </li>
                     </ul>
@@ -291,13 +366,13 @@ const BotDetailView = ({
               <div className="bg-danger/10 p-4 rounded-lg border border-danger/30 mt-4">
                 <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
                   <AlertTriangle size={16} />
-                  Aviso de Risco Extremo
+                  Aviso de Riesgo Extremo
                 </h4>
                 <p className="text-sm text-danger/80">
-                  Este robô utiliza um Martingale EXTREMAMENTE AGRESSIVO que pode levar a perdas rápidas. 
-                  O fator de Martingale de -1.07 sobre o prejuízo total acumulado é extremamente perigoso 
-                  e pode consumir seu Stop Loss muito rapidamente. É imperativo que você teste 
-                  exaustivamente em uma conta demonstração antes de considerar o uso em uma conta real.
+                  Este robot utiliza un Martingale EXTREMADAMENTE AGRESIVO que puede llevar a pérdidas rápidas. 
+                  El factor de Martingale de -1.07 sobre la pérdida total acumulada es extremadamente peligroso 
+                  y puede consumir su Stop Loss muy rápidamente. Es imperativo que lo pruebe 
+                  exhaustivamente en una cuenta demo antes de considerar su uso en una cuenta real.
                 </p>
               </div>
             </CardContent>
@@ -306,156 +381,42 @@ const BotDetailView = ({
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <ChartLine size={18} /> Projeções de Lucros e Riscos
+                <ChartLine size={18} /> Proyecciones de Ganancias y Riesgos
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="mb-8">
-                <h4 className="font-medium mb-4">Precisão por Operação</h4>
+                <h4 className="font-medium mb-4">Precisión por Operación</h4>
                 <div className="grid grid-cols-1 gap-8">
-                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Assertividade Diária" yAxisLabel="Precisão %" />
+                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Asertividad Diaria" yAxisLabel="Precisión %" />
                 </div>
                 <p className="mt-4 text-sm text-muted-foreground">
-                  A assertividade individual é de <strong>40-50%</strong>, dependendo das condições do mercado.
-                  Alcançar o Stop Win dependerá da sua meta, do payout das operações Over/Under (que variam) 
-                  e da capacidade do Martingale de recuperar perdas.
+                  La asertividad individual es de <strong>40-50%</strong>, dependiendo de las condiciones del mercado.
+                  Alcanzar el Stop Win dependerá de su meta, del payout de las operaciones Over/Under (que varían) 
+                  y de la capacidad del Martingale de recuperar pérdidas.
                 </p>
-              </div>
-              
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 text-warning">Risco Elevado (Martingale Extremo)</h4>
-                <p className="text-sm">
-                  O fator de Martingale de -1.07 sobre o prejuízo total acumulado é extremamente perigoso.
-                  <strong> Exemplo de Risco:</strong> Se seu Stop Loss for $5 e o prejuízo acumulado atingir -$4, 
-                  a próxima aposta será $4 * 1.07 = $4.28. Se esta perder, o prejuízo total será $4 + $4.28 = $8.28, 
-                  ultrapassando seu Stop Loss de $5 em uma única operação de Martingale.
-                </p>
-                <p className="text-sm mt-2">
-                  Isso significa que 2-3 perdas consecutivas, uma vez que o prejuízo começa a acumular, 
-                  podem levar a perdas que <strong>EXCEDEM SEU STOP LOSS CONFIGURADO</strong>.
-                </p>
-              </div>
-              
-              <div className="mt-6">
-                <h4 className="font-medium mb-4">Visualização Risco vs. Recompensa</h4>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Meta de Lucro (Ex: +$2.50 em banca de $50)</span>
-                      <span>+$2.50</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-4">
-                      <div className="bg-success h-4 rounded-full" style={{ width: '33%' }}></div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Limite de Perda (Ex: -$5.00 em banca de $50)</span>
-                      <span className="text-danger">-$5.00</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-4 relative">
-                      <div className="bg-danger h-4 rounded-full" style={{ width: '66%' }}></div>
-                      <div className="absolute -bottom-6 right-0 text-xs text-danger">Risco de ser ultrapassado pelo Martingale!</div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </CardContent>
           </Card>
         </div>;
     }
     
-    if (bot.id === "8") {
-      // SMA Trend Runner Pro
-      return <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Info size={18} /> Estratégia Explicada
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p>
-                O robô <strong>SMA Trend Runner Pro</strong> é projetado para o mercado de Índices Sintéticos (R_100) 
-                na Deriv. Ele identifica tendências de curtíssimo prazo usando o cruzamento de 
-                Médias Móveis Simples (SMA) e opera com contratos do tipo "Runs" (Run High / Run Low).
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Análise de Tendência (SMA)</h4>
-                  <p className="text-sm text-muted-foreground">
-                    O robô utiliza duas SMAs: uma <strong>Rápida</strong> (período 1) e uma 
-                    <strong> Lenta</strong> (período 20). Quando a SMA Rápida cruza acima da SMA Lenta, 
-                    ele compra um contrato <strong>RUNHIGH</strong>. Quando cruza abaixo, 
-                    compra um contrato <strong>RUNLOW</strong>.
-                  </p>
-                </div>
-                
-                <div className="bg-secondary/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Sistema de Martingale Especializado</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Após uma perda, o robô utiliza uma lógica de recuperação especial:
-                    se o prejuízo total for pequeno, usa stake fixo de <strong>0.35</strong>; 
-                    se for significativo, calcula o próximo stake como <strong>prejuízo total × -0.45</strong>.
-                  </p>
-                </div>
-              </div>
-              
-              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30">
-                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
-                  <AlertTriangle size={16} />
-                  Aviso de Risco Elevado
-                </h4>
-                <p className="text-sm text-danger/80">
-                  Devido à natureza da estratégia de Martingale, especialmente a forma agressiva implementada 
-                  quando as perdas se acumulam, este robô apresenta RISCO ELEVADO. É imperativo que você teste
-                  exaustivamente em uma conta demonstração antes de considerar o uso em uma conta real.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ChartLine size={18} /> Performance Esperada
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-8">
-                <h4 className="font-medium mb-4">Precisão por Operação</h4>
-                <div className="grid grid-cols-1 gap-8">
-                  <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Assertividade Diária" yAxisLabel="Precisão %" />
-                </div>
-                <p className="mt-4 text-sm text-muted-foreground">
-                  A assertividade individual é de <strong>40-55%</strong>, dependendo das condições do mercado.
-                  O objetivo do Martingale NÃO é aumentar a taxa de acerto individual, mas sim aumentar 
-                  a probabilidade de fechar uma sessão com lucro.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>;
-    }
-
     // Default content for other bots
     return <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Info size={18} /> Estratégia Explicada
+              <Info size={18} /> Estrategia Explicada
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              O robô <strong>{bot.name}</strong> utiliza uma estratégia de {bot.strategy} 
-              para operar nos mercados.
+              El robot <strong>{bot.name}</strong> utiliza una estrategia de {bot.strategy} 
+              para operar en los mercados.
             </p>
             
             <div className="bg-secondary/50 p-4 rounded-lg">
-              <h4 className="font-medium mb-2">Detalhes da Estratégia</h4>
+              <h4 className="font-medium mb-2">Detalles de la Estrategia</h4>
               <p className="text-sm text-muted-foreground">
                 {bot.description}
               </p>
@@ -466,14 +427,14 @@ const BotDetailView = ({
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <ChartLine size={18} /> Performance Esperada
+              <ChartLine size={18} /> Rendimiento Esperado
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="mb-8">
-              <h4 className="font-medium mb-4">Precisão por Operação</h4>
+              <h4 className="font-medium mb-4">Precisión por Operación</h4>
               <div className="grid grid-cols-1 gap-8">
-                <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Assertividade Diária" yAxisLabel="Precisão %" />
+                <PerformanceChart data={generateDailyPerformanceData(bot.accuracy)} isPositive={bot.accuracy > 45} title="Asertividad Diaria" yAxisLabel="Precisión %" />
               </div>
             </div>
           </CardContent>
@@ -483,91 +444,328 @@ const BotDetailView = ({
 
   // Special content for bot risk management
   const renderBotSpecificRiskManagement = () => {
+    if (bot.id === "9") {
+      // SMA Trend Follower
+      return <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck size={18} /> Gestión de Riesgos Recomendada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h3 className="font-medium mb-2">🛡️ Gestión de Riesgos Recomendada (ESSENCIAL!)</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                El Martingale es una estrategia de <strong>ALTO RIESGO</strong>. ¡Adminístrela con sabiduría!
+              </p>
+              
+              <div className="space-y-4">
+                <div className="border border-success/30 rounded-lg p-4">
+                  <h4 className="font-medium text-success mb-2">🛡️ Stop Loss (Límite de Pérdida)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>¡NUNCA OPERE SIN UN STOP LOSS!</strong>
+                    <br />
+                    Establezca un valor pequeño en relación a su banca total (ej: 2% a 5% por sesión).
+                    <br />
+                    <em>Ejemplo:</em> Banca de $100, Stop Loss de $5.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">🎯 Stop Win (Meta de Ganancia)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Establezca una meta realista, generalmente menor o igual a su Stop Loss.
+                    <br />
+                    <em>Ejemplo:</em> Stop Loss $5, Stop Win de $2 a $5.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">💵 Valor de la Orden Inicial</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Comience con el valor recomendado de <strong>0.35 USD</strong>.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">⏱️ Cantidad de Ticks</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Para "Higher/Lower" en <code>R_100</code> con SMAs, duraciones entre <strong>5</strong> y <strong>15 ticks</strong> suelen ser un buen punto de partida para pruebas. Ajuste según sus resultados.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>;
+    }
+    
     if (bot.id === "14") {
       // NexusBot
       return <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldCheck size={18} /> Gestão de Riscos (Definida por VOCÊ!)
+              <ShieldCheck size={18} /> Gestión de Riesgos Recomendada
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <p className="text-sm">
-              O NexusBot requer que <strong>VOCÊ</strong> defina seus limites. Uma gestão de risco cuidadosa é essencial.
-            </p>
-            
             <div>
-              <h3 className="font-medium mb-2">Meta Lucro (Stop Win)</h3>
+              <h3 className="font-medium mb-2">🛡️ Gestión de Riesgos Recomendada (ESSENCIAL!)</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Define o objetivo de ganho para encerrar a sessão com lucro.
+                El Martingale es una estrategia de <strong>ALTO RIESGO</strong>. ¡Adminístrela con sabiduría!
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div className="border border-success/30 rounded-lg p-4">
-                  <h4 className="font-medium text-success mb-2">Conservador: 2% a 5% da banca</h4>
+                  <h4 className="font-medium text-success mb-2">🛡️ Stop Loss (Límite de Pérdida)</h4>
                   <p className="text-xs text-muted-foreground">
-                    Ex: Banca $50, Stop Win $1.00 a $2.50.
-                    Contratos de 5 minutos podem levar tempo para se desenvolver; metas realistas são importantes.
+                    <strong>¡NUNCA OPERE SIN UN STOP LOSS!</strong>
+                    <br />
+                    Establezca un valor pequeño en relación a su banca total (ej: 2% a 5% por sesión).
+                    <br />
+                    <em>Ejemplo:</em> Banca de $100, Stop Loss de $5.
                   </p>
                 </div>
                 
                 <div className="border border-primary/30 rounded-lg p-4">
-                  <h4 className="font-medium text-primary mb-2">Moderado: 5% a 10% da banca</h4>
+                  <h4 className="font-medium text-primary mb-2">🎯 Stop Win (Meta de Ganancia)</h4>
                   <p className="text-xs text-muted-foreground">
-                    Ex: Banca $50, Stop Win $2.50 a $5.00.
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6">
-              <h3 className="font-medium mb-2">Limite Perdas (Stop Loss)</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Define o limite máximo de perda antes que o robô pare de operar.
-                <strong> NUNCA opere sem um Stop Loss definido!</strong>
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-success/30 rounded-lg p-4">
-                  <h4 className="font-medium text-success mb-2">Conservador: 10% a 15% da banca</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Ex: Banca $50, Stop Loss $5.00 a $7.50.
-                    O Martingale <strong>-0.35</strong> é menos agressivo no aumento do stake do que fatores maiores, mas ainda pode acumular perdas.
+                    Establezca una meta realista, generalmente menor o igual a su Stop Loss.
+                    <br />
+                    <em>Ejemplo:</em> Stop Loss $5, Stop Win de $2 a $5.
                   </p>
                 </div>
                 
-                <div className="border border-warning/30 rounded-lg p-4">
-                  <h4 className="font-medium text-warning mb-2">Moderado (Risco Médio): 15% a 25% da banca</h4>
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">💵 Valor de la Orden Inicial</h4>
                   <p className="text-xs text-muted-foreground">
-                    Ex: Banca $50, Stop Loss $7.50 a $12.50.
+                    Comience con el valor recomendado de <strong>0.35 USD</strong>.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">⏱️ Cantidad de Ticks</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Para "Higher/Lower" en <code>R_100</code> con SMAs, duraciones entre <strong>5</strong> y <strong>15 ticks</strong> suelen ser un buen punto de partida para pruebas. Ajuste según sus resultados.
                   </p>
                 </div>
               </div>
-            </div>
-            
-            <div className="mt-6">
-              <h3 className="font-medium mb-2">Valor Inicial da Ordem</h3>
-              <div className="border border-success/30 rounded-lg p-4">
-                <h4 className="font-medium text-success mb-2">Recomendado: $0.35</h4>
-                <p className="text-xs text-muted-foreground">
-                  É uma boa base para o Martingale e para a gestão de risco.
+              
+              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2 text-warning">
+                  <AlertTriangle size={16} />
+                  Consideraciones Específicas para el Nexus Bot
+                </h4>
+                <p className="text-sm text-warning/80">
+                  El Nexus Bot utiliza un Martingale con factor <strong>-0.35</strong>, que es menos agresivo que otros bots,
+                  pero aún así exige cuidado. Las operaciones de 5 minutos de duración significan que los resultados demoran más 
+                  para aparecer, así que configure un Stop Loss adecuado para evitar pérdidas mientras espera el cierre de las operaciones.
                 </p>
               </div>
             </div>
-            
-            <div className="mt-6">
-              <h3 className="font-medium mb-2">Duração do Contrato</h3>
-              <p className="text-sm text-muted-foreground">
-                O robô opera com contratos de 5 minutos de duração para "Rise/Fall" (Sobe/Desce).
+          </CardContent>
+        </Card>;
+    }
+    
+    if (bot.id === "12") {
+      // XBot
+      return <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck size={18} /> Gestión de Riesgos Recomendada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h3 className="font-medium mb-2">🛡️ Gestión de Riesgos Recomendada (ESSENCIAL!)</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                El Martingale es una estrategia de <strong>ALTO RIESGO</strong>. ¡Adminístrela con sabiduría!
               </p>
+              
+              <div className="space-y-4">
+                <div className="border border-success/30 rounded-lg p-4">
+                  <h4 className="font-medium text-success mb-2">🛡️ Stop Loss (Límite de Pérdida)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>¡NUNCA OPERE SIN UN STOP LOSS!</strong>
+                    <br />
+                    Establezca un valor pequeño en relación a su banca total (ej: 2% a 5% por sesión).
+                    <br />
+                    <em>Ejemplo:</em> Banca de $100, Stop Loss de $5.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">🎯 Stop Win (Meta de Ganancia)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Establezca una meta realista, generalmente menor o igual a su Stop Loss.
+                    <br />
+                    <em>Ejemplo:</em> Stop Loss $5, Stop Win de $2 a $5.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">💵 Valor de la Orden Inicial</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Comience con el valor recomendado de <strong>0.35 USD</strong>.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">⏱️ Cantidad de Ticks</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Para "Higher/Lower" en <code>R_100</code> con SMAs, duraciones entre <strong>5</strong> y <strong>15 ticks</strong> suelen ser un buen punto de partida para pruebas. Ajuste según sus resultados.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30 mt-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
+                  <AlertTriangle size={16} />
+                  Advertencia de Riesgo Extremo
+                </h4>
+                <p className="text-sm text-danger/80">
+                  Este robot utiliza un factor Martingale de <strong>-1.07</strong>, que es extremadamente agresivo.
+                  Además, el XBot tiene la peculiaridad de siempre comprar contratos CALL, independientemente de
+                  la tendencia identificada en los indicadores, lo que puede resultar en riesgos adicionales.
+                </p>
+              </div>
             </div>
-            
-            <div className="bg-primary/10 p-4 rounded-lg border border-primary/30 mt-6">
-              <h4 className="font-medium mb-2 text-primary">Recomendação de Banca</h4>
-              <p className="text-sm">
-                Mínimo de <strong>$50 USD</strong>. Considerando a duração de 5 minutos e o Martingale (mesmo que menos agressivo no fator), 
-                uma banca com alguma folga para o Stop Loss é preferível.
+          </CardContent>
+        </Card>;
+    }
+    
+    if (bot.id === "11") {
+      // Quantum Bot
+      return <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck size={18} /> Gestión de Riesgos Preconfigurada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h3 className="font-medium mb-2">⚙️ Gestión de Riesgos (Preconfigurada)</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                El <strong>Quantum Bot</strong> ya viene con configuraciones de riesgo definidas:
               </p>
+              
+              <div className="space-y-4">
+                <div className="border border-success/30 rounded-lg p-4">
+                  <h4 className="font-medium text-success mb-2">💰 Meta Ganancia (Stop Win)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>$20 USD</strong>
+                    <br />
+                    El robot detendrá las operaciones automáticamente al alcanzar este valor de ganancia.
+                  </p>
+                </div>
+                
+                <div className="border border-danger/30 rounded-lg p-4">
+                  <h4 className="font-medium text-danger mb-2">💸 Límite de Pérdida (Stop Loss)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>$20 USD</strong>
+                    <br />
+                    El robot detendrá las operaciones automáticamente al alcanzar este valor de pérdida.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">💲 Valor Inicial de la Orden</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>$0.35 USD</strong>
+                    <br />
+                    Este é o stake base para cada operação. Após perdas, o valor aumentará de acordo com o fator Martingale.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">⏲️ Quantidade Tique-Taques (Duração)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>1 tick</strong>
+                    <br />
+                    As operações são de curtíssima duração, com contratos de apenas 1 tick.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-primary/10 p-4 rounded-lg border border-primary/30 mt-6">
+                <h4 className="font-medium mb-2 text-primary">✅ Recomendação de Banca</h4>
+                <p className="text-sm">
+                  Sugerimos operar este robô com contas a partir de <strong>$50 USD</strong> para ter uma margem adequada 
+                  para a estratégia de Martingale e o Stop Loss pré-configurado.
+                </p>
+              </div>
+              
+              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
+                <h4 className="font-medium mb-2 text-warning">⚠️ Importante</h4>
+                <p className="text-sm">
+                  Este robô utiliza um fator Martingale de <strong>1.065</strong>, que é menos agressivo que outros bots da plataforma.
+                  Ainda assim, o Martingale envolve riscos crescentes. Sempre teste em conta demo antes de usar capital real.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>;
+    }
+    
+    if (bot.id === "8") {
+      // Optin Trade
+      return <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck size={18} /> Gestão de Riscos Recomendada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h3 className="font-medium mb-2">🛡️ Gestão de Risco Recomendada (CRUCIAL!)</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                A estratégia de Martingale, especialmente a forma agressiva implementada neste robô quando as perdas se acumulam, é de <strong>ALTO RISCO</strong>.
+              </p>
+              
+              <div className="space-y-4">
+                <div className="border border-success/30 rounded-lg p-4">
+                  <h4 className="font-medium text-success mb-2">🛡️ Stop Loss (Limite de Perdas)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>NUNCA opere sem um Stop Loss definido!</strong>
+                    <br />
+                    <strong>Recomendação:</strong> Defina um valor que represente uma pequena porcentagem do seu capital total (ex: 2% a 5% da sua banca <em>por sessão</em>).
+                    <br />
+                    <em>Exemplo:</em> Se sua banca é $100, um Stop Loss de $5 (5%) é um ponto de partida.
+                    <br />
+                    Este valor deve ser o máximo que você está disposto a perder em uma sessão de trading com este robô.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">🎯 Stop Win (Meta de Lucro)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Recomendação:</strong> Defina uma meta realista, geralmente menor ou igual ao seu Stop Loss.
+                    <br />
+                    <em>Exemplo:</em> Se seu Stop Loss é $5, um Stop Win de $2 a $5 pode ser adequado.
+                    <br />
+                    Atingir pequenas metas consistentemente é mais sustentável.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">💵 Valor da Operação Inicial</h4>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Recomendação:</strong> Use o menor valor possível que a corretora permite (ex: $0.35) ou uma porcentagem muito pequena da sua banca (ex: 0.5% a 1%).
+                    <br />
+                    Lembre-se que este valor pode aumentar significativamente com o Martingale.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">⏱️ Quantidade de Tique-Taques</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Contratos "Run High/Run Low" são sensíveis à duração.
+                    <br />
+                    <strong>Durações menores (1-3 ticks)</strong> são mais arriscadas, mas podem ter payouts maiores e se alinham com a natureza de "escapada rápida" do preço.
+                    <br />
+                    <strong>Durações maiores (4-5+ ticks)</strong> dão mais tempo para o preço se mover, mas podem ter payouts diferentes e a efetividade da SMA pode variar. Teste para encontrar o ideal para <code>R_100</code>.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>;
@@ -666,8 +864,8 @@ const BotDetailView = ({
         </Card>;
     }
     
-    if (bot.id === "8") {
-      // SMA Trend Runner Pro
+    if (bot.id === "10") {
+      // Hunter Pro
       return <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -676,147 +874,126 @@ const BotDetailView = ({
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <h3 className="font-medium mb-2">Stop Loss (Limite de Perdas)</h3>
+              <h3 className="font-medium mb-2">🛡️ Gestão de Risco Recomendada (ESSENCIAL!)</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Define o limite máximo de perda antes que o robô pare de operar.
-                <strong> NUNCA opere sem um Stop Loss definido!</strong>
+                O Martingale é uma estratégia de <strong>ALTO RISCO</strong>. Gerencie com sabedoria!
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-4">
                 <div className="border border-success/30 rounded-lg p-4">
-                  <h4 className="font-medium text-success mb-2">Conservador: $3 - $5</h4>
+                  <h4 className="font-medium text-success mb-2">🛡️ Stop Loss (Limite de Perdas)</h4>
                   <p className="text-xs text-muted-foreground">
-                    Para bancas menores ou para quem quer testar com risco mais baixo.
-                    Defina de 2% a 5% da sua banca.
+                    <strong>NUNCA OPERE SEM UM STOP LOSS!</strong>
+                    <br />
+                    Defina um valor pequeno em relação à sua banca total (ex: 2% a 5% por sessão).
+                    <br />
+                    <em>Exemplo:</em> Banca de $100, Stop Loss de $5.
                   </p>
                 </div>
                 
                 <div className="border border-primary/30 rounded-lg p-4">
-                  <h4 className="font-medium text-primary mb-2">Moderado: $5 - $10</h4>
+                  <h4 className="font-medium text-primary mb-2">🎯 Stop Win (Meta de Lucro)</h4>
                   <p className="text-xs text-muted-foreground">
-                    Um equilíbrio entre segurança e permitir sequências de recuperação.
-                    Não mais de 10% da sua banca.
+                    Defina uma meta realista, geralmente menor ou igual ao seu Stop Loss.
+                    <br />
+                    <em>Exemplo:</em> Stop Loss $5, Stop Win de $2 a $5.
                   </p>
                 </div>
                 
-                <div className="border border-warning/30 rounded-lg p-4">
-                  <h4 className="font-medium text-warning mb-2">Agressivo: $10 - $15</h4>
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">💵 Valor da Operação Inicial</h4>
                   <p className="text-xs text-muted-foreground">
-                    Maior risco, mas maior chance de recuperação em sequências negativas.
-                    Não recomendado para iniciantes.
+                    Comece com o valor recomendado de <strong>0.35 USD</strong>.
+                  </p>
+                </div>
+                
+                <div className="border border-primary/30 rounded-lg p-4">
+                  <h4 className="font-medium text-primary mb-2">⏱️ Quantidade de Tique-Taques</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Para "Higher/Lower" no <code>R_100</code> com SMAs, durações entre <strong>5</strong> e <strong>15 ticks</strong> costumam ser um bom ponto de partida para testes. Ajuste conforme seus resultados.
                   </p>
                 </div>
               </div>
-            </div>
-            
-            <div>
-              <h3 className="font-medium mb-2">Stop Win (Meta de Lucro)</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Define o objetivo de lucro para encerrar as operações. Garante que o robô 
-                pare quando estiver no lucro, evitando a devolução de ganhos.
-              </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border border-success/30 rounded-lg p-4">
-                  <h4 className="font-medium text-success mb-2">Conservador: $1 - $3</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Rápido de atingir, garante pequenos lucros frequentes.
-                  </p>
-                </div>
-                
-                <div className="border border-primary/30 rounded-lg p-4">
-                  <h4 className="font-medium text-primary mb-2">Moderado: $3 - $5</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Um bom alvo para uma sessão de operações.
-                  </p>
-                </div>
-                
-                <div className="border border-warning/30 rounded-lg p-4">
-                  <h4 className="font-medium text-warning mb-2">Agressivo: $5 - $7</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Requer mais tempo/operações para ser atingido.
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="font-medium mb-2">Duração do Contrato (em Ticks)</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Contratos "Run High/Run Low" são sensíveis à duração.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-primary/30 rounded-lg p-4">
-                  <h4 className="font-medium text-primary mb-2">Durações Curtas: 1-3 ticks</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Mais arriscadas, mas podem ter payouts maiores e se alinham com a natureza 
-                    de "escapada rápida" do preço.
-                  </p>
-                </div>
-                
-                <div className="border border-primary/30 rounded-lg p-4">
-                  <h4 className="font-medium text-primary mb-2">Durações Médias: 4-5+ ticks</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Dão mais tempo para o preço se mover, mas podem ter payouts diferentes.
-                    Teste para encontrar o ideal para R_100.
-                  </p>
-                </div>
+              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30 mt-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
+                  <AlertTriangle size={16} />
+                  Aviso de Risco Elevado
+                </h4>
+                <p className="text-sm text-danger/80">
+                  Este robô utiliza um Martingale com fator <strong>-0.5</strong>, o que significa uma estratégia de recuperação agressiva.
+                  Quanto maior for seu prejuízo acumulado, maior será o próximo stake, aumentando significativamente o risco.
+                  Nunca opere este robô sem um stop loss adequado.
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>;
     }
 
-    // Default risk management for other bots
+    // Default instructions for other bots
     return <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <ShieldCheck size={18} /> Gestão de Riscos Recomendada
+            <Info size={18} /> Instruções de Uso
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="bg-secondary/50 p-4 rounded-lg">
-            <h4 className="font-medium mb-2">A Gestão de Riscos já vem pré-configurada</h4>
-            <p className="text-sm text-muted-foreground">Esse robô é ideal para quem quer lucrar $20 dólares por dia e perder $20 dólare</p>
-          </div>
-          
-          <div>
-            <h3 className="font-medium mb-2">Stop Loss Padrão - $20 USD</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="border border-success/30 rounded-lg p-4">
-                <h4 className="font-medium text-success mb-2">Conservador</h4>
-                <p className="text-xs text-muted-foreground">
-                  2-5% da sua banca por sessão de trading.
+        <CardContent>
+          <div className="space-y-6">
+            <h3 className="font-medium">🚀 Modo de Uso (Deriv Bot / Binary Bot)</h3>
+            
+            <ol className="list-decimal list-inside space-y-4 text-sm">
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Acesse a plataforma</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  <a href="https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    Deriv Bot (DBot)
+                  </a> ou Binary Bot.
                 </p>
-              </div>
+              </li>
               
-              <div className="border border-primary/30 rounded-lg p-4">
-                <h4 className="font-medium text-primary mb-2">Moderado</h4>
-                <p className="text-xs text-muted-foreground">
-                  5-8% da sua banca por sessão de trading.
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Faça login</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Faça login (Conta Demo ou Real).
                 </p>
-              </div>
+              </li>
               
-              <div className="border border-warning/30 rounded-lg p-4">
-                <h4 className="font-medium text-warning mb-2">Agressivo</h4>
-                <p className="text-xs text-muted-foreground">
-                  8-10% da sua banca por sessão de trading.
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Clique em "Importar"</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Clique em "<strong>Importar</strong>" (ou "Load").
                 </p>
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <h3 className="font-medium mb-2">Stop Win Padrão - $20 USD</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Defina uma meta realista para garantir lucros consistentes.
-            </p>
-            <div className="border border-primary/30 rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">
-                Recomendamos definir uma meta de lucro diária entre 3-8% da sua banca,
-                dependendo do seu perfil de risco. Quando atingida, encerre as operações
-                para o dia para proteger seus ganhos.
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Carregue o arquivo</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Carregue o arquivo <code>.xml</code> do <strong>Hunter Pro</strong>.
+                </p>
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Ajuste as configurações</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  <strong>AJUSTE AS CONFIGURAÇÕES</strong> (<code>Meta Lucro</code>, <code>Limite Perdas</code>, <code>Valor Inicial da Ordem</code>, <code>Quantidade Tique-Taques</code>) conforme sua gestão de risco.
+                </p>
+              </li>
+              
+              <li className="p-3 bg-secondary/20 rounded-lg">
+                <span className="font-medium">Execute o robô</span>
+                <p className="mt-1 text-muted-foreground pl-5">
+                  Clique em "<strong>Executar</strong>" (ou "Run").
+                </p>
+              </li>
+            </ol>
+            
+            <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
+              <h4 className="font-medium mb-2 text-warning">Lembre-se</h4>
+              <p className="text-sm">
+                Este robô utiliza uma combinação de <strong>filtragem de dígito</strong> e <strong>cruzamento de SMAs</strong> com um Martingale agressivo.
+                Sempre teste exaustivamente na conta Demo antes de considerar o uso em conta real.
+                Trading automatizado envolve riscos. Nunca invista mais do que pode perder.
               </p>
             </div>
           </div>
@@ -826,8 +1003,8 @@ const BotDetailView = ({
 
   // Instructions content
   const renderBotInstructions = () => {
-    if (bot.id === "8") {
-      // SMA Trend Runner Pro
+    if (bot.id === "10") {
+      // Hunter Pro
       return <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -836,73 +1013,138 @@ const BotDetailView = ({
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              <h3 className="font-medium">Passo a Passo para Operar com o {bot.name}</h3>
+              <h3 className="font-medium">🚀 Modo de Uso (Deriv Bot / Binary Bot)</h3>
               
               <ol className="list-decimal list-inside space-y-4 text-sm">
                 <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Preparação da Plataforma</span>
+                  <span className="font-medium">Acesse a plataforma</span>
                   <p className="mt-1 text-muted-foreground pl-5">
-                    Acesse a plataforma Deriv Bot (DBot) ou Binary Bot e faça login na sua conta.
+                    <a href="https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                      Deriv Bot (DBot)
+                    </a> ou Binary Bot.
                   </p>
                 </li>
                 
                 <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Importação do Robô</span>
+                  <span className="font-medium">Faça login</span>
                   <p className="mt-1 text-muted-foreground pl-5">
-                    Clique em "Importar" no menu superior e selecione o arquivo .xml do robô SMA Trend Runner Pro.
+                    Faça login (Conta Demo ou Real).
                   </p>
                 </li>
                 
                 <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Configuração dos Parâmetros</span>
+                  <span className="font-medium">Clique em "Importar"</span>
                   <p className="mt-1 text-muted-foreground pl-5">
-                    Defina o Stop Loss, Stop Win e Valor Inicial conforme recomendações da aba "Gestão de Riscos".
+                    Clique em "<strong>Importar</strong>" (ou "Load").
                   </p>
                 </li>
                 
                 <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Seleção do Ativo</span>
+                  <span className="font-medium">Carregue o arquivo</span>
                   <p className="mt-1 text-muted-foreground pl-5">
-                    Selecione o ativo R_100 (Índice Sintético 100) da lista de ativos disponíveis.
+                    Carregue o arquivo <code>.xml</code> do <strong>Hunter Pro</strong>.
                   </p>
                 </li>
                 
                 <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Definição da Duração</span>
+                  <span className="font-medium">Ajuste as configurações</span>
                   <p className="mt-1 text-muted-foreground pl-5">
-                    Configure a duração do contrato em ticks (recomendado: 1-5 ticks).
+                    <strong>AJUSTE AS CONFIGURAÇÕES</strong> (<code>Meta Lucro</code>, <code>Limite Perdas</code>, <code>Valor Inicial da Ordem</code>, <code>Quantidade Tique-Taques</code>) conforme sua gestão de risco.
                   </p>
                 </li>
                 
                 <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Execução do Robô</span>
+                  <span className="font-medium">Execute o robô</span>
                   <p className="mt-1 text-muted-foreground pl-5">
-                    Clique em "Executar" para iniciar as operações automatizadas.
-                  </p>
-                </li>
-                
-                <li className="p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Monitoramento</span>
-                  <p className="mt-1 text-muted-foreground pl-5">
-                    Acompanhe o desempenho do robô e esteja pronto para intervir se necessário.
+                    Clique em "<strong>Executar</strong>" (ou "Run").
                   </p>
                 </li>
               </ol>
               
-              <div className="bg-primary/10 p-4 rounded-lg border border-primary/30 mt-4">
-                <h4 className="font-medium mb-2 text-primary">Dica Profissional</h4>
+              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
+                <h4 className="font-medium mb-2 text-warning">Lembre-se</h4>
                 <p className="text-sm">
-                  Recomendamos começar com uma conta demonstração para familiarizar-se com o comportamento
-                  do robô em diferentes condições de mercado antes de usar capital real.
+                  Este robô utiliza uma combinação de <strong>filtragem de dígito</strong> e <strong>cruzamento de SMAs</strong> com um Martingale agressivo.
+                  Sempre teste exaustivamente na conta Demo antes de considerar o uso em conta real.
+                  Trading automatizado envolve riscos. Nunca invista mais do que pode perder.
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>;
+    }
+    
+    if (bot.id === "14") {
+      // NexusBot
+      return <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Info size={18} /> Instruções de Uso
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <h3 className="font-medium">🚀 Modo de Uso (Deriv Bot / Binary Bot)</h3>
+              
+              <ol className="list-decimal list-inside space-y-4 text-sm">
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Acesse a plataforma</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    <a href="https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view?usp=sharing" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                      Clique aqui para acessar a plataforma Deriv
+                    </a>
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Faça login na sua conta</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Faça login na sua conta Deriv (Demo ou Real).
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Importe o robô</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    No menu superior, clique em "<strong>Importar</strong>" (ou "Load" no Binary Bot).
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Carregue o arquivo</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Localize o arquivo <code>.xml</code> do robô <strong>Nexus Bot</strong> no seu computador e carregue-o.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Verifique o carregamento</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    O robô aparecerá na área de trabalho da plataforma.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Configure os parâmetros</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Antes de iniciar, <strong>revise e ajuste as configurações</strong> (<code>Meta Lucro</code>, <code>Limite Perdas</code>, <code>Valor Inicial da Ordem</code>, <code>Quantidade Tique-Taques</code>) conforme sua gestão de risco.
+                  </p>
+                </li>
+                
+                <li className="p-3 bg-secondary/20 rounded-lg">
+                  <span className="font-medium">Execute o robô</span>
+                  <p className="mt-1 text-muted-foreground pl-5">
+                    Clique no botão "<strong>Executar</strong>" (ou "Run") para iniciar o robô.
+                  </p>
+                </li>
+              </ol>
               
               <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
                 <h4 className="font-medium mb-2 text-warning">Lembre-se</h4>
                 <p className="text-sm">
-                  Trading automatizado envolve riscos. Mesmo com as melhores configurações,
-                  perdas são possíveis. Nunca invista mais do que pode perder e sempre use
-                  os limites de Stop Loss recomendados.
+                  O Nexus Bot opera no índice <strong>RDBEAR</strong> com operações de 5 minutos de duração e sistema de venda antecipada.
+                  Este robô utiliza um Martingale específico com fator -0.35, que apesar de menos agressivo que outros bots, 
+                  ainda envolve riscos significativos. Sempre teste em conta demo antes de usar em conta real.
                 </p>
               </div>
             </div>
@@ -928,7 +1170,7 @@ const BotDetailView = ({
               
               <li className="p-3 bg-secondary/20 rounded-lg">
                 <span className="font-medium">Gestão de Riscos Pré-Configurada</span>
-                <p className="mt-1 text-muted-foreground pl-5">O robô já vem com stop loss e stop win automáticos.</p>
+                <p className="mt-1 text-muted-foreground pl-5">Configure Stop win e Stop Loss de acordo com sua gestão de riscos</p>
               </li>
               
               <li className="p-3 bg-secondary/20 rounded-lg">
@@ -952,7 +1194,8 @@ const BotDetailView = ({
         </CardContent>
       </Card>;
   };
-  return <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Column - Main Info */}
       <div className="lg:col-span-2 space-y-6">
         {/* Header Card */}
@@ -1014,10 +1257,92 @@ const BotDetailView = ({
                   <span className="text-muted-foreground ml-2">por {bot.author}</span>
                 </span>
               </div>
-              <button className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors">
-                <Download size={16} />
-                <span>Download</span>
-              </button>
+              <div className="flex gap-2">
+                <a 
+                  href="https://deriv.com/pt?referrer=&t=-VSPRsvvDZV3lsRC_ilxPmNd7ZgqdRLk&utm_campaign=MyAffiliates&utm_content=&utm_medium=affiliate&utm_source=affiliate_223442"
+                  className="flex items-center gap-1 bg-gradient-to-r from-green-500 to-green-700 text-white px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <span>Abrir Broker</span>
+                </a>
+                {bot.id === "14" ? (
+                <a 
+                  href="https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : bot.id === "12" ? (
+                <a 
+                  href="https://drive.google.com/file/d/1zA_tgqK8MPNM9DTiNgXkYg63qqo5c0RF/view?usp=sharing" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : bot.id === "10" ? (
+                <a 
+                  href="https://drive.google.com/file/d/1DZ6U83PvpSN0fcEMAyuUYMw4smHWjkar/view?usp=sharing" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : bot.id === "8" ? (
+                <a 
+                  href="https://drive.google.com/file/d/12MF5CYu2PfvQ2x0A0-6A7vZuQbgbvYSY/view?usp=sharing" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : bot.id === "13" ? (
+                <a 
+                  href="https://drive.google.com/file/d/1Umsz_dpqkev3hMV2DPNlb1blk0Dx30jI/view?usp=sharing" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : bot.id === "11" ? (
+                <a 
+                  href="https://drive.google.com/file/d/1wLaL17gPUh_q5Gb1f3SX-bUr1KhBVHnW/view?usp=sharing" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : bot.id === "9" ? (
+                <a 
+                  href="https://drive.google.com/file/d/17LT_6PZ6rFbVMkppnBCmutn5HAf935gZ/view?usp=sharing" 
+                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Download</span>
+                </a>
+              ) : (
+                <button className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors">
+                  <Download size={16} />
+                  <span>Download</span>
+                </button>
+              )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1123,6 +1448,7 @@ const BotDetailView = ({
           </CardContent>
         </Card>
       </div>
-    </div>;
+    </div>
+  );
 };
 export default BotDetailView;

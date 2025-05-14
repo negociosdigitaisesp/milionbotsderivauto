@@ -18,6 +18,7 @@ export interface Bot {
   riskLevel: number;
   tradedAssets: string[];
   code: string;
+  usageInstructions?: string; // Novo campo para instruções de uso
   isFavorite?: boolean; // New field for favorites
   ranking?: number; // New field for ranking
 }
@@ -306,7 +307,7 @@ function onTradeResult(result) {
 }
 `,
   
-  smaTrendRunner: `// SMA Trend Runner Pro - SMA Crossover Strategy for Runs Contracts
+  smaTrendRunner: `// Optin Trade - SMA Crossover Strategy for Runs Contracts
 function initialize() {
   // Define indicators
   this.fastSMA = SMA(1);  // Essentially the current price
@@ -399,7 +400,7 @@ function onTradeResult(result) {
   this.totalProfit += result.profit;
   
   // Log the result
-  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+  console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit);
 }
 `,
   
@@ -496,7 +497,7 @@ function onTradeResult(result) {
   this.totalProfit += result.profit;
   
   // Log the result
-  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+  console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit);
 }
 `,
 
@@ -603,7 +604,7 @@ function onTradeResult(result) {
   this.totalProfit += result.profit;
   
   // Log the result
-  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+  console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit);
 }
 `,
 
@@ -625,7 +626,7 @@ function initialize() {
 function onTick(tick) {
   // Check if we've reached stop conditions
   if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
-    this.stop(\`Target reached: \${this.totalProfit}\`);
+    this.stop("Target reached: " + this.totalProfit);
     return;
   }
   
@@ -656,7 +657,7 @@ function onTradeResult(result) {
   }
   
   // Log the result
-  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}, Next: \${this.nextCondition}\`);
+  console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit + ", Next: " + this.nextCondition);
 }
 `,
 
@@ -681,7 +682,7 @@ function initialize() {
 function onTick(tick) {
   // Check if we've reached stop conditions
   if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
-    this.stop(\`Target reached: \${this.totalProfit}\`);
+    this.stop("Target reached: " + this.totalProfit);
     return;
   }
   
@@ -765,7 +766,7 @@ function onTradeResult(result) {
   this.totalProfit += result.profit;
   
   // Log the result
-  console.log(\`Trade completed: \${result.type}, Profit: \${result.profit}, Total: \${this.totalProfit}\`);
+  console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit);
 }
 `
 };
@@ -788,7 +789,7 @@ function initialize() {
 function onTick(tick) {
   // Verificar se atingimos condições de parada
   if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
-    this.stop(`Meta atingida: ${this.totalProfit}`);
+    this.stop("Meta atingida: " + this.totalProfit);
     return;
   }
   
@@ -819,7 +820,7 @@ function onTick(tick) {
     this.buyPut(tick.symbol, stakeAmount, this.contractDuration * 60); // Converter minutos para segundos
     
     // Registrar a operação
-    console.log(`Sinal PUT detectado. Stake: ${stakeAmount}`);
+    console.log("Sinal PUT detectado. Stake: " + stakeAmount);
   }
   // Sinal de compra CALL (Sobe)
   else if (tick5 < tick4 && tick4 < tick3 && tick3 < tick2 && tick1 > tick2) {
@@ -828,7 +829,7 @@ function onTick(tick) {
     this.buyCall(tick.symbol, stakeAmount, this.contractDuration * 60); // Converter minutos para segundos
     
     // Registrar a operação
-    console.log(`Sinal CALL detectado. Stake: ${stakeAmount}`);
+    console.log("Sinal CALL detectado. Stake: " + stakeAmount);
   }
   else {
     // Nenhuma sequência identificada, aguardar
@@ -855,7 +856,7 @@ function checkSell(contract) {
     // Vender se o lucro for maior que o limite
     if (currentProfit > sellThreshold) {
       this.sellContract(contract.id);
-      console.log(`Contrato vendido antecipadamente. Lucro: ${currentProfit}`);
+      console.log("Contrato vendido antecipadamente. Lucro: " + currentProfit);
     }
   }
 }
@@ -881,7 +882,7 @@ function onTradeResult(result) {
   this.totalProfit += result.profit;
   
   // Registrar o resultado
-  console.log(`Operação concluída: ${result.type}, Lucro: ${result.profit}, Total: ${this.totalProfit}`);
+  console.log("Operação concluída: " + result.type + ", Lucro: " + result.profit + ", Total: " + this.totalProfit);
 }
 `;
 
@@ -889,12 +890,12 @@ function onTradeResult(result) {
 export const bots: Bot[] = [
   {
     id: "8",
-    name: "SMA Trend Runner Pro",
+    name: "OptinTrade",
     description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",
     strategy: "Seguidor de Tendência",
     accuracy: 48,
     operations: 632, // Changed from downloads to operations
-    imageUrl: "https://images.unsplash.com/photo-1559526324-593bc073d938?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-01-10",
     updatedAt: "2024-05-01",
     version: "1.3.2",
@@ -905,6 +906,7 @@ export const bots: Bot[] = [
     riskLevel: 7,
     tradedAssets: ["R_100"],
     code: strategyCode.smaTrendRunner,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô Optin Trade no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 3
   },
@@ -915,7 +917,7 @@ export const bots: Bot[] = [
     strategy: "Seguidor de Tendência",
     accuracy: 52,
     operations: 487, // Changed from downloads to operations
-    imageUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-02-15",
     updatedAt: "2024-05-07",
     version: "1.2.1",
@@ -926,6 +928,7 @@ export const bots: Bot[] = [
     riskLevel: 6,
     tradedAssets: ["R_100"],
     code: strategyCode.smaTrendFollower,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô SMA Trend Follower no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 1
   },
@@ -936,7 +939,7 @@ export const bots: Bot[] = [
     strategy: "Digital Filter",
     accuracy: 45,
     operations: 312, // Changed from downloads to operations
-    imageUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-03-15",
     updatedAt: "2024-05-12",
     version: "1.0.0",
@@ -947,6 +950,7 @@ export const bots: Bot[] = [
     riskLevel: 8,
     tradedAssets: ["R_100"],
     code: strategyCode.hunterPro,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô Hunter Pro no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 4
   },
@@ -957,7 +961,7 @@ export const bots: Bot[] = [
     strategy: "Martingale",
     accuracy: 50,
     operations: 245, // Changed from downloads to operations
-    imageUrl: "https://images.unsplash.com/photo-1639762681057-408e52192e55?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-04-18",
     updatedAt: "2024-05-13",
     version: "1.0.0",
@@ -968,6 +972,7 @@ export const bots: Bot[] = [
     riskLevel: 7,
     tradedAssets: ["R_100"],
     code: strategyCode.quantumBot,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô Quantum Bot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 2
   },
@@ -978,7 +983,7 @@ export const bots: Bot[] = [
     strategy: "Digital Filter",
     accuracy: 40,
     operations: 178,
-    imageUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-05-12",
     updatedAt: "2024-05-13",
     version: "1.0.0",
@@ -989,6 +994,7 @@ export const bots: Bot[] = [
     riskLevel: 9,
     tradedAssets: ["R_100"],
     code: strategyCode.xbot,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô XBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 5
   },
@@ -999,7 +1005,7 @@ export const bots: Bot[] = [
     strategy: "Digital Filter",
     accuracy: 48,
     operations: 215,
-    imageUrl: "https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-05-15",
     updatedAt: "2024-05-20",
     version: "1.0.0",
@@ -1010,6 +1016,7 @@ export const bots: Bot[] = [
     riskLevel: 8,
     tradedAssets: ["R_100"],
     code: strategyCode.contrarian,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô AlphaBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 3
   },
@@ -1020,7 +1027,7 @@ export const bots: Bot[] = [
     strategy: "Análise Sequencial",
     accuracy: 47,
     operations: 185,
-    imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=500&auto=format&fit=crop",
+    imageUrl: "",
     createdAt: "2024-05-25",
     updatedAt: "2024-05-25",
     version: "1.0.0",
@@ -1031,6 +1038,7 @@ export const bots: Bot[] = [
     riskLevel: 6,
     tradedAssets: ["RDBEAR"],
     code: nexusBotCode,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view?usp=sharing\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô NexusBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 4
   }

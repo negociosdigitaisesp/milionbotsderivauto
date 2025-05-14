@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { cn } from '../lib/utils';
 
@@ -30,7 +29,7 @@ const StatCard = ({ title, value, icon, trend, className }: StatCardProps) => {
               trend.isPositive ? "text-success" : "text-danger"
             )}>
               {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value)}%
-              <span className="text-muted-foreground">vs. último mês</span>
+              <span className="text-muted-foreground">vs. último mes</span>
             </p>
           )}
         </div>
