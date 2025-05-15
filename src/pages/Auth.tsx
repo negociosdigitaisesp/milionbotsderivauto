@@ -24,7 +24,11 @@ const Auth = () => {
       if (isSignIn) {
         const { error, success } = await signIn(email, password);
         if (error) {
-          toast.error('Error al iniciar sesión: ' + (error.message || 'Verifica tus credenciales'));
+          if (error.message === 'Email verification required') {
+            toast.info('Verifique su correo electrónico para activar su cuenta');
+          } else {
+            toast.error('Error al iniciar sesión: ' + (error.message || 'Verifica tus credenciales'));
+          }
         } else if (success) {
           toast.success('¡Inicio de sesión exitoso!');
           navigate('/');
@@ -32,12 +36,20 @@ const Auth = () => {
       } else {
         const { error, success } = await signUp(email, password);
         if (error) {
-          toast.error('Error al crear cuenta: ' + (error.message || 'Verifica los datos ingresados'));
-        } else if (success && !isDemoMode) {
-          toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
-          setIsSignIn(true);
+          if (error.message === 'Email already registered') {
+            toast.info('Este correo ya está registrado. Intente iniciar sesión.');
+            setIsSignIn(true);
+          } else {
+            toast.error('Error al crear cuenta: ' + (error.message || 'Verifica los datos ingresados'));
+          }
+        } else if (success) {
+          if (isDemoMode) {
+            // The case for demo mode is handled in signUp function
+          } else {
+            toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
+            setIsSignIn(true);
+          }
         }
-        // El caso de éxito en modo demo se maneja dentro de la función signUp
       }
     } catch (error: any) {
       toast.error('Ocurrió un error: ' + (error.message || 'Intenta nuevamente'));

@@ -88,3 +88,12 @@ The authentication system uses Supabase Auth with email confirmation. Key compon
 ## License
 
 MIT
+
+## Deployment to Netlify
+
+When deploying to Netlify, make sure to configure the following environment variables in Netlify's dashboard:
+
+1. `VITE_SUPABASE_URL` - Your Supabase project URL (e.g., https://your-project-id.supabase.co)
+2. `VITE_SUPABASE_ANON_KEY` - Your Supabase anon/public key
+
+Additionally, ensure you have Netlify redirects correctly set up in the netlify.toml file for proper SPA routing and authentication callbacks.

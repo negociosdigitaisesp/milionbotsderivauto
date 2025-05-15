@@ -142,6 +142,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Login error:', error);
+        
+        // Handle common error cases
+        if (error.message.includes('Email not confirmed')) {
+          toast.error('Por favor, verifique su correo electrónico para activar su cuenta');
+          return { error, success: false };
+        }
+        
         toast.error(`Error al iniciar sesión: ${error.message}`);
         return { error, success: false };
       }
@@ -178,6 +185,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           toast.success('¡Inicio de sesión exitoso (modo demo)!');
           return { error: null, success: true };
         } else {
+          // Try to refresh the session once
+          console.log('Attempting to refresh session...');
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (!refreshError && refreshData?.session && refreshData?.user) {
+            // Session refreshed successfully
+            setSession(refreshData.session);
+            setUser(refreshData.user);
+            setIsOfflineMode(false);
+            toast.success('¡Inicio de sesión exitoso!');
+            return { error: null, success: true };
+          }
+          
+          // Check if the account requires email verification
+          const { data: userData, error: userError } = await supabase.auth.getUserIdentities();
+          if (!userError && userData && userData.identities && userData.identities.length > 0) {
+            const identity = userData.identities[0];
+            if (identity && !identity.identity_data.email_verified) {
+              toast.error('Por favor verifique su correo electrónico para activar su cuenta');
+              return { 
+                error: { message: 'Email verification required' }, 
+                success: false 
+              };
+            }
+          }
+          
           toast.error('Error al iniciar sesión: Sesión o usuario no encontrado');
           return { 
             error: { message: 'Auth session or user missing' }, 
@@ -256,18 +289,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
         
-        if (data?.user && !data?.user?.confirmed_at) {
-          toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico.');
-          return { error: null, success: true };
-        } else {
-          // User already confirmed or auto-confirmed
-          toast.success('¡Cuenta creada! Redirigiendo al inicio de sesión...');
-          // Switch to login view
-          setTimeout(() => {
-            navigate('/login');
-          }, 2000);
-          return { error: null, success: true };
+        // Add auto-signin attempt for newly registered users
+        // This will work if email confirmation is not required in Supabase settings
+        if (data?.user) {
+          // Check if email is confirmed or confirmation not required
+          if (data.user.email_confirmed_at || data.user.confirmed_at) {
+            toast.success('¡Cuenta creada! Iniciando sesión automáticamente...');
+            // Try to sign in automatically
+            const signInResult = await signIn(email, password);
+            if (signInResult.success) {
+              navigate('/');
+              return { error: null, success: true };
+            }
+          } else {
+            // Email confirmation required
+            toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
+            return { error: null, success: true };
+          }
         }
+        
+        return { error: null, success: true };
       }
     } catch (error: any) {
       console.error('Error during signup:', error);
