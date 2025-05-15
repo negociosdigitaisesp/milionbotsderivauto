@@ -32,7 +32,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
           
           // Simular confirmación de correo y autenticación exitosa
           if (url.includes('/signup')) {
-            const requestBody = JSON.parse(args[1].body);
+            const requestBody = JSON.parse(args[1]?.body || '{}');
             const email = requestBody.email || 'demo@example.com';
             
             // Crear usuario simulado con email confirmado automáticamente
@@ -63,7 +63,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
           
           // Manejar inicio de sesión
           if (url.includes('/token?grant_type=password')) {
-            const requestBody = JSON.parse(args[1].body);
+            const requestBody = JSON.parse(args[1]?.body || '{}');
             const email = requestBody.email || 'demo@example.com';
             
             // Crear usuario simulado
@@ -110,4 +110,3 @@ if (isDemoMode) {
   console.warn('2. Configura las variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en un archivo .env.local')
   console.warn('3. Reinicia la aplicación')
 }
-

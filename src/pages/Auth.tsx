@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
 const Auth = () => {
@@ -26,8 +27,20 @@ const Auth = () => {
         if (error) {
           if (error.message === 'Email verification required') {
             toast.info('Verifique su correo electrónico para activar su cuenta');
+          } else if (error.message === 'Auth session or user missing') {
+            // Intento de reintentación automática en este escenario específico
+            toast.info('Reintentando conexión automáticamente...');
+            setTimeout(async () => {
+              const retryResult = await signIn(email, password);
+              if (retryResult.success) {
+                toast.success('¡Inicio de sesión exitoso!');
+                navigate('/');
+              } else {
+                toast.error('Error al iniciar sesión: Por favor intente nuevamente');
+              }
+            }, 1000);
           } else {
-            toast.error('Error al iniciar sesión: ' + (error.message || 'Verifica tus credenciales'));
+            toast.error('Error al iniciar sesión: ' + (error.message || 'Verifique sus credenciales'));
           }
         } else if (success) {
           toast.success('¡Inicio de sesión exitoso!');
@@ -40,19 +53,22 @@ const Auth = () => {
             toast.info('Este correo ya está registrado. Intente iniciar sesión.');
             setIsSignIn(true);
           } else {
-            toast.error('Error al crear cuenta: ' + (error.message || 'Verifica los datos ingresados'));
+            toast.error('Error al crear cuenta: ' + (error.message || 'Verifique los datos ingresados'));
           }
         } else if (success) {
           if (isDemoMode) {
-            // The case for demo mode is handled in signUp function
+            // El caso para el modo demostración se maneja en la función signUp
+            toast.success('¡Cuenta creada con éxito! Iniciando sesión...');
+            navigate('/');
           } else {
-            toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
+            toast.success('¡Cuenta creada! Por favor verifique su correo electrónico para confirmar.');
             setIsSignIn(true);
           }
         }
       }
     } catch (error: any) {
-      toast.error('Ocurrió un error: ' + (error.message || 'Intenta nuevamente'));
+      console.error('Error completo:', error);
+      toast.error('Ocurrió un error: ' + (error.message || 'Intente nuevamente'));
     } finally {
       setLoading(false);
     }
@@ -68,9 +84,19 @@ const Auth = () => {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-foreground">Million Bots</h1>
             <p className="text-muted-foreground mt-2">
-              {isSignIn ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta'}
+              {isSignIn ? 'Inicie sesión en su cuenta' : 'Cree su cuenta'}
             </p>
           </div>
+
+          {isDemoMode && (
+            <Alert className="mb-6 bg-yellow-50 border-yellow-200">
+              <Info className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-700 text-sm">
+                Modo demostración activo. Las credenciales se guardan localmente
+                y no se requiere verificación de correo.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
@@ -84,7 +110,7 @@ const Auth = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@correo.com"
+                  placeholder="su@correo.com"
                   className="pl-10"
                   required
                 />
@@ -141,8 +167,8 @@ const Auth = () => {
               className="text-primary hover:text-primary/80 font-medium"
             >
               {isSignIn
-                ? '¿No tienes una cuenta? Regístrate ahora'
-                : '¿Ya tienes una cuenta? Inicia sesión'}
+                ? '¿No tiene una cuenta? Regístrese ahora'
+                : '¿Ya tiene una cuenta? Inicie sesión'}
             </button>
           </div>
         </div>
