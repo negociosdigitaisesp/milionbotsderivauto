@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -60,15 +59,6 @@ const Auth = () => {
               {isSignIn ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta'}
             </p>
           </div>
-
-          {isDemoMode && (
-            <Alert className="mb-6 bg-yellow-50 border-yellow-200">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-700">
-                Modo de demostración activo: La autenticación es simulada y no se requiere confirmación por correo electrónico.
-              </AlertDescription>
-            </Alert>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
