@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { supabase, isSupabaseDemoMode } from '../lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
@@ -32,30 +31,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Verificar si estamos en modo offline (usando valores predeterminados)
+    // Check if we're in offline mode (using default values)
     const checkOfflineMode = () => {
       const demoToken = localStorage.getItem('supabase.auth.token');
       if (demoToken && demoToken.includes('demo-token')) {
         setIsOfflineMode(true);
-        console.info('🔑 Modo de demostración activo: Autenticación simulada habilitada');
+        console.info('🔑 Demo mode active: Simulated authentication enabled');
+        
+        try {
+          // Parse the demo token to get user info
+          const tokenData = JSON.parse(demoToken);
+          if (tokenData && tokenData.user) {
+            setUser(tokenData.user as User);
+            setSession(tokenData as Session);
+          }
+        } catch (err) {
+          console.error('Error parsing demo token:', err);
+          localStorage.removeItem('supabase.auth.token'); // Remove invalid token
+        }
       }
     };
 
-    // Obtener sesión actual
+    // Get current session
     const getSession = async () => {
       setLoading(true);
       try {
+        console.log('Retrieving Supabase session...');
         const { data, error } = await supabase.auth.getSession();
         
         if (!error && data?.session) {
+          console.log('Session retrieved successfully');
           setSession(data.session);
           setUser(data.session.user);
-        } else if (error) {
-          console.error('Error al obtener la sesión:', error);
-          checkOfflineMode();
+          setIsOfflineMode(false);
+        } else {
+          if (error) {
+            console.error('Error retrieving session:', error);
+          } else {
+            console.warn('No active session found');
+          }
+          
+          // If no valid session, check if we have a refresh token to try
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData?.session) {
+            console.log('Session refreshed successfully');
+            setSession(refreshData.session);
+            setUser(refreshData.session.user);
+            setIsOfflineMode(false);
+          } else {
+            // If still no session, check for offline mode
+            checkOfflineMode();
+          }
         }
       } catch (err) {
-        console.error('Error al intentar obtener la sesión:', err);
+        console.error('Unexpected error retrieving session:', err);
         checkOfflineMode();
       } finally {
         setLoading(false);
@@ -64,12 +93,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     getSession();
 
-    // Configurar listener para cambios de autenticación
+    // Set up listener for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log('Evento de autenticación:', event);
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+        console.log('Auth state change event:', event);
+        
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('User signed in or token refreshed');
+          if (newSession) {
+            setSession(newSession);
+            setUser(newSession.user);
+            setIsOfflineMode(false);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out');
+          setSession(null);
+          setUser(null);
+          localStorage.removeItem('supabase.auth.token'); // Clean up any demo tokens
+          setIsOfflineMode(false);
+        } else if (event === 'USER_UPDATED') {
+          console.log('User updated');
+          if (newSession) {
+            setSession(newSession);
+            setUser(newSession.user);
+          }
+        }
+        
         setLoading(false);
       }
     );
@@ -82,19 +131,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
+      
+      // Clear any previous session data to avoid conflicts
+      await supabase.auth.signOut();
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('Login error:', error);
         toast.error(`Error al iniciar sesión: ${error.message}`);
         return { error, success: false };
       }
 
+      // Verify that we have a valid session and user
+      if (!data?.session || !data?.user) {
+        console.error('Session or user missing after login');
+        // If in demo mode, create a fallback session
+        if (isSupabaseDemoMode) {
+          // Create mock session in localStorage for demo mode
+          const mockUser = {
+            id: `demo-${Date.now()}`,
+            email: email,
+            email_confirmed_at: new Date().toISOString(),
+            role: 'authenticated',
+            app_metadata: {},
+            user_metadata: { name: email.split('@')[0] },
+            aud: 'authenticated',
+            created_at: new Date().toISOString()
+          } as User;
+          
+          const mockSession = {
+            access_token: `demo-token-${Date.now()}`,
+            refresh_token: `demo-refresh-${Date.now()}`,
+            user: mockUser,
+            expires_in: 3600,
+            token_type: 'bearer'
+          } as Session;
+          
+          localStorage.setItem('supabase.auth.token', JSON.stringify(mockSession));
+          setSession(mockSession);
+          setUser(mockUser);
+          setIsOfflineMode(true);
+          toast.success('¡Inicio de sesión exitoso (modo demo)!');
+          return { error: null, success: true };
+        } else {
+          toast.error('Error al iniciar sesión: Sesión o usuario no encontrado');
+          return { 
+            error: { message: 'Auth session or user missing' }, 
+            success: false 
+          };
+        }
+      }
+
+      // Successfully authenticated
+      setSession(data.session);
+      setUser(data.user);
+      setIsOfflineMode(false);
       toast.success('¡Inicio de sesión exitoso!');
       return { error: null, success: true };
     } catch (error: any) {
+      console.error('Unexpected error during login:', error);
       toast.error(`Ocurrió un error inesperado: ${error.message}`);
       return { error, success: false };
     } finally {
@@ -106,13 +205,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // En modo de demostración, simplemente hacemos el registro sin requerir confirmación
+      // In demo mode, simply register without requiring confirmation
       if (isSupabaseDemoMode) {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            // En modo demo fingimos que el email ya está confirmado
+            // In demo mode we pretend the email is already confirmed
             emailRedirectTo: window.location.origin
           }
         });
@@ -122,31 +221,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error, success: false };
         }
 
-        // En modo demo, consideramos que el registro fue exitoso y dirigimos al usuario directamente
+        // In demo mode, we consider registration successful and direct the user
         toast.success('¡Cuenta creada con éxito! Iniciando sesión...');
         await signIn(email, password);
         navigate('/');
         return { error: null, success: true };
       } else {
-        // Comportamiento normal con Supabase real
+        // Normal behavior with real Supabase
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/login`
+            // Fix: ensure the correct redirect URL format matches your app's route
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              // Add additional user metadata if needed
+              name: email.split('@')[0]
+            }
           }
         });
 
         if (error) {
+          console.error('Supabase signup error:', error);
           toast.error(`Error al crear cuenta: ${error.message}`);
           return { error, success: false };
         }
 
-        toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico para confirmar.');
-        return { error: null, success: true };
+        // Check if email confirmation is needed
+        if (data?.user?.identities?.length === 0) {
+          toast.error('El correo ya está registrado. Intenta iniciar sesión.');
+          return { 
+            error: { message: 'Email already registered' }, 
+            success: false 
+          };
+        }
+        
+        if (data?.user && !data?.user?.confirmed_at) {
+          toast.success('¡Cuenta creada! Por favor verifica tu correo electrónico.');
+          return { error: null, success: true };
+        } else {
+          // User already confirmed or auto-confirmed
+          toast.success('¡Cuenta creada! Redirigiendo al inicio de sesión...');
+          // Switch to login view
+          setTimeout(() => {
+            navigate('/login');
+          }, 2000);
+          return { error: null, success: true };
+        }
       }
     } catch (error: any) {
-      toast.error(`Ocurrió un error inesperado: ${error.message}`);
+      console.error('Error during signup:', error);
+      toast.error(`Error al crear cuenta: ${error.message}`);
       return { error, success: false };
     } finally {
       setLoading(false);
@@ -154,28 +279,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
-    
-    // Limpiar datos de modo offline si existen
-    localStorage.removeItem('supabase.auth.token');
-    
-    navigate('/login');
-    setLoading(false);
+    try {
+      setLoading(true);
+      
+      // Clear any demo tokens
+      if (isOfflineMode) {
+        localStorage.removeItem('supabase.auth.token');
+        setSession(null);
+        setUser(null);
+        setIsOfflineMode(false);
+        toast.success('Sesión cerrada (modo demo)');
+        navigate('/login');
+        return;
+      }
+      
+      // Regular signout
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Error signing out:', error);
+        toast.error(`Error al cerrar sesión: ${error.message}`);
+      } else {
+        setSession(null);
+        setUser(null);
+        toast.success('Sesión cerrada exitosamente');
+        navigate('/login');
+      }
+    } catch (error: any) {
+      console.error('Unexpected error during sign out:', error);
+      toast.error(`Error al cerrar sesión: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const value = {
-    session,
-    user,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    isAuthenticated: !!session || isOfflineMode,
-    isDemoMode: isSupabaseDemoMode
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        isAuthenticated: !!session || isOfflineMode,
+        isDemoMode: isSupabaseDemoMode || isOfflineMode
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
@@ -185,3 +338,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthContext;

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Home, BookOpen, ChartLine, Settings, Bot, FileText, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, Home, BookOpen, ChartLine, Settings, Bot, FileText, Clock, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -10,6 +11,46 @@ interface SidebarProps {
 
 const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [profileInitial, setProfileInitial] = useState('U');
+
+  // Obter a inicial do nome ou email do usuário
+  useEffect(() => {
+    if (user) {
+      // Tentar obter o nome do usuário dos metadados
+      const userName = user.user_metadata?.name || 
+                     user.user_metadata?.full_name || 
+                     user.email?.split('@')[0] || '';
+      
+      // Definir a inicial (primeira letra do nome ou email)
+      if (userName) {
+        setProfileInitial(userName.charAt(0).toUpperCase());
+      }
+    }
+  }, [user]);
+
+  // Função para obter o nome de exibição do usuário
+  const getDisplayName = () => {
+    if (!user) return 'Usuário';
+    
+    // Tentar obter o nome dos metadados do usuário
+    const userName = user.user_metadata?.name || 
+                   user.user_metadata?.full_name;
+    
+    // Retornar o nome se existir, ou o email sem o domínio
+    return userName || (user.email ? user.email.split('@')[0] : 'Usuário');
+  };
+
+  // Função para fazer logout
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
+  };
 
   const navItems = [
     { name: 'Inicio', icon: <Home size={20} />, path: '/' },
@@ -55,21 +96,32 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border/50">
+        <div className="p-4 border-t border-border/50 space-y-3">
           <div className={cn(
             "flex items-center gap-3",
             collapsed && "justify-center"
           )}>
             <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
-              U
+              {profileInitial}
             </div>
             {!collapsed && (
               <div className="flex flex-col">
-                <span className="text-sm font-medium">Usuario</span>
-                <span className="text-xs text-muted-foreground">Admin</span>
+                <span className="text-sm font-medium">{getDisplayName()}</span>
+                <span className="text-xs text-muted-foreground">{user?.email}</span>
               </div>
             )}
           </div>
+          
+          <button
+            onClick={handleLogout}
+            className={cn(
+              "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground transition-colors",
+              collapsed && "justify-center"
+            )}
+          >
+            <LogOut size={18} />
+            {!collapsed && <span className="text-sm">Sair</span>}
+          </button>
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 -- Criar tabela de perfis de usuário
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -63,3 +62,38 @@ CREATE TRIGGER update_user_profiles_updated_at
   BEFORE UPDATE ON user_profiles
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Configuración de Supabase Auth
+-- Ejecute esta configuración en la consola SQL de Supabase
+
+-- 5. Configuración crítica: Asegurar que las confirmaciones de email estén habilitadas
+-- IMPORTANTE: Execute esto en la terminal SQL directa de Supabase (no en el editor)
+-- Habilitar confirmaciones de correo electrónico
+UPDATE auth.config
+SET confirm_email_change_email_template = 'Change your email',
+    confirmation_template = 'Confirm your email',
+    security_email_template = 'Security alert',
+    recovery_template = 'Reset your password',
+    invite_template = 'You have been invited',
+    magic_link_template = 'Your login link',
+    email_confirm_changes_template = 'Confirm email changes',
+    sms_template = 'Your login code',
+    external_email_redirect = true,
+    enable_confirmations = true,
+    enable_phone_signup = true,
+    enable_email_signup = true,
+    mailer_autoconfirm = false,
+    sms_autoconfirm = false,
+    double_confirm_changes = true,
+    enable_email_password_login = true,
+    enable_phone_login = true;
+
+-- IMPORTANTE: Asegúrese de configurar la URL del sitio en Dashboard > Authentication > URL Configuration
+-- Las siguientes URLs deben configurarse manualmente en su proyecto Supabase:
+--
+-- Site URL: https://su-dominio.com (o http://localhost:5173 para desarrollo)
+-- Redirect URLs:
+--   - https://su-dominio.com/auth/callback
+--   - http://localhost:5173/auth/callback (para desarrollo)
+--
+-- NOTA: Este comentario es solo informativo, debe configurar estas URLs en la interfaz de Supabase.

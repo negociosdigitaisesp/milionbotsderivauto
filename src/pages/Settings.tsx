@@ -42,12 +42,12 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 
 // Define tab types for better type safety
-type SettingsTab = 'account' | 'security';
+type SettingsTab = 'cuenta' | 'seguridad';
 
 const SettingsPage = () => {
   const { user } = useAuth();
   // Active tab state
-  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('cuenta');
   
   // Theme states
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
@@ -73,11 +73,11 @@ const SettingsPage = () => {
   const [soundsEnabled, setSoundsEnabled] = useState<boolean>(true);
   
   // User preferences
-  const [language, setLanguage] = useState<string>('pt-BR');
+  const [language, setLanguage] = useState<string>('es-LA');
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('24h');
-  const [currency, setCurrency] = useState<string>('BRL');
+  const [currency, setCurrency] = useState<string>('USD');
   const [dateFormat, setDateFormat] = useState<string>('DD/MM/YYYY');
-  const [timezone, setTimezone] = useState<string>('America/Sao_Paulo');
+  const [timezone, setTimezone] = useState<string>('America/Mexico_City');
 
   // API Settings
   const [apiKey, setApiKey] = useState<string>('sk_live_xxxxxxxxxxxxxxxxxxxxx');
@@ -151,11 +151,11 @@ const SettingsPage = () => {
         setSoundsEnabled(profile.sounds_enabled !== undefined ? profile.sounds_enabled : true);
         
         // Preferences
-        setLanguage(profile.language || 'pt-BR');
+        setLanguage(profile.language || 'es-LA');
         setTimeFormat(profile.time_format || '24h');
-        setCurrency(profile.currency || 'BRL');
+        setCurrency(profile.currency || 'USD');
         setDateFormat(profile.date_format || 'DD/MM/YYYY');
-        setTimezone(profile.timezone || 'America/Sao_Paulo');
+        setTimezone(profile.timezone || 'America/Mexico_City');
         
         // Security
         setTwoFactorEnabled(profile.two_factor_enabled || false);
@@ -169,8 +169,8 @@ const SettingsPage = () => {
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-      toast.error('Não foi possível carregar seu perfil.');
+      console.error('Error al cargar el perfil:', error);
+      toast.error('No se pudo cargar tu perfil.');
     } finally {
       setIsLoading(false);
     }
@@ -201,7 +201,7 @@ const SettingsPage = () => {
   // Save settings to Supabase
   const saveSettings = async () => {
     if (!user?.id) {
-      toast.error('Você precisa estar autenticado para salvar as configurações.');
+      toast.error('Debes estar autenticado para guardar la configuración.');
       return;
     }
     
@@ -241,12 +241,12 @@ const SettingsPage = () => {
       await saveUserProfile(userProfile);
       
       setSettingsSaved(true);
-      toast.success('Configurações salvas com sucesso!');
+      toast.success('¡Configuración guardada con éxito!');
       
       setTimeout(() => setSettingsSaved(false), 3000);
     } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
-      toast.error('Não foi possível salvar suas configurações.');
+      console.error('Error al guardar la configuración:', error);
+      toast.error('No se pudo guardar tu configuración.');
     } finally {
       setIsLoading(false);
     }
@@ -339,7 +339,7 @@ const SettingsPage = () => {
   // Render the main content based on active tab
   const renderContent = () => {
     switch (activeTab) {
-      case 'account':
+      case 'cuenta':
         return (
           <div className="space-y-8">
             {/* User Profile Section */}
@@ -347,10 +347,10 @@ const SettingsPage = () => {
               <div className="p-5 border-b bg-muted/40 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <User className="text-primary" size={18} />
-                  <h2 className="text-lg font-semibold">Perfil do Usuário</h2>
+                  <h2 className="text-lg font-semibold">Perfil de Usuario</h2>
                 </div>
                 <div className="text-xs text-muted-foreground bg-primary/5 px-3 py-1 rounded-full">
-                  Plano Pro
+                  Plan Pro
                 </div>
               </div>
               
@@ -368,7 +368,7 @@ const SettingsPage = () => {
                     </div>
                     <button className="text-sm text-primary hover:text-primary/80 flex items-center gap-1.5">
                       <Upload size={14} />
-                      Alterar foto
+                      Cambiar foto
                     </button>
                   </div>
                   
@@ -376,7 +376,7 @@ const SettingsPage = () => {
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label htmlFor="name" className="block text-sm font-medium">
-                        Nome completo
+                        Nombre completo
                       </label>
                       <div className="relative">
                         <input
@@ -392,7 +392,7 @@ const SettingsPage = () => {
                     
                     <div className="space-y-2">
                       <label htmlFor="email" className="block text-sm font-medium">
-                        Email
+                        Correo electrónico
                       </label>
                       <div className="relative">
                         <input
@@ -406,13 +406,13 @@ const SettingsPage = () => {
                         <Mail size={16} className="absolute left-3 top-3 text-muted-foreground" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Para alterar seu email, use a seção "Alterar Email" abaixo
+                        Para cambiar tu correo, usa la sección "Cambiar Correo" más abajo
                       </p>
                     </div>
                     
                     <div className="space-y-2">
                       <label htmlFor="phone" className="block text-sm font-medium">
-                        Telefone
+                        Teléfono
                       </label>
                       <div className="relative">
                         <input
@@ -444,7 +444,7 @@ const SettingsPage = () => {
                     
                     <div className="space-y-2">
                       <label htmlFor="location" className="block text-sm font-medium">
-                        Localização
+                        Ubicación
                       </label>
                       <div className="relative">
                         <input
@@ -460,7 +460,7 @@ const SettingsPage = () => {
                     
                     <div className="col-span-2 space-y-2">
                       <label htmlFor="bio" className="block text-sm font-medium">
-                        Biografia
+                        Biografía
                       </label>
                       <div className="relative">
                         <textarea
@@ -472,7 +472,7 @@ const SettingsPage = () => {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Breve descrição sobre você que será exibida no seu perfil público.
+                        Breve descripción sobre ti que se mostrará en tu perfil público.
                       </p>
                     </div>
                   </div>
@@ -481,14 +481,14 @@ const SettingsPage = () => {
               
               <div className="p-4 bg-muted/10 border-t flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
-                  Última atualização: <span className="font-medium">22/07/2023</span>
+                  Última actualización: <span className="font-medium">22/07/2023</span>
                 </div>
                 <button
                   onClick={saveSettings}
                   className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
                 >
                   <Save size={14} />
-                  Salvar perfil
+                  Guardar perfil
                 </button>
               </div>
             </div>
@@ -497,14 +497,14 @@ const SettingsPage = () => {
             <div className="border rounded-xl shadow-sm overflow-hidden">
               <div className="p-5 border-b bg-muted/40 flex items-center gap-2">
                 <Mail className="text-primary" size={18} />
-                <h2 className="text-lg font-semibold">Alterar Email</h2>
+                <h2 className="text-lg font-semibold">Cambiar Correo</h2>
               </div>
               
               <div className="p-6">
                 <div className="max-w-md">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium">Email atual</label>
+                      <label className="block text-sm font-medium">Correo actual</label>
                       <div className="px-3 py-2 border border-border rounded-md bg-muted/20">
                         <span className="text-sm">{userEmail}</span>
                       </div>
@@ -512,7 +512,7 @@ const SettingsPage = () => {
                     
                     <div className="space-y-2">
                       <label htmlFor="new-email" className="block text-sm font-medium">
-                        Novo Email
+                        Nuevo Correo
                       </label>
                       <div className="relative">
                         <input
@@ -520,20 +520,20 @@ const SettingsPage = () => {
                           type="email"
                           value={newEmail}
                           onChange={(e) => setNewEmail(e.target.value)}
-                          placeholder="seu-novo-email@exemplo.com"
+                          placeholder="tu-nuevo-correo@ejemplo.com"
                           className="w-full p-2.5 bg-background border border-border rounded-md shadow-sm focus:border-primary focus:ring-1 focus:ring-primary pl-9"
                         />
                         <Mail size={16} className="absolute left-3 top-3 text-muted-foreground" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Você receberá um link de confirmação no novo email para completar a mudança.
+                        Recibirás un enlace de confirmación en el nuevo correo para completar el cambio.
                       </p>
                     </div>
                     
                     {emailChangeSuccess && (
                       <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-md text-sm flex items-center gap-2">
                         <CheckCircle2 size={16} />
-                        <p>Solicitação de alteração de email enviada com sucesso!</p>
+                        <p>¡Solicitud de cambio de correo enviada con éxito!</p>
                       </div>
                     )}
                     
@@ -542,7 +542,7 @@ const SettingsPage = () => {
                       disabled={!newEmail || newEmail === userEmail}
                       className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-white rounded-md text-sm font-medium transition-colors"
                     >
-                      Solicitar alteração de email
+                      Solicitar cambio de correo
                     </button>
                   </div>
                 </div>
@@ -553,7 +553,7 @@ const SettingsPage = () => {
             <div className="border rounded-xl shadow-sm overflow-hidden">
               <div className="p-5 border-b bg-muted/40 flex items-center gap-2">
                 <Lock className="text-primary" size={18} />
-                <h2 className="text-lg font-semibold">Alterar Senha</h2>
+                <h2 className="text-lg font-semibold">Cambiar Contraseña</h2>
               </div>
               
               <div className="p-6">
@@ -561,7 +561,7 @@ const SettingsPage = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label htmlFor="current-password" className="block text-sm font-medium">
-                        Senha Atual
+                        Contraseña Actual
                       </label>
                       <div className="relative">
                         <input
@@ -577,7 +577,7 @@ const SettingsPage = () => {
                     
                     <div className="space-y-2">
                       <label htmlFor="new-password" className="block text-sm font-medium">
-                        Nova Senha
+                        Nueva Contraseña
                       </label>
                       <div className="relative">
                         <input
@@ -590,13 +590,13 @@ const SettingsPage = () => {
                         <Lock size={16} className="absolute left-3 top-3 text-muted-foreground" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        A senha deve ter pelo menos 8 caracteres.
+                        La contraseña debe tener al menos 8 caracteres.
                       </p>
                     </div>
                     
                     <div className="space-y-2">
                       <label htmlFor="confirm-password" className="block text-sm font-medium">
-                        Confirmar Nova Senha
+                        Confirmar Nueva Contraseña
                       </label>
                       <div className="relative">
                         <input
@@ -619,7 +619,7 @@ const SettingsPage = () => {
                     {passwordSuccess && (
                       <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-md text-sm flex items-center gap-2">
                         <CheckCircle2 size={16} />
-                        <p>Senha alterada com sucesso!</p>
+                        <p>¡Contraseña cambiada con éxito!</p>
                       </div>
                     )}
                     
@@ -628,7 +628,7 @@ const SettingsPage = () => {
                       disabled={!currentPassword || !newPassword || !confirmPassword}
                       className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-white rounded-md text-sm font-medium transition-colors"
                     >
-                      Alterar senha
+                      Cambiar contraseña
                     </button>
                   </div>
                 </div>
@@ -637,37 +637,37 @@ const SettingsPage = () => {
           </div>
         );
         
-      case 'security':
+      case 'seguridad':
         return (
           <div className="space-y-8">
             {/* Security settings */}
             <div className="border rounded-xl shadow-sm overflow-hidden">
               <div className="p-5 border-b bg-muted/40 flex items-center gap-2">
                 <Shield className="text-primary" size={18} />
-                <h2 className="text-lg font-semibold">Segurança</h2>
+                <h2 className="text-lg font-semibold">Seguridad</h2>
               </div>
               
               <div className="p-6 space-y-4">
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex gap-3">
                   <Info size={18} className="text-amber-600 mt-0.5" />
                   <div>
-                    <h4 className="font-medium">Sua privacidade é importante</h4>
+                    <h4 className="font-medium">Tu privacidad es importante</h4>
                     <p className="text-sm mt-1">
-                      Conheça como tratamos seus dados na nossa <a href="#" className="text-primary font-medium hover:underline">Política de Privacidade</a>.
+                      Conoce cómo tratamos tus datos en nuestra <a href="#" className="text-primary font-medium hover:underline">Política de Privacidad</a>.
                     </p>
                   </div>
                 </div>
                 
                 <div className="p-4 rounded-lg border border-border">
                   <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-medium">Meus Dados</h4>
+                    <h4 className="font-medium">Mis Datos</h4>
                     <button className="text-xs text-primary hover:text-primary/80 flex items-center gap-1.5">
-                      <Download size={12} /> Baixar meus dados
+                      <Download size={12} /> Descargar mis datos
                     </button>
                   </div>
                   
                   <div className="text-sm text-muted-foreground">
-                    <p>Você pode solicitar uma cópia dos seus dados ou solicitar a exclusão da sua conta a qualquer momento.</p>
+                    <p>Puedes solicitar una copia de tus datos o solicitar la eliminación de tu cuenta en cualquier momento.</p>
                   </div>
                 </div>
               </div>
@@ -677,14 +677,14 @@ const SettingsPage = () => {
             <div className="border rounded-xl shadow-sm overflow-hidden">
               <div className="p-5 border-b bg-muted/40 flex items-center gap-2">
                 <Lock className="text-primary" size={18} />
-                <h2 className="text-lg font-semibold">Autenticação de Dois Fatores</h2>
+                <h2 className="text-lg font-semibold">Autenticación de Dos Factores</h2>
               </div>
               
               <div className="p-6 space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="font-medium">Autenticação de Dois Fatores</h3>
-                    <p className="text-sm text-muted-foreground">Segurança adicional para proteger sua conta</p>
+                    <h3 className="font-medium">Autenticación de Dos Factores</h3>
+                    <p className="text-sm text-muted-foreground">Seguridad adicional para proteger tu cuenta</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" checked={twoFactorEnabled} onChange={toggleTwoFactor} className="sr-only peer" />
@@ -694,7 +694,7 @@ const SettingsPage = () => {
                 
                 <div className="mt-6">
                   <label htmlFor="session-timeout" className="block text-sm font-medium mb-2">
-                    Tempo de sessão
+                    Tiempo de sesión
                   </label>
                   <input 
                     type="number" 
@@ -704,7 +704,7 @@ const SettingsPage = () => {
                     onChange={(e) => setSessionTimeout(Number(e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Defina o tempo máximo de inatividade antes de uma nova autenticação ser necessária (em minutos).
+                    Define el tiempo máximo de inactividad antes de que se requiera una nueva autenticación (en minutos).
                   </p>
                 </div>
               </div>
@@ -715,8 +715,8 @@ const SettingsPage = () => {
       default:
         return (
           <div className="p-8 text-center">
-            <h3 className="text-lg font-medium mb-2">Selecione uma categoria</h3>
-            <p className="text-muted-foreground">Escolha uma categoria de configurações no menu lateral para começar.</p>
+            <h3 className="text-lg font-medium mb-2">Selecciona una categoría</h3>
+            <p className="text-muted-foreground">Elige una categoría de configuración en el menú lateral para comenzar.</p>
           </div>
         );
     }
@@ -730,9 +730,9 @@ const SettingsPage = () => {
           <div>
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
               <Settings className="text-primary" size={28} />
-              Configurações
+              Configuración
             </h1>
-            <p className="text-muted-foreground">Personalize sua experiência no Million Bots</p>
+            <p className="text-muted-foreground">Personaliza tu experiencia en Million Bots</p>
           </div>
           
           <button
@@ -743,12 +743,12 @@ const SettingsPage = () => {
             {isLoading ? (
               <>
                 <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
-                <span>Salvando...</span>
+                <span>Guardando...</span>
               </>
             ) : (
               <>
                 <Save size={16} />
-                <span>Salvar Alterações</span>
+                <span>Guardar Cambios</span>
               </>
             )}
           </button>
@@ -759,7 +759,7 @@ const SettingsPage = () => {
           <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
             <div className="bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-md flex items-center gap-2">
               <CheckCircle2 size={18} />
-              <span>Configurações salvas com sucesso!</span>
+              <span>¡Configuración guardada con éxito!</span>
             </div>
           </div>
         )}
@@ -768,10 +768,10 @@ const SettingsPage = () => {
         <div className="border-b border-border mb-8">
           <div className="flex flex-wrap gap-0">
             <button 
-              onClick={() => setActiveTab('account')} 
+              onClick={() => setActiveTab('cuenta')} 
               className={cn(
                 "px-5 py-3 font-medium transition-colors border-b-2 -mb-px",
-                activeTab === 'account' 
+                activeTab === 'cuenta' 
                   ? "border-primary text-primary" 
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               )}
@@ -779,15 +779,15 @@ const SettingsPage = () => {
               Perfil
             </button>
             <button 
-              onClick={() => setActiveTab('security')} 
+              onClick={() => setActiveTab('seguridad')} 
               className={cn(
                 "px-5 py-3 font-medium transition-colors border-b-2 -mb-px",
-                activeTab === 'security' 
+                activeTab === 'seguridad' 
                   ? "border-primary text-primary" 
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               )}
             >
-              Segurança
+              Seguridad
             </button>
           </div>
         </div>
@@ -798,14 +798,14 @@ const SettingsPage = () => {
         <div className="md:col-span-1 space-y-6">
           <div className="border rounded-xl shadow-sm overflow-hidden">
             <div className="p-4 border-b bg-muted/40">
-              <h2 className="text-lg font-semibold">Categorias</h2>
+              <h2 className="text-lg font-semibold">Categorías</h2>
             </div>
             <div className="p-1.5">
               <button 
-                onClick={() => setActiveTab('account')}
+                onClick={() => setActiveTab('cuenta')}
                 className={cn(
                   "w-full flex items-center gap-3 p-3 rounded-md transition-colors",
-                  activeTab === 'account' 
+                  activeTab === 'cuenta' 
                     ? "bg-primary/10 text-primary font-medium" 
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
@@ -814,16 +814,16 @@ const SettingsPage = () => {
                 <span>Perfil</span>
               </button>
               <button 
-                onClick={() => setActiveTab('security')}
+                onClick={() => setActiveTab('seguridad')}
                 className={cn(
                   "w-full flex items-center gap-3 p-3 rounded-md transition-colors",
-                  activeTab === 'security' 
+                  activeTab === 'seguridad' 
                     ? "bg-primary/10 text-primary font-medium" 
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <Shield size={18} />
-                <span>Segurança</span>
+                <span>Seguridad</span>
               </button>
             </div>
           </div>
@@ -837,12 +837,12 @@ const SettingsPage = () => {
               <h3 className="font-medium">{userName || user?.email}</h3>
               <p className="text-sm text-muted-foreground">{userEmail || user?.email}</p>
               <div className="mt-2 inline-flex items-center text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
-                Plano Pro
+                Plan Pro
               </div>
             </div>
             <div className="p-3 bg-muted/20">
               <button 
-                onClick={() => setActiveTab('account')}
+                onClick={() => setActiveTab('cuenta')}
                 className="w-full text-sm text-center text-primary hover:text-primary/80"
               >
                 Editar perfil
@@ -855,12 +855,12 @@ const SettingsPage = () => {
             <div className="flex items-start gap-3">
               <HelpCircle className="text-primary mt-0.5" size={18} />
               <div>
-                <h3 className="font-medium mb-1">Ajuda & Suporte</h3>
+                <h3 className="font-medium mb-1">Ayuda y Soporte</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Precisa de ajuda com suas configurações? Nossa equipe de suporte está disponível para ajudar.
+                  ¿Necesitas ayuda con tu configuración? Nuestro equipo de soporte está disponible para ayudarte.
                 </p>
                 <a href="#" className="text-sm text-primary hover:underline">
-                  Entre em contato
+                  Contáctanos
                 </a>
               </div>
             </div>
@@ -882,12 +882,12 @@ const SettingsPage = () => {
       {/* Footer */}
       <div className="mt-16 pt-8 border-t border-border flex justify-between items-center text-sm text-muted-foreground">
         <div>
-          <p>© 2023 Million Bots. Todos os direitos reservados.</p>
+          <p>© 2023 Million Bots. Todos los derechos reservados.</p>
         </div>
         <div className="flex gap-6">
-          <a href="#" className="hover:text-primary transition-colors">Termos</a>
-          <a href="#" className="hover:text-primary transition-colors">Privacidade</a>
-          <a href="#" className="hover:text-primary transition-colors">Contato</a>
+          <a href="#" className="hover:text-primary transition-colors">Términos</a>
+          <a href="#" className="hover:text-primary transition-colors">Privacidad</a>
+          <a href="#" className="hover:text-primary transition-colors">Contacto</a>
         </div>
       </div>
     </div>

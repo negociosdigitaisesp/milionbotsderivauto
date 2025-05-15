@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -15,6 +14,7 @@ import Analytics from "./pages/Analytics";
 import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -37,6 +37,7 @@ const App = () => {
             <div className="min-h-screen bg-background">
               <Routes>
                 <Route path="/login" element={<Auth />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 
                 {/* Rotas protegidas */}
                 <Route element={<ProtectedRoute />}>

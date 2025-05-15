@@ -1,73 +1,90 @@
-# Welcome to your Lovable project
+# Bot Strategy Hub
 
-## Project info
+A web application for managing and optimizing bot strategies across different platforms.
 
-**URL**: https://lovable.dev/projects/d122da74-8b20-4aaa-9750-8d34810d058f
+## Features
 
-## How can I edit this code?
+- User authentication with Supabase
+- Create and manage bot strategies 
+- Analytics dashboard for bot performance
+- Library of bot templates and strategies
+- Customizable bot configurations
 
-There are several ways of editing your application.
+## Setup Instructions
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d122da74-8b20-4aaa-9750-8d34810d058f) and start prompting.
+- Node.js 16+ and npm
+- A Supabase account (free tier is sufficient)
 
-Changes made via Lovable will be committed automatically to this repo.
+### Installation
 
-**Use your preferred IDE**
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/bot-strategy-hub.git
+cd bot-strategy-hub
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+2. Install dependencies:
+```bash
+npm install
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. Create a `.env.local` file in the project root with your Supabase credentials:
+```
+VITE_SUPABASE_URL=https://your-project-url.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_DEBUG=true  # Set to false in production
+```
 
-Follow these steps:
+4. Set up your Supabase project:
+   - Create a new project at [https://app.supabase.co](https://app.supabase.co)
+   - Run the SQL from `full-database-setup.sql` in the SQL Editor
+   - Follow the configuration steps in `src/docs/supabase-setup.md`
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Running the Application
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Development mode:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Production build:
+```bash
+npm run build
+npm run serve
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Authentication System
 
-**Use GitHub Codespaces**
+The authentication system uses Supabase Auth with email confirmation. Key components:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `src/contexts/AuthContext.tsx` - Manages authentication state
+- `src/lib/supabaseClient.ts` - Configures the Supabase client
+- `src/pages/AuthCallback.tsx` - Handles login redirects and email confirmation
 
-## What technologies are used for this project?
+## Troubleshooting
 
-This project is built with:
+### Common Issues
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+**"Auth session or user missing" Error**
+- Check that your Supabase URL and anon key are correct in `.env.local`
+- Ensure email confirmation is properly configured in Supabase dashboard
+- Clear browser cache and local storage
+- Enable debug mode with `VITE_SUPABASE_DEBUG=true`
 
-## How can I deploy this project?
+**Email Confirmation Not Working**
+- Verify the redirect URLs in Supabase are correctly set up
+- Check your email templates in the Supabase dashboard
+- Make sure your site URL is correctly configured
 
-Simply open [Lovable](https://lovable.dev/projects/d122da74-8b20-4aaa-9750-8d34810d058f) and click on Share -> Publish.
+## Development Notes
 
-## Can I connect a custom domain to my Lovable project?
+- The application uses React with TypeScript
+- Styling is done with Tailwind CSS
+- Authentication is handled by Supabase
+- State management uses React Context API
 
-Yes, you can!
+## License
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+MIT
