@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -15,14 +15,44 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
-  const { signIn, signUp, isDemoMode } = useAuth();
+  const { signIn, signUp, isDemoMode, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  
+  // Verificar si el usuario ya está autenticado y redirigirlo
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const validateForm = () => {
+    if (email.trim() === '') {
+      toast.error('Por favor ingrese su correo electrónico');
+      return false;
+    }
+    
+    if (!email.includes('@') || !email.includes('.')) {
+      toast.error('Por favor ingrese un correo electrónico válido');
+      return false;
+    }
+    
+    if (password.trim() === '') {
+      toast.error('Por favor ingrese su contraseña');
+      return false;
+    }
+    
+    if (password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres');
+      return false;
+    }
+    
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (email.trim() === '' || password.trim() === '') {
-      toast.error('Por favor complete todos los campos');
+    if (!validateForm()) {
       return;
     }
     
@@ -132,7 +162,6 @@ const Auth = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="su@correo.com"
                   className="pl-10"
-                  required
                 />
               </div>
             </div>
@@ -150,7 +179,6 @@ const Auth = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                   className="pl-10 pr-10"
-                  required
                 />
                 <button
                   type="button"

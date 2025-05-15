@@ -1,8 +1,12 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { supabase, isSupabaseDemoMode } from '../lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+
+// Constante para la clave de almacenamiento local
+const DEMO_STORAGE_KEY = 'supabase.auth.token';
 
 interface AuthContextType {
   session: Session | null;
@@ -33,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check if we're in offline mode (using default values)
     const checkOfflineMode = () => {
-      const demoToken = localStorage.getItem('supabase.auth.token');
+      const demoToken = localStorage.getItem(DEMO_STORAGE_KEY);
       if (demoToken && demoToken.includes('demo-token')) {
         setIsOfflineMode(true);
         console.info('🔑 Demo mode active: Simulated authentication enabled');
@@ -47,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err) {
           console.error('Error parsing demo token:', err);
-          localStorage.removeItem('supabase.auth.token'); // Remove invalid token
+          localStorage.removeItem(DEMO_STORAGE_KEY); // Remove invalid token
         }
       }
     };
@@ -109,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('User signed out');
           setSession(null);
           setUser(null);
-          localStorage.removeItem('supabase.auth.token'); // Clean up any demo tokens
+          localStorage.removeItem(DEMO_STORAGE_KEY); // Clean up any demo tokens
           setIsOfflineMode(false);
         } else if (event === 'USER_UPDATED') {
           console.log('User updated');
@@ -132,8 +136,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Clear any previous session data to avoid conflicts
-      await supabase.auth.signOut();
+      // If in demo mode and we already have a local session, reuse it
+      if (isSupabaseDemoMode) {
+        const demoToken = localStorage.getItem(DEMO_STORAGE_KEY);
+        if (demoToken) {
+          try {
+            const tokenData = JSON.parse(demoToken);
+            if (tokenData && tokenData.user && tokenData.user.email === email) {
+              console.log('Reusing existing demo session');
+              setUser(tokenData.user as User);
+              setSession(tokenData as Session);
+              setIsOfflineMode(true);
+              toast.success('¡Inicio de sesión exitoso (modo demo)!');
+              return { error: null, success: true };
+            }
+          } catch (err) {
+            // Ignore parsing errors, will continue with normal flow
+          }
+        }
+      }
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -174,11 +195,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             access_token: `demo-token-${Date.now()}`,
             refresh_token: `demo-refresh-${Date.now()}`,
             user: mockUser,
-            expires_in: 3600,
+            expires_in: 3600 * 24 * 7, // 7 días
             token_type: 'bearer'
           } as Session;
           
-          localStorage.setItem('supabase.auth.token', JSON.stringify(mockSession));
+          localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(mockSession));
           setSession(mockSession);
           setUser(mockUser);
           setIsOfflineMode(true);
@@ -325,7 +346,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear any demo tokens
       if (isOfflineMode) {
-        localStorage.removeItem('supabase.auth.token');
+        localStorage.removeItem(DEMO_STORAGE_KEY);
         setSession(null);
         setUser(null);
         setIsOfflineMode(false);
@@ -340,6 +361,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error('Error signing out:', error);
         toast.error(`Error al cerrar sesión: ${error.message}`);
+        
+        // Simulate successful signout even if API fails
+        setSession(null);
+        setUser(null);
+        localStorage.removeItem(DEMO_STORAGE_KEY);
+        toast.success('Sesión cerrada exitosamente');
+        navigate('/login');
       } else {
         setSession(null);
         setUser(null);
@@ -349,6 +377,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Unexpected error during sign out:', error);
       toast.error(`Error al cerrar sesión: ${error.message}`);
+      
+      // Fallback signout
+      setSession(null);
+      setUser(null);
+      localStorage.removeItem(DEMO_STORAGE_KEY);
+      navigate('/login');
     } finally {
       setLoading(false);
     }

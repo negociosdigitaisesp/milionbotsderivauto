@@ -12,6 +12,9 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABA
 // Determinar si estamos en modo de demostración
 const isDemoMode = supabaseUrl === DEFAULT_SUPABASE_URL || supabaseAnonKey === DEFAULT_SUPABASE_ANON_KEY
 
+// Mejorar persistencia para modo demo
+const DEMO_STORAGE_KEY = 'supabase.auth.token'
+
 // Crear cliente de Supabase con manejo de errores mejorado
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -30,6 +33,21 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         if (url.includes('/auth/v1')) {
           console.info('🔑 Modo de demostración: Simulando autenticación exitosa')
           
+          // Prevenir logout en modo demo
+          if (url.includes('/logout')) {
+            const storedSession = localStorage.getItem(DEMO_STORAGE_KEY)
+            if (storedSession) {
+              // Simular éxito de logout pero mantener la sesión
+              localStorage.removeItem(DEMO_STORAGE_KEY)
+              
+              // Devolver respuesta simulada de logout exitoso
+              return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ message: "Success" }),
+              })
+            }
+          }
+          
           // Simular confirmación de correo y autenticación exitosa
           if (url.includes('/signup')) {
             const requestBody = JSON.parse(args[1]?.body || '{}');
@@ -44,19 +62,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
               confirmed_at: new Date().toISOString()
             }
             
-            // Guardar en localStorage para simular sesión activa
-            localStorage.setItem('supabase.auth.token', JSON.stringify({
+            // Crear sesión simulada
+            const sessionData = {
               access_token: `demo-token-${Date.now()}`,
-              user: demoUser
-            }))
+              refresh_token: `demo-refresh-${Date.now()}`,
+              user: demoUser,
+              expires_in: 3600 * 24 * 7, // 7 días
+              token_type: 'bearer'
+            };
+            
+            // Guardar en localStorage para simular sesión activa
+            localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(sessionData))
             
             // Devolver respuesta simulada de registro exitoso
             return Promise.resolve({
               ok: true,
               json: () => Promise.resolve({
                 user: demoUser,
-                access_token: `demo-token-${Date.now()}`,
-                refresh_token: `demo-refresh-${Date.now()}`
+                session: sessionData
               }),
             })
           }
@@ -79,22 +102,63 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
               created_at: new Date().toISOString()
             }
             
-            // Guardar en localStorage para simular sesión activa
+            // Crear sesión simulada
             const sessionData = {
               access_token: `demo-token-${Date.now()}`,
               refresh_token: `demo-refresh-${Date.now()}`,
               user: demoUser,
-              expires_in: 3600,
+              expires_in: 3600 * 24 * 7, // 7 días
               token_type: 'bearer'
             };
             
-            localStorage.setItem('supabase.auth.token', JSON.stringify(sessionData))
+            // Guardar en localStorage para simular sesión activa
+            localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(sessionData))
             
             // Devolver respuesta simulada
             return Promise.resolve({
               ok: true,
               json: () => Promise.resolve(sessionData),
             })
+          }
+          
+          // Gestionar verificación y recuperación de sesión
+          if (url.includes('/user')) {
+            const storedSession = localStorage.getItem(DEMO_STORAGE_KEY)
+            if (storedSession) {
+              try {
+                const session = JSON.parse(storedSession)
+                console.info('🔑 Modo de demostración: Usando sesión almacenada')
+                
+                return Promise.resolve({
+                  ok: true,
+                  json: () => Promise.resolve({
+                    data: { user: session.user }
+                  }),
+                })
+              } catch (e) {
+                console.error('Error al recuperar sesión demo:', e)
+              }
+            }
+          }
+          
+          // Gestionar obtener sesión
+          if (url.includes('/session')) {
+            const storedSession = localStorage.getItem(DEMO_STORAGE_KEY)
+            if (storedSession) {
+              try {
+                const sessionData = JSON.parse(storedSession)
+                console.info('🔑 Modo de demostración: Recuperando sesión guardada')
+                
+                return Promise.resolve({
+                  ok: true,
+                  json: () => Promise.resolve({
+                    data: { session: sessionData }
+                  }),
+                })
+              } catch (e) {
+                console.error('Error al recuperar sesión demo:', e)
+              }
+            }
           }
         }
       }
