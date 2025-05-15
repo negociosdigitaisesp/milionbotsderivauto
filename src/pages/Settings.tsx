@@ -263,43 +263,46 @@ const SettingsPage = () => {
 
   // Password functions
   const handlePasswordChange = async () => {
-    if (!user) return;
-    
-    if (newPassword !== confirmPassword) {
-      setPasswordError('As senhas não coincidem');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('Todos los campos son requeridos');
       return;
     }
     
     if (newPassword.length < 8) {
-      setPasswordError('A senha deve ter pelo menos 8 caracteres');
+      setPasswordError('La nueva contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Las contraseñas no coinciden');
       return;
     }
     
     setIsLoading(true);
+    setPasswordError('');
     
     try {
       const { error } = await supabase.auth.updateUser({
-        password: newPassword
+        password: newPassword,
       });
       
       if (error) {
-        throw error;
+        console.error('Error al cambiar la contraseña:', error);
+        setPasswordError(error.message);
+      } else {
+        setPasswordSuccess(true);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        toast.success('¡Contraseña actualizada con éxito!');
+        
+        setTimeout(() => {
+          setPasswordSuccess(false);
+        }, 3000);
       }
-      
-      setPasswordError('');
-      setPasswordSuccess(true);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      
-      toast.success('Sua senha foi atualizada com sucesso!');
-      
-      setTimeout(() => {
-        setPasswordSuccess(false);
-      }, 3000);
     } catch (error: any) {
-      setPasswordError(error.message || 'Erro ao atualizar senha');
-      toast.error('Não foi possível atualizar sua senha.');
+      console.error('Error al cambiar la contraseña:', error);
+      setPasswordError('Ocurrió un error al intentar cambiar tu contraseña');
     } finally {
       setIsLoading(false);
     }
