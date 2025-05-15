@@ -127,6 +127,11 @@ const Auth = () => {
       <div className="w-full max-w-md">
         <div className="bg-card rounded-lg shadow-lg border border-border p-8">
           <div className="text-center mb-8">
+            <img 
+              src="/lovable-uploads/65acdf4d-abfd-4e5a-b2c2-27c297ceb7c6.png" 
+              alt="Million Bot Logo" 
+              className="mx-auto mb-4 h-28 w-auto"
+            />
             <h1 className="text-3xl font-bold text-foreground">Million Bots</h1>
             <p className="text-muted-foreground mt-2">
               {isSignIn ? 'Inicie sesión en su cuenta' : 'Cree su cuenta'}
@@ -159,7 +164,11 @@ const Auth = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-primary to-[#25DBC4] hover:from-[#25DBC4] hover:to-primary text-black transition-all duration-300 shadow-md" 
+              disabled={loading}
+            >
               {loading ? <span className="flex items-center justify-center">
                   <span className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
                   {isRetrying ? 'Reintentando...' : 'Cargando...'}
@@ -168,7 +177,11 @@ const Auth = () => {
           </form>
 
           <div className="mt-6 text-center text-sm">
-            <button type="button" onClick={toggleView} className="text-primary hover:text-primary/80 font-medium">
+            <button 
+              type="button" 
+              onClick={toggleView} 
+              className="px-4 py-2 bg-transparent hover:bg-gradient-to-r hover:from-[#121212] hover:to-[#232323] border border-primary text-primary hover:text-[#25DBC4] rounded-md font-medium transition-all duration-300"
+            >
               {isSignIn ? '¿No tiene una cuenta? Regístrese ahora' : '¿Ya tiene una cuenta? Inicie sesión'}
             </button>
           </div>

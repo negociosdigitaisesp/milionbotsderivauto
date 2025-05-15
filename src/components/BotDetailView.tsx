@@ -1313,67 +1313,49 @@ const BotDetailView = ({
                 </a>
                 {bot.id === "14" ? (
                 <a 
-                  href="https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view" 
-                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
               ) : bot.id === "12" ? (
                 <a 
-                  href="https://drive.google.com/file/d/1zA_tgqK8MPNM9DTiNgXkYg63qqo5c0RF/view?usp=sharing" 
-                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/1zA_tgqK8MPNM9DTiNgXkYg63qqo5c0RF/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
               ) : bot.id === "10" ? (
                 <a 
-                  href="https://drive.google.com/file/d/1DZ6U83PvpSN0fcEMAyuUYMw4smHWjkar/view?usp=sharing" 
-                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/1DZ6U83PvpSN0fcEMAyuUYMw4smHWjkar/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
-                            ) : bot.id === "8" ? (                <a                   href="https://drive.google.com/file/d/1cG2XqdS2POuU_z3CGcw6-zCFEQrf94XF/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"                >                  <Download size={16} />                  <span>Descargar</span>                </a>
+                            ) : bot.id === "8" ? (                <a                   href="https://drive.google.com/file/d/1cG2XqdS2POuU_z3CGcw6-zCFEQrf94XF/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"                >                  <Download size={16} />                  <span>Descargar</span>                </a>
               ) : bot.id === "13" ? (
                 <a 
-                  href="https://drive.google.com/file/d/1Umsz_dpqkev3hMV2DPNlb1blk0Dx30jI/view?usp=sharing" 
-                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/1Umsz_dpqkev3hMV2DPNlb1blk0Dx30jI/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
               ) : bot.id === "11" ? (
                 <a 
-                  href="https://drive.google.com/file/d/1wLaL17gPUh_q5Gb1f3SX-bUr1KhBVHnW/view?usp=sharing" 
-                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/1wLaL17gPUh_q5Gb1f3SX-bUr1KhBVHnW/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
               ) : bot.id === "9" ? (
                 <a 
-                  href="https://drive.google.com/file/d/12FQo062Uxh10MCCwohJeNC0npHrbydcJ/view?usp=sharing" 
-                  className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/12FQo062Uxh10MCCwohJeNC0npHrbydcJ/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
               ) : (
-                <button className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors">
+                <button className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors">
                   <Download size={16} />
                   <span>Descargar</span>
                 </button>

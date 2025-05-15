@@ -271,22 +271,16 @@ const BestHours = () => {
         </div>
       </div>
 
-      {/* Call to Action - Enhanced with more modern design */}
-      <div className="bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl shadow-xl overflow-hidden relative">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute h-40 w-40 rounded-full bg-white/20 -top-10 -right-10"></div>
-          <div className="absolute h-32 w-32 rounded-full bg-white/20 bottom-0 left-1/4"></div>
-          <div className="absolute h-24 w-24 rounded-full bg-white/20 top-1/3 right-1/3"></div>
-        </div>
+            {/* Call to Action - Enhanced with more modern design */}      <div className="bg-transparent rounded-2xl shadow-xl overflow-hidden relative">
+        
         <div className="relative p-10 text-center">
-          <h2 className="text-3xl font-bold mb-4 text-white">¿Listo para Comenzar?</h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto text-white/90">Prueba tu robot en la cuenta demo en diferentes horarios y descubre los períodos que funcionan mejor para tu estrategia específica.</p>
+          <h2 className="text-3xl font-bold mb-4 text-foreground">¿Listo para Comenzar?</h2>          <p className="text-xl mb-8 max-w-2xl mx-auto text-muted-foreground">Prueba tu robot en la cuenta demo en diferentes horarios y descubre los períodos que funcionan mejor para tu estrategia específica.</p>
           <div className="flex flex-col sm:flex-row gap-5 justify-center">
-            <a href="/installation-tutorial" className="bg-white text-primary hover:bg-white/90 px-8 py-4 rounded-lg font-semibold shadow-lg transition-colors inline-flex items-center justify-center gap-2">
+            <a href="/installation-tutorial" className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-4 rounded-lg font-semibold shadow-lg transition-colors inline-flex items-center justify-center gap-2">
               <Clock className="h-5 w-5" />
               Tutorial de Instalación
             </a>
-            <a href="/" className="bg-transparent hover:bg-white/10 border-2 border-white px-8 py-4 rounded-lg font-semibold text-white transition-colors inline-flex items-center justify-center gap-2">
+            <a href="/" className="bg-transparent hover:bg-muted border-2 border-primary px-8 py-4 rounded-lg font-semibold text-primary transition-colors inline-flex items-center justify-center gap-2">
               <TrendingUp className="h-5 w-5" />
               Ver Bots Disponibles
             </a>

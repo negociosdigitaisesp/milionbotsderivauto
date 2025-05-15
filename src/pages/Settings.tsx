@@ -488,7 +488,7 @@ const SettingsPage = () => {
                 </div>
                 <button
                   onClick={saveSettings}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
                 >
                   <Save size={14} />
                   Guardar perfil
@@ -543,7 +543,7 @@ const SettingsPage = () => {
                     <button
                       onClick={handleEmailChange}
                       disabled={!newEmail || newEmail === userEmail}
-                      className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-white rounded-md text-sm font-medium transition-colors"
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-black rounded-md text-sm font-medium transition-colors"
                     >
                       Solicitar cambio de correo
                     </button>
@@ -629,7 +629,7 @@ const SettingsPage = () => {
                     <button
                       onClick={handlePasswordChange}
                       disabled={!currentPassword || !newPassword || !confirmPassword}
-                      className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-white rounded-md text-sm font-medium transition-colors"
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-black rounded-md text-sm font-medium transition-colors"
                     >
                       Cambiar contraseña
                     </button>
@@ -664,8 +664,7 @@ const SettingsPage = () => {
                 <div className="p-4 rounded-lg border border-border">
                   <div className="flex justify-between items-center mb-4">
                     <h4 className="font-medium">Mis Datos</h4>
-                    <button className="text-xs text-primary hover:text-primary/80 flex items-center gap-1.5">
-                      <Download size={12} /> Descargar mis datos
+                    <button className="text-xs bg-primary text-black px-2 py-1 rounded hover:bg-primary/90 flex items-center gap-1.5">                      <Download size={12} /> Descargar mis datos
                     </button>
                   </div>
                   
@@ -741,7 +740,7 @@ const SettingsPage = () => {
           <button
             onClick={saveSettings}
             disabled={isLoading}
-            className="mt-4 md:mt-0 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="mt-4 md:mt-0 px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-md flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>

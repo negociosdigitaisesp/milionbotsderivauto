@@ -450,7 +450,7 @@ const InstallationTutorial = () => {
         <p className="text-muted-foreground mb-6">Nuestro equipo de soporte está listo para ayudarte con cualquier duda o problema que puedas encontrar durante la instalación o uso del robot.</p>
         
         <div className="flex flex-col sm:flex-row gap-4">
-          <a href="#" className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg transition-colors inline-flex items-center justify-center gap-2">
+          <a href="#" className="bg-primary hover:bg-primary/90 text-black px-6 py-3 rounded-lg transition-colors inline-flex items-center justify-center gap-2">
             <HelpCircle size={18} />
             Habla con Soporte
           </a>
