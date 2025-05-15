@@ -72,23 +72,28 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
               email: email,
               email_confirmed_at: new Date().toISOString(),
               role: 'authenticated',
-              confirmed_at: new Date().toISOString()
+              confirmed_at: new Date().toISOString(),
+              app_metadata: {},
+              user_metadata: { name: email.split('@')[0] },
+              aud: 'authenticated',
+              created_at: new Date().toISOString()
             }
             
-            // Guardar en localStorage
-            localStorage.setItem('supabase.auth.token', JSON.stringify({
+            // Guardar en localStorage para simular sesión activa
+            const sessionData = {
               access_token: `demo-token-${Date.now()}`,
-              user: demoUser
-            }))
+              refresh_token: `demo-refresh-${Date.now()}`,
+              user: demoUser,
+              expires_in: 3600,
+              token_type: 'bearer'
+            };
+            
+            localStorage.setItem('supabase.auth.token', JSON.stringify(sessionData))
             
             // Devolver respuesta simulada
             return Promise.resolve({
               ok: true,
-              json: () => Promise.resolve({
-                access_token: `demo-token-${Date.now()}`,
-                refresh_token: `demo-refresh-${Date.now()}`,
-                user: demoUser
-              }),
+              json: () => Promise.resolve(sessionData),
             })
           }
         }

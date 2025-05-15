@@ -14,11 +14,18 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const { signIn, signUp, isDemoMode } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (email.trim() === '' || password.trim() === '') {
+      toast.error('Por favor complete todos los campos');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -27,18 +34,30 @@ const Auth = () => {
         if (error) {
           if (error.message === 'Email verification required') {
             toast.info('Verifique su correo electrónico para activar su cuenta');
-          } else if (error.message === 'Auth session or user missing') {
-            // Intento de reintentación automática en este escenario específico
+          } else if (error.message === 'Auth session or user missing' && !isRetrying) {
+            // Intento de reintentación automática
+            setIsRetrying(true);
             toast.info('Reintentando conexión automáticamente...');
+            
             setTimeout(async () => {
-              const retryResult = await signIn(email, password);
-              if (retryResult.success) {
-                toast.success('¡Inicio de sesión exitoso!');
-                navigate('/');
-              } else {
-                toast.error('Error al iniciar sesión: Por favor intente nuevamente');
+              try {
+                const retryResult = await signIn(email, password);
+                if (retryResult.success) {
+                  toast.success('¡Inicio de sesión exitoso!');
+                  navigate('/');
+                } else {
+                  toast.error('Error al iniciar sesión: Por favor intente nuevamente');
+                }
+              } catch (retryError) {
+                console.error('Error en reintento:', retryError);
+                toast.error('Error de conexión: Por favor intente más tarde');
+              } finally {
+                setIsRetrying(false);
+                setLoading(false);
               }
-            }, 1000);
+            }, 1500);
+            
+            return; // Salir para dejar que el reintento maneje el resto
           } else {
             toast.error('Error al iniciar sesión: ' + (error.message || 'Verifique sus credenciales'));
           }
@@ -57,7 +76,6 @@ const Auth = () => {
           }
         } else if (success) {
           if (isDemoMode) {
-            // El caso para el modo demostración se maneja en la función signUp
             toast.success('¡Cuenta creada con éxito! Iniciando sesión...');
             navigate('/');
           } else {
@@ -70,7 +88,9 @@ const Auth = () => {
       console.error('Error completo:', error);
       toast.error('Ocurrió un error: ' + (error.message || 'Intente nuevamente'));
     } finally {
-      setLoading(false);
+      if (!isRetrying) {
+        setLoading(false);
+      }
     }
   };
 
@@ -150,7 +170,7 @@ const Auth = () => {
               {loading ? (
                 <span className="flex items-center justify-center">
                   <span className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
-                  Cargando...
+                  {isRetrying ? 'Reintentando...' : 'Cargando...'}
                 </span>
               ) : isSignIn ? (
                 'Iniciar sesión'
