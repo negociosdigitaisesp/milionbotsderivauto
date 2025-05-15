@@ -1,4 +1,5 @@
 
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
@@ -16,7 +17,7 @@
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 174 94% 56%;
     --primary-foreground: 0 0% 98%;
 
     --secondary: 240 3.7% 15.9%;
@@ -40,12 +41,12 @@
     /* Sidebar Colors */
     --sidebar-background: 240 6% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary: 174 94% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 5% 15%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 5% 15%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 174 94% 56%;
   }
 }
 

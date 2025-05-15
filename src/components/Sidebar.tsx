@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Home, BookOpen, ChartLine, Settings, Bot, FileText, Clock, LogOut } from 'lucide-react';
+import { Menu, X, Home, BookOpen, ChartLine, Settings, FileText, Clock, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -66,8 +67,8 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between p-4 border-b border-border/50">
           <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-            <Bot size={24} className="text-primary" />
-            {!collapsed && <span className="font-bold text-lg text-primary">Million Bots</span>}
+            <img src="/lovable-uploads/65acdf4d-abfd-4e5a-b2c2-27c297ceb7c6.png" alt="Million Bots Logo" className="w-6 h-6" />
+            {!collapsed && <span className="font-bold text-lg text-[#40E0D0]">Million Bots</span>}
           </div>
           <button 
             onClick={toggleSidebar} 
