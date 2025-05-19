@@ -955,7 +955,7 @@ export const bots: Bot[] = [
     name: "Quantum Bot",
     description: "Bot con estrategia de alternancia simple de dirección y Martingale. Opera en el mercado de índices sintéticos (R_100) con contratos de 1 tick de duración.",
     strategy: "Martingale",
-    accuracy: 50,
+    accuracy: 68,
     operations: 245, // Changed from downloads to operations
     imageUrl: "",
     createdAt: "2024-04-18",
@@ -1021,7 +1021,7 @@ export const bots: Bot[] = [
     name: "NexusBot",
     description: "O NexusBot opera no Índice Sintético RDBEAR (Random Daily Bear Market Index) da Deriv. Sua estratégia é baseada na análise sequencial de múltiplos ticks anteriores para identificar um padrão de alta ou baixa, realizando operações Rise/Fall (Sobe/Desce) com duração de 5 minutos. Possui um sistema de venda antecipada e um Martingale específico para recuperação de perdas.",
     strategy: "Análise Sequencial",
-    accuracy: 47,
+    accuracy: 79,
     operations: 185,
     imageUrl: "",
     createdAt: "2024-05-25",
@@ -1034,7 +1034,7 @@ export const bots: Bot[] = [
     riskLevel: 6,
     tradedAssets: ["RDBEAR"],
     code: nexusBotCode,
-    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view?usp=sharing\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô NexusBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
+    usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://drive.google.com/file/d/1y2EkNlVY3BSDbDk_4zrprEIs-gSN8x-V/view?usp=sharing\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô NexusBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 4
   }
