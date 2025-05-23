@@ -1313,7 +1313,10 @@ const BotDetailView = ({
                 </a>
                 {bot.id === "14" ? (
                 <a 
-                  href="https://drive.google.com/file/d/14_70F4k4QyZg__HJXglE94QJduQvOvay/view"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"
+                  href="https://drive.google.com/file/d/1y2EkNlVY3BSDbDk_4zrprEIs-gSN8x-V/view?usp=sharing"
+                  className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   <Download size={16} />
                   <span>Descargar</span>
