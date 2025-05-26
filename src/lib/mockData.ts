@@ -889,7 +889,7 @@ function onTradeResult(result) {
 // Bot mock data
 export const bots: Bot[] = [
   {
-        id: "8",    name: "OptinTrade",    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",    strategy: "Seguidor de Tendência",    accuracy: 72,
+    id: "8",    name: "OptinTrade",    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",    strategy: "Seguidor de Tendência",    accuracy: 72,
     operations: 632, // Changed from downloads to operations
     imageUrl: "",
     createdAt: "2024-01-10",
@@ -1037,6 +1037,84 @@ export const bots: Bot[] = [
     usageInstructions: `Acesse a plataforma\nClique aqui para acessar a plataforma Deriv\n@https://drive.google.com/file/d/1y2EkNlVY3BSDbDk_4zrprEIs-gSN8x-V/view?usp=sharing\n\nFaça login na sua conta\nFaça login na sua conta Deriv (Demo ou Real).\n\nImporte o robô\nNo menu superior, clique em "Importar" (ou "Load" no Binary Bot).\n\nCarregue o arquivo\nLocalize o arquivo .xml do robô NexusBot no seu computador e carregue-o.\n\nVerifique o carregamento\nO robô aparecerá na área de trabalho da plataforma.\n\nConfigure os parâmetros\nAntes de iniciar, revise e ajuste as configurações (Meta Lucro, Limite Perdas, Valor Inicial da Ordem, Quantidade Tique-Taques) conforme sua gestão de risco.\n\nExecute o robô\nClique no botão "Executar" (ou "Run") para iniciar o robô.`,
     isFavorite: false,
     ranking: 4
+  },
+  {
+    id: "15",
+    name: "Sniper Bot",
+    description: "Bot que opera en el Índice Sintético de Volatilidad Continua 1 Segundo (1HZ100V) en Deriv. Utiliza una combinación de indicadores técnicos simples: una Media Móvil Simple (SMA) y el Índice de Fuerza Relativa (RSI) para identificar oportunidades de compra Rise/Fall (Sube/Baja) en operaciones de 1 tick. Incorpora un sistema de Martingala para la recuperación de pérdidas. Diseñado para operar con una banca recomendada de $50 USD, con una gestión de riesgo conservadora: Stop Loss de $10 (20% de la banca) y Stop Win de $2.5 (5% de la banca), utilizando un Win Amount base de $0.35.",
+    strategy: "Análisis Técnico",
+    accuracy: 82,
+    operations: 0,
+    imageUrl: "",
+    createdAt: "2024-05-30",
+    updatedAt: "2024-05-30",
+    version: "1.0.0",
+    author: "SniperTech Trading",
+    profitFactor: 1.8,
+    expectancy: 0.45,
+    drawdown: 25,
+    riskLevel: 7,
+    tradedAssets: ["1HZ100V"],
+    code: `// Sniper Bot - SMA & RSI Strategy with Martingale
+function initialize() {
+  // Strategy parameters
+  this.initialAmount = 0.35;      // Initial stake amount (Win Amount base)
+  this.stopLoss = 10.0;           // Max acceptable loss (20% of $50 recommended bank)
+  this.targetProfit = 2.5;        // Expected profit (5% of $50 recommended bank)
+  this.martingleLevel = 1.05;     // Multiplier for stake after loss
+  
+  // Technical indicators
+  this.sma = SMA(3);              // 3-tick SMA
+  this.rsi = RSI(2);              // 2-tick RSI (not used in entry logic)
+  
+  // Tracking variables
+  this.totalProfit = 0;
+  this.currentStake = this.initialAmount;
+}
+
+function onTick(tick) {
+  // Check if we've reached stop conditions
+  if (this.totalProfit <= -this.stopLoss || this.totalProfit >= this.targetProfit) {
+    this.stop("Target reached: " + this.totalProfit);
+    return;
+  }
+  
+  // Calculate indicators
+  const smaValue = this.sma.calculate(tick.close);
+  const rsiValue = this.rsi.calculate(tick.close); // Calculated but not used
+  
+  // CALL (Rise) logic
+  if (tick.close > smaValue) {
+    this.buyCall(tick.symbol, this.currentStake, 1); // 1 tick duration
+  }
+  
+  // Recalculate indicators for PUT entry
+  const newSmaValue = this.sma.calculate(tick.close);
+  const newRsiValue = this.rsi.calculate(tick.close); // Calculated but not used
+  
+  // PUT (Fall) logic
+  if (tick.close < newSmaValue) {
+    this.buyPut(tick.symbol, this.currentStake, 1); // 1 tick duration
+  }
+}
+
+function onTradeResult(result) {
+  if (result.profit > 0) {
+    // Winning trade
+    this.totalProfit += result.profit;
+    this.currentStake = this.initialAmount; // Reset to initial stake
+  } else {
+    // Losing trade
+    this.totalProfit += result.profit;
+    this.currentStake *= this.martingleLevel; // Increase stake by 5%
+  }
+  
+  // Log the result
+  console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit);
+}`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://drive.google.com/file/d/1yIP682tCkfM0ZTb1_vOF9uxkJsTO9sa0/view?usp=sharing\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en "Importar" (o "Load" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Sniper Bot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nGestión de Riesgo Inteligente\n\n🎯 Configurando tu Meta de Ganancia (Stop Win):\n\nEl robot utiliza un "Monto de Ganancia" (Win Amount) base de $0.35 USD. La ganancia neta por operación exitosa será un poco menor (debido al porcentaje de pago ~90-95%).\n\n💰 Opciones de Meta de Ganancia (Stop Win) según tu banca:\n\n• Banca Recomendada: $50 USD\n\n• Opción Conservadora (2-5% de la banca):\n  - Stop Win: $1.00 a $2.50 USD\n  - Requiere 3-8 ganancias netas consecutivas\n\n• Opción Moderada (5-10% de la banca):\n  - Stop Win: $2.50 a $5.00 USD\n  - Requiere 8-16 ganancias netas\n\n• Basado en Ganancia por Operación (~$0.30 neto):\n  - $1.50 = ~5 ganancias netas\n  - $3.00 = ~10 ganancias netas\n  - $5.00 = ~16-17 ganancias netas\n\n⚠️ Consideraciones Importantes:\n• Relación Stop Win/Loss: Mantén tu Stop Win igual o menor que tu Stop Loss\n• Frecuencia: El bot opera en 1 tick, permitiendo alcanzar metas más pequeñas rápidamente\n• Riesgo: Nunca establezcas metas que requieran tiempo excesivo de operación\n\n⚙️ Configure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones:\n• Win Amount (Valor Inicial): $0.35 USD\n• Stop Loss: $10.00 USD (20% de banca de $50)\n• Stop Win: $2.50 USD (5% de banca de $50)\n\nEjecute el robot\nHaga clic en el botón "Ejecutar" (o "Run") para iniciar el robot.\n\n⚠️ IMPORTANTE: SIEMPRE PRUEBE EN CUENTA DEMO PRIMERO\nRecuerde que el Win Amount es la apuesta base tras victoria. Su Meta de Ganancia (Stop Win) es el objetivo acumulado para detener la sesión.`,
+    isFavorite: false,
+    ranking: 0
   }
 ];
 
