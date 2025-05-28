@@ -1,11 +1,225 @@
-import React, { useState } from 'react';
-import { Bot, ChartLine, Clock, User } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bot, ChartLine, Clock, User, Zap, Search, Award, ArrowRight } from 'lucide-react';
 import SearchInput from '../components/SearchInput';
 import StatCard from '../components/StatCard';
 import BotCard from '../components/BotCard';
 import FilterBar from '../components/FilterBar';
 import PerformanceChart from '../components/PerformanceChart';
 import { bots, dashboardStats, performanceData, filterOptions } from '../lib/mockData';
+
+const BotFinderRadar = () => {
+  const [isSearching, setIsSearching] = useState(false);
+  const [foundBot, setFoundBot] = useState<typeof bots[0] | null>(null);
+  const [currentBotIndex, setCurrentBotIndex] = useState(0);
+  const [sortedBots, setSortedBots] = useState<typeof bots>([]);
+  const [showInitial, setShowInitial] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const radarRef = useRef<HTMLDivElement>(null);
+  const [showParticles, setShowParticles] = useState(false);
+
+  // Sort bots by accuracy once on component mount
+  useEffect(() => {
+    const sorted = [...bots].sort((a, b) => b.accuracy - a.accuracy);
+    setSortedBots(sorted);
+    console.log("Bots ordenados:", sorted.length);
+  }, []);
+
+  useEffect(() => {
+    if (isSearching) {
+      setShowParticles(true);
+    } else {
+      const timer = setTimeout(() => setShowParticles(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSearching]);
+
+  // Função para iniciar a busca do bot
+  const startDetection = () => {
+    console.log("Iniciando detecção...");
+    setShowInitial(false);
+    setIsSearching(true);
+    setCurrentBotIndex(0);
+    
+    setTimeout(() => {
+      const botsToUse = sortedBots.length > 0 ? sortedBots : bots;
+      console.log("Bots disponíveis:", botsToUse.length);
+      setFoundBot(botsToUse[0]);
+      setIsSearching(false);
+    }, 1500);
+  };
+
+  // Função para o botão Download - SIMPLIFICADA
+  const handleDownloadClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log("=== BOTÃO DOWNLOAD CLICADO ===");
+    console.log("Bot encontrado:", foundBot);
+    
+    if (!foundBot) {
+      alert("Nenhum bot selecionado!");
+      return;
+    }
+    
+    console.log("Iniciando download do bot:", foundBot.name);
+    alert(`Download iniciado para o bot: ${foundBot.name}`);
+    
+    // Simula navegação
+    try {
+      const targetUrl = `/bot/${foundBot.id}`;
+      console.log("URL de destino:", targetUrl);
+      window.location.href = targetUrl;
+    } catch (error) {
+      console.error("Erro na navegação:", error);
+      alert("Erro ao tentar acessar a página do bot");
+    }
+  };
+
+  // Função para buscar outro bot - SIMPLIFICADA
+  const handleBuscarOtroClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log("=== BOTÃO BUSCAR OTRO CLICADO ===");
+    console.log("Índice atual:", currentBotIndex);
+    console.log("Bots disponíveis:", sortedBots.length);
+    
+    if (sortedBots.length === 0) {
+      alert("Não há bots disponíveis!");
+      return;
+    }
+    
+    setIsSearching(true);
+    setFoundBot(null);
+    
+    setTimeout(() => {
+      const nextIndex = (currentBotIndex + 1) % Math.min(5, sortedBots.length);
+      console.log("Próximo índice:", nextIndex);
+      
+      setCurrentBotIndex(nextIndex);
+      setFoundBot(sortedBots[nextIndex]);
+      setIsSearching(false);
+      
+      console.log("Novo bot selecionado:", sortedBots[nextIndex]?.name);
+    }, 1200);
+  };
+
+  return (
+    <div className="mb-8 bg-gradient-to-r from-card to-muted rounded-xl p-3 md:p-4 shadow-xl relative overflow-hidden max-w-full" ref={containerRef}>
+      {/* Background grid pattern */}
+      <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px] pointer-events-none"></div>
+      {showParticles && (
+        <div className="absolute inset-0 pointer-events-none">
+          {[...Array(20)].map((_, i) => (
+            <div 
+              key={i}
+              className="absolute w-1 h-1 bg-primary rounded-full"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                opacity: Math.random() * 0.5 + 0.3,
+                boxShadow: '0 0 10px 2px rgba(174, 94, 56, 0.6)',
+                animation: `float ${Math.random() * 3 + 2}s linear infinite`
+              }}
+            ></div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-col items-center justify-center gap-4 md:gap-6 relative z-10">
+        <div className="text-center mb-0 md:mb-2">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-1 md:mb-2 flex items-center justify-center">
+            <Zap className="mr-2 text-primary" size={24} />
+            Radar de Bots
+          </h2>
+          <p className="text-sm md:text-base text-muted-foreground max-w-xl mx-auto">Detecte automáticamente el bot con mejor desempeño en el catálogo</p>
+        </div>
+        <div className="flex flex-col items-center justify-center w-full">
+          {showInitial && !isSearching && !foundBot ? (
+            <button 
+              ref={buttonRef}
+              onClick={startDetection}
+              className="relative bg-gradient-to-r from-primary/80 to-primary hover:from-primary hover:to-primary/90 text-primary-foreground font-bold py-2 md:py-3 px-6 md:px-8 rounded-full shadow-lg transition-all duration-300 flex items-center overflow-hidden group"
+            >
+              {/* Shine effect */}
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              <Search className="mr-2" size={18} />
+              DETECTAR MEJOR BOT
+            </button>
+          ) : isSearching ? (
+            <div className="relative py-6 md:py-8">
+              <div ref={radarRef} className="w-24 h-24 md:w-40 md:h-40 rounded-full border-8 md:border-[14px] border-primary/40 relative animate-pulse-ring">
+                {/* Inner radar circle */}
+                <div className="absolute inset-2 md:inset-4 rounded-full border-4 md:border-8 border-primary/60 animate-pulse"></div>
+                <div className="absolute inset-5 md:inset-10 rounded-full border-2 md:border-4 border-primary/20"></div>
+                {/* Radar sweep */}
+                <div className="absolute w-1 h-10 md:h-20 bg-gradient-to-t from-primary to-primary/70 top-1/2 left-1/2 -ml-0.5 origin-bottom animate-radar-sweep shadow-lg shadow-primary/50"></div>
+                {/* Center dot */}
+                <div className="absolute w-3 h-3 md:w-4 md:h-4 bg-primary rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg shadow-primary/50"></div>
+              </div>
+              <p className="text-center text-foreground mt-4 md:mt-6 font-medium text-sm md:text-base">
+                Escaneando catálogo...
+              </p>
+            </div>
+          ) : foundBot ? (
+            <div className="w-full flex justify-center items-center py-4 md:py-6">
+              <div className="bg-secondary/80 p-4 md:p-6 rounded-xl backdrop-blur-sm border border-primary/30 flex flex-col md:flex-row items-center relative overflow-hidden w-full max-w-2xl shadow-lg">
+                {/* Background gradient effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/10"></div>
+                
+                {/* Left side - Bot accuracy circle */}
+                <div className="flex flex-col items-center mb-4 md:mb-0 md:mr-6">
+                  <div className="relative w-24 h-24 md:w-28 md:h-28 mb-2">
+                    {/* Outer ring */}
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/70 to-primary/50 animate-pulse-ring"></div>
+                    {/* Inner circle with accuracy */}
+                    <div className="absolute inset-1 md:inset-2 rounded-full bg-secondary flex items-center justify-center flex-col border-2 border-primary/20">
+                      <span className="text-2xl md:text-3xl font-bold text-foreground">{foundBot.accuracy}%</span>
+                      <span className="text-xs text-muted-foreground">Asertividad</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Center - Bot information */}
+                <div className="flex-1 text-center md:text-left">
+                  <div className="flex items-center justify-center md:justify-start mb-2">
+                    <Award className="text-primary mr-2" size={20} />
+                    <span className="text-primary font-semibold text-sm">
+                      {currentBotIndex === 0 ? "Bot más Asertivo" : `Bot #${currentBotIndex + 1} en Ranking`}
+                    </span>
+                  </div>
+                  
+                  <h3 className="text-xl md:text-2xl font-bold text-foreground mb-2">{foundBot.name}</h3>
+                  
+                  <p className="text-sm text-muted-foreground mb-3 max-w-md">
+                    {foundBot.description.length > 120 
+                      ? `${foundBot.description.substring(0, 120)}...` 
+                      : foundBot.description
+                    }
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                    <span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                      {foundBot.strategy}
+                    </span>
+                    {foundBot.operations > 0 && (
+                      <span className="px-2 py-1 bg-muted/50 text-muted-foreground text-xs rounded-full">
+                        {foundBot.operations} operações
+                      </span>
+                    )}
+                    <span className="px-2 py-1 bg-green-500/10 text-green-400 text-xs rounded-full">
+                      Risk: {foundBot.riskLevel}/10
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Index = () => {
   const [filteredBots, setFilteredBots] = useState(bots);
@@ -86,6 +300,11 @@ const Index = () => {
           </div>
           <SearchInput onChange={handleSearch} />
         </div>
+      </section>
+      
+      {/* Bot Finder Radar Section */}
+      <section className="px-6 py-4">
+        <BotFinderRadar />
       </section>
       
       {/* Stats Cards Section */}
