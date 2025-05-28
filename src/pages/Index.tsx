@@ -173,8 +173,8 @@ const BotFinderRadar = () => {
                     {/* Outer ring */}
                     <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/70 to-primary/50 animate-pulse-ring"></div>
                     {/* Inner circle with accuracy */}
-                    <div className="absolute inset-1 md:inset-2 rounded-full bg-secondary flex items-center justify-center flex-col border-2 border-primary/20">
-                      <span className="text-2xl md:text-3xl font-bold text-foreground">{foundBot.accuracy}%</span>
+                    <div className="absolute inset-3 md:inset-4 rounded-full bg-secondary flex items-center justify-center flex-col border-2 border-primary/20">
+                      <span className="text-lg md:text-xl font-bold text-foreground">{foundBot.accuracy}%</span>
                       <span className="text-xs text-muted-foreground">Asertividad</span>
                     </div>
                   </div>

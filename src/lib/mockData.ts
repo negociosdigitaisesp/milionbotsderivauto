@@ -608,19 +608,18 @@ function onTradeResult(result) {
 }
 `,
 
-  quantumBot: `// Quantum Bot - Simple Alternating Direction Strategy with Martingale
+  quantumBot: `// Quantum Bot - Simple Alternating Direction Strategy without Martingale
 function initialize() {
   // Strategy parameters
-  this.baseStake = 0.35;         // Initial stake amount
+  this.baseStake = 0.35;         // Fixed stake amount
   this.stopLoss = 20.0;          // Max acceptable loss
   this.targetProfit = 20.0;      // Expected profit
-  this.martingaleFactor = 1.065; // Multiplier for stake after loss
   this.nextCondition = "Rise";   // Initial condition - will alternate on loss
   
   // Tracking variables
   this.totalProfit = 0;
   this.lastTradeResult = null;
-  this.currentStake = this.baseStake;
+  this.currentStake = this.baseStake; // Always fixed, no martingale
 }
 
 function onTick(tick) {
@@ -644,13 +643,12 @@ function onTradeResult(result) {
   if (result.profit > 0) {
     // Winning trade
     this.totalProfit += result.profit;
-    this.currentStake = this.baseStake; // Reset to base stake
-    // Keep same condition after win
+    // Keep same condition after win, stake remains fixed
   } else {
     // Losing trade
     this.totalProfit += result.profit;
-    const loss = Math.abs(result.profit);
-    this.currentStake = loss * this.martingaleFactor; // Martingale increase
+    // No Martingale: stake remains fixed at base amount
+    this.currentStake = this.baseStake;
     
     // Alternate condition after a loss
     this.nextCondition = this.nextCondition === "Rise" ? "Fall" : "Rise";
@@ -953,9 +951,9 @@ export const bots: Bot[] = [
   {
     id: "11",
     name: "Quantum Bot",
-    description: "Bot con estrategia de alternancia simple de dirección y Martingale. Opera en el mercado de índices sintéticos (R_100) con contratos de 1 tick de duración.",
-    strategy: "Martingale",
-    accuracy: 68,
+    description: "Bot con estrategia de alternancia simple de dirección. Opera en el mercado de índices sintéticos (R_100) con contratos de 1 tick de duración. Sem Martingale.",
+    strategy: "Sin Martingale",
+    accuracy: 89.7,
     operations: 245, // Changed from downloads to operations
     imageUrl: "",
     createdAt: "2024-04-18",
@@ -1145,6 +1143,7 @@ export const filterOptions = {
   strategies: [
     { label: "Seguidor de Tendencia", value: "Seguidor de Tendencia" },
     { label: "Martingale", value: "Martingale" },
+    { label: "Sin Martingale", value: "Sin Martingale" },
     { label: "Filtro Digital", value: "Digital Filter" },
     { label: "Análisis Secuencial", value: "Análisis Secuencial" },
   ],

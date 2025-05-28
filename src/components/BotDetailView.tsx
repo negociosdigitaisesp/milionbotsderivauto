@@ -658,9 +658,9 @@ const BotDetailView = ({
                   <p className="text-xs text-muted-foreground">
                     <strong>$0.35 USD</strong>
                     <br />
-                    Este es el stake base para cada operación. Después de pérdidas, el valor aumentará de acuerdo con el factor Martingale.
-                </p>
-              </div>
+                    Este es el stake fijo para cada operación. Al no usar Martingale, el valor permanece constante independientemente del resultado.
+                  </p>
+                </div>
               
                 <div className="border border-primary/30 rounded-lg p-4">
                   <h4 className="font-medium text-primary mb-2">⏲️ Cantidad de Ticks (Duración)</h4>
@@ -676,15 +676,15 @@ const BotDetailView = ({
                 <h4 className="font-medium mb-2 text-primary">✅ Recomendación de Capital</h4>
                 <p className="text-sm">
                   Sugerimos operar este robot con cuentas a partir de <strong>$50 USD</strong> para tener un margen adecuado 
-                  para la estrategia de Martingale y el Stop Loss preconfigurado.
+                  con el Stop Loss preconfigurado. Al no usar Martingale, es menos arriesgado que otros bots.
                 </p>
               </div>
               
               <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
                 <h4 className="font-medium mb-2 text-warning">⚠️ Importante</h4>
                 <p className="text-sm">
-                  Este robot utiliza un factor Martingale de <strong>1.065</strong>, que es menos agresivo que otros bots de la plataforma.
-                  Aún así, el Martingale implica riesgos crecientes. Siempre pruebe en cuenta demo antes de usar capital real.
+                  Este robot <strong>NO utiliza Martingale</strong>, lo que lo hace menos arriesgado que otros bots de la plataforma.
+                  Sin embargo, siempre pruebe en cuenta demo antes de usar capital real.
                 </p>
               </div>
               </div>
@@ -1186,7 +1186,7 @@ const BotDetailView = ({
               <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
                 <h4 className="font-medium mb-2 text-warning">Importante</h4>
                 <p className="text-sm">
-                  El robot <strong>Quantum Bot</strong> utiliza una estrategia de alternancia simple de dirección con contratos de 1 tick de duración y un sistema Martingale con factor 1.065.
+                  El robot <strong>Quantum Bot</strong> utiliza una estrategia de alternancia simple de dirección con contratos de 1 tick de duración <strong>sin sistema Martingale</strong>.
                   <strong> SIEMPRE pruebe en cuenta demo antes de usar en cuenta real</strong>.
                   Se recomienda un capital mínimo de $50 USD para operar adecuadamente con los Stop Loss y Stop Win predefinidos.
                   Nunca invierta más de lo que puede permitirse perder.
@@ -1297,7 +1297,7 @@ const BotDetailView = ({
               <div>
                 <span className="flex items-center gap-1 text-sm">
                   <span className="text-xs py-1 px-2 bg-primary/10 text-primary rounded-full">
-                    {bot.strategy}
+                    {bot.id === "11" || bot.strategy === "Sin Martingale" ? "Sin Martingale" : bot.strategy}
                   </span>
                   <span className="text-muted-foreground ml-2">por {bot.author}</span>
                 </span>
