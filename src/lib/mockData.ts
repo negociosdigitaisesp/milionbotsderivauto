@@ -953,7 +953,7 @@ export const bots: Bot[] = [
     name: "Quantum Bot",
     description: "Bot con estrategia de alternancia simple de dirección. Opera en el mercado de índices sintéticos (R_100) con contratos de 1 tick de duración. Sem Martingale.",
     strategy: "Sin Martingale",
-    accuracy: 89.7,
+    accuracy: 79.4,
     operations: 245, // Changed from downloads to operations
     imageUrl: "",
     createdAt: "2024-04-18",
@@ -966,7 +966,7 @@ export const bots: Bot[] = [
     riskLevel: 7,
     tradedAssets: ["R_100"],
     code: strategyCode.quantumBot,
-    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en "Importar" (o "Load" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Quantum Bot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nConfigure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones (Meta Ganancia, Límite Pérdidas, Valor Inicial de la Orden, Cantidad de Ticks) según su gestión de riesgo.\n\nEjecute el robot\nHaga clic en el botón "Ejecutar" (o "Run") para iniciar el robot.`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en \"Importar\" (o \"Load\" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Quantum Bot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nConfigure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones (Meta Ganancia, Límite Pérdidas, Valor Inicial de la Orden, Cantidad de Ticks) según su gestión de riesgo.\n\nEjecute el robot\nHaga clic en el botón \"Ejecutar\" (o \"Run\") para iniciar el robot.`,
     isFavorite: false,
     ranking: 2
   },
@@ -1041,7 +1041,7 @@ export const bots: Bot[] = [
     name: "Sniper Bot",
     description: "Bot que opera en el Índice Sintético de Volatilidad Continua 1 Segundo (1HZ100V) en Deriv. Utiliza una combinación de indicadores técnicos simples: una Media Móvil Simple (SMA) y el Índice de Fuerza Relativa (RSI) para identificar oportunidades de compra Rise/Fall (Sube/Baja) en operaciones de 1 tick. Incorpora un sistema de Martingala para la recuperación de pérdidas. Diseñado para operar con una banca recomendada de $50 USD, con una gestión de riesgo conservadora: Stop Loss de $10 (20% de la banca) y Stop Win de $2.5 (5% de la banca), utilizando un Win Amount base de $0.35.",
     strategy: "Análisis Técnico",
-    accuracy: 82,
+    accuracy: 80,
     operations: 0,
     imageUrl: "",
     createdAt: "2024-05-30",
@@ -1110,9 +1110,31 @@ function onTradeResult(result) {
   // Log the result
   console.log("Trade completed: " + result.type + ", Profit: " + result.profit + ", Total: " + this.totalProfit);
 }`,
-    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://drive.google.com/file/d/1yIP682tCkfM0ZTb1_vOF9uxkJsTO9sa0/view?usp=sharing\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en "Importar" (o "Load" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Sniper Bot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nGestión de Riesgo Inteligente\n\n🎯 Configurando tu Meta de Ganancia (Stop Win):\n\nEl robot utiliza un "Monto de Ganancia" (Win Amount) base de $0.35 USD. La ganancia neta por operación exitosa será un poco menor (debido al porcentaje de pago ~90-95%).\n\n💰 Opciones de Meta de Ganancia (Stop Win) según tu banca:\n\n• Banca Recomendada: $50 USD\n\n• Opción Conservadora (2-5% de la banca):\n  - Stop Win: $1.00 a $2.50 USD\n  - Requiere 3-8 ganancias netas consecutivas\n\n• Opción Moderada (5-10% de la banca):\n  - Stop Win: $2.50 a $5.00 USD\n  - Requiere 8-16 ganancias netas\n\n• Basado en Ganancia por Operación (~$0.30 neto):\n  - $1.50 = ~5 ganancias netas\n  - $3.00 = ~10 ganancias netas\n  - $5.00 = ~16-17 ganancias netas\n\n⚠️ Consideraciones Importantes:\n• Relación Stop Win/Loss: Mantén tu Stop Win igual o menor que tu Stop Loss\n• Frecuencia: El bot opera en 1 tick, permitiendo alcanzar metas más pequeñas rápidamente\n• Riesgo: Nunca establezcas metas que requieran tiempo excesivo de operación\n\n⚙️ Configure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones:\n• Win Amount (Valor Inicial): $0.35 USD\n• Stop Loss: $10.00 USD (20% de banca de $50)\n• Stop Win: $2.50 USD (5% de banca de $50)\n\nEjecute el robot\nHaga clic en el botón "Ejecutar" (o "Run") para iniciar el robot.\n\n⚠️ IMPORTANTE: SIEMPRE PRUEBE EN CUENTA DEMO PRIMERO\nRecuerde que el Win Amount es la apuesta base tras victoria. Su Meta de Ganancia (Stop Win) es el objetivo acumulado para detener la sesión.`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para acceder a la plataforma Deriv\n@https://drive.google.com/file/d/1yIP682tCkfM0ZTb1_vOF9uxkJsTO9sa0/view?usp=sharing\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en \"Importar\" (o \"Load\" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Sniper Bot en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nGestión de Riesgo Inteligente\n\n🎯 Configurando tu Meta de Ganancia (Stop Win):\n\nEl robot utiliza un \"Monto de Ganancia\" (Win Amount) base de $0.35 USD. La ganancia neta por operación exitosa será un poco menor (debido al porcentaje de pago ~90-95%).\n\n💰 Opciones de Meta de Ganancia (Stop Win) según tu banca:\n\n• Banca Recomendada: $50 USD\n\n• Opción Conservadora (2-5% de la banca):\n  - Stop Win: $1.00 a $2.50 USD\n  - Requiere 3-8 ganancias netas consecutivas\n\n• Opción Moderada (5-10% de la banca):\n  - Stop Win: $2.50 a $5.00 USD\n  - Requiere 8-16 ganancias netas\n\n• Basado en Ganancia por Operación (~$0.30 neto):\n  - $1.50 = ~5 ganancias netas\n  - $3.00 = ~10 ganancias netas\n  - $5.00 = ~16-17 ganancias netas\n\n⚠️ Consideraciones Importantes:\n• Relación Stop Win/Loss: Mantén tu Stop Win igual o menor que tu Stop Loss\n• Frecuencia: El bot opera en 1 tick, permitiendo alcanzar metas más pequeñas rápidamente\n• Riesgo: Nunca establezcas metas que requieran tiempo excesivo de operación\n\n⚙️ Configure los parámetros\nAntes de iniciar, revise y ajuste las configuraciones:\n• Win Amount (Valor Inicial): $0.35 USD\n• Stop Loss: $10.00 USD (20% de banca de $50)\n• Stop Win: $2.50 USD (5% de banca de $50)\n\nEjecute el robot\nHaga clic en el botón \"Ejecutar\" (o \"Run\") para iniciar el robot.\n\n⚠️ IMPORTANTE: SIEMPRE PRUEBE EN CUENTA DEMO PRIMERO\nRecuerde que el Win Amount es la apuesta base tras victoria. Su Meta de Ganancia (Stop Win) es el objetivo acumulado para detener la sesión.`,
     isFavorite: false,
     ranking: 0
+  },
+  {
+    id: "16",
+    name: "Bot A.I",
+    description: "Bot especializado en la estrategia DigitDiffer para operar en índices sintéticos. Analiza el último dígito de cada tick y ejecuta operaciones cuando detecta patrones estadísticos favorables, buscando diferenciar el dígito final del precio respecto al anterior. Ideal para quienes buscan una operativa rápida y basada en probabilidades matemáticas.",
+    strategy: "DigitDiffer",
+    accuracy: 85.7,
+    operations: 7898,
+    imageUrl: "",
+    createdAt: "2024-06-10",
+    updatedAt: "2024-06-10",
+    version: "1.0.0",
+    author: "A.I. Trading",
+    profitFactor: 1.3,
+    expectancy: 0.30,
+    drawdown: 27,
+    riskLevel: 6,
+    tradedAssets: ["R_100"],
+    code: "// Estrategia DigitDiffer\n// El bot analiza el último dígito de cada tick y ejecuta operaciones Digit Differ cuando detecta patrones estadísticos favorables.",
+    usageInstructions: `Accede a la plataforma\nHaz clic aquí para descargar el bot\n@https://drive.google.com/file/d/1NO2yyM2xubBQnRtx0kgPskF3dFR4DAjT/view?usp=sharing\n\nInicia sesión en tu cuenta Deriv (Demo o Real).\nImporta el archivo .xml del bot Bot A.I en la plataforma Binary Bot o Deriv Bot.\nConfigura los parámetros según tu gestión de riesgo.\nHaz clic en 'Ejecutar' para iniciar el bot.`,
+    isFavorite: false,
+    ranking: 6
   }
 ];
 
