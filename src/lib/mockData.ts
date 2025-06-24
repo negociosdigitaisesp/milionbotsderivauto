@@ -21,6 +21,7 @@ export interface Bot {
   usageInstructions?: string; // Novo campo para instruções de uso
   isFavorite?: boolean; // New field for favorites
   ranking?: number; // New field for ranking
+  downloadUrl?: string;
 }
 
 export interface PerformanceData {
@@ -935,6 +936,7 @@ function calculateVolatility() {
 }`,
     usageInstructions: `Para usar el Wolf Bot, configúralo en un gráfico de 5 minutos en los activos Mini-Índice o Mini-Dólar.\nAsegúrate de que el capital mínimo recomendado esté disponible y ajusta el tamaño del lote según tu gestión de riesgo.\nEl bot funciona mejor en períodos de alta volatilidad, generalmente en la apertura del mercado.\nEnlace de descarga: https://drive.google.com/file/d/18e3irMH35z2UUvjqA4ddS-dHKugOMTG9/view?usp=sharing`,
     isFavorite: false,
+    downloadUrl: 'https://drive.google.com/file/d/18e3irMH35z2UUvjqA4ddS-dHKugOMTG9/view?usp=sharing',
   },
   {
     id: "8",    name: "OptinTrade",    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",    strategy: "Seguidor de Tendência",    accuracy: 72,
