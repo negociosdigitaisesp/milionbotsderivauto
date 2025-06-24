@@ -887,6 +887,56 @@ function onTradeResult(result) {
 // Bot mock data
 export const bots: Bot[] = [
   {
+    id: 'wolf-bot',
+    name: 'Wolf Bot',
+    description: 'Estrategia basada en el análisis de volatilidad y confirmación de tendencia para operar en mercados de alta fluctuación.',
+    strategy: 'Análisis de Volatilidad',
+    accuracy: 84.7,
+    operations: 1500,
+    imageUrl: '', // Replace with actual image if available
+    createdAt: '2024-07-26',
+    updatedAt: '2024-07-26',
+    version: '1.0',
+    author: 'Equipo de Análisis',
+    profitFactor: 2.1,
+    expectancy: 35.5,
+    drawdown: 12.3,
+    riskLevel: 3, // Medio
+    tradedAssets: ['Mini-Índice', 'Mini-Dólar'],
+    code: `// Estrategia de Wolf Bot
+function initialize() {
+    // Configuración inicial
+    this.volatilityThreshold = 0.5; // Umbral de volatilidad
+    this.trendIndicator = EMA(20);    // Indicador de tendencia
+}
+
+function onTick(tick) {
+    const currentPrice = tick.close;
+    const trendValue = this.trendIndicator.calculate(currentPrice);
+    
+    // Lógica de compra
+    if (currentPrice > trendValue && calculateVolatility() > this.volatilityThreshold) {
+        if (!this.position) {
+            this.buy(tick.symbol, 1);
+        }
+    }
+    
+    // Lógica de venta
+    if (currentPrice < trendValue) {
+        if (this.position > 0) {
+            this.sell(tick.symbol, 1);
+        }
+    }
+}
+
+function calculateVolatility() {
+    // Simulación del cálculo de volatilidad
+    return Math.random();
+}`,
+    usageInstructions: `Para usar el Wolf Bot, configúralo en un gráfico de 5 minutos en los activos Mini-Índice o Mini-Dólar.\nAsegúrate de que el capital mínimo recomendado esté disponible y ajusta el tamaño del lote según tu gestión de riesgo.\nEl bot funciona mejor en períodos de alta volatilidad, generalmente en la apertura del mercado.\nEnlace de descarga: https://drive.google.com/file/d/18e3irMH35z2UUvjqA4ddS-dHKugOMTG9/view?usp=sharing`,
+    isFavorite: false,
+  },
+  {
     id: "8",    name: "OptinTrade",    description: "Bot designed for Synthetic Indices (R_100) using SMA crossover to identify short-term trends and execute Run High/Low contracts with a specialized Martingale recovery system.",    strategy: "Seguidor de Tendência",    accuracy: 72,
     operations: 632, // Changed from downloads to operations
     imageUrl: "",
@@ -1119,7 +1169,7 @@ function onTradeResult(result) {
     name: "Bot A.I",
     description: "Bot especializado en la estrategia DigitDiffer para operar en índices sintéticos. Analiza el último dígito de cada tick y ejecuta operaciones cuando detecta patrones estadísticos favorables, buscando diferenciar el dígito final del precio respecto al anterior. Ideal para quienes buscan una operativa rápida y basada en probabilidades matemáticas.",
     strategy: "DigitDiffer",
-    accuracy: 85.7,
+    accuracy: 82.4,
     operations: 7898,
     imageUrl: "",
     createdAt: "2024-06-10",
@@ -1147,7 +1197,7 @@ bots.forEach((bot, index) => {
 // Dashboard stats
 export const dashboardStats = {
   totalBots: bots.length,
-  totalOperations: bots.reduce((sum, bot) => sum + bot.operations, 0), // Changed from downloads to operations
+  totalOperations: bots.reduce((sum, bot) => sum + bot.operations, 0),
   averageAccuracy: Math.round(bots.reduce((sum, bot) => sum + bot.accuracy, 0) / bots.length),
   activeUsers: 587,
   growth: 12.5
