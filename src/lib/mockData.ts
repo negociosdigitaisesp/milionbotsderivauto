@@ -892,7 +892,7 @@ export const bots: Bot[] = [
     name: 'Wolf Bot',
     description: 'Estrategia basada en el análisis de volatilidad y confirmación de tendencia para operar en mercados de alta fluctuación.',
     strategy: 'Análisis de Volatilidad',
-    accuracy: 84.7,
+    accuracy: 82.4,
     operations: 1500,
     imageUrl: '', // Replace with actual image if available
     createdAt: '2024-07-26',
@@ -1171,7 +1171,7 @@ function onTradeResult(result) {
     name: "Bot A.I",
     description: "Bot especializado en la estrategia DigitDiffer para operar en índices sintéticos. Analiza el último dígito de cada tick y ejecuta operaciones cuando detecta patrones estadísticos favorables, buscando diferenciar el dígito final del precio respecto al anterior. Ideal para quienes buscan una operativa rápida y basada en probabilidades matemáticas.",
     strategy: "DigitDiffer",
-    accuracy: 82.4,
+    accuracy: 87.4,
     operations: 7898,
     imageUrl: "",
     createdAt: "2024-06-10",
