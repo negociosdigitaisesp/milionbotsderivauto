@@ -892,7 +892,7 @@ export const bots: Bot[] = [
     name: 'Wolf Bot',
     description: 'Estrategia basada en el análisis de volatilidad y confirmación de tendencia para operar en mercados de alta fluctuación.',
     strategy: 'Análisis de Volatilidad',
-    accuracy: 82.4,
+    accuracy: 83.9,
     operations: 1500,
     imageUrl: '', // Replace with actual image if available
     createdAt: '2024-07-26',
@@ -1171,7 +1171,7 @@ function onTradeResult(result) {
     name: "Bot A.I",
     description: "Bot especializado en la estrategia DigitDiffer para operar en índices sintéticos. Analiza el último dígito de cada tick y ejecuta operaciones cuando detecta patrones estadísticos favorables, buscando diferenciar el dígito final del precio respecto al anterior. Ideal para quienes buscan una operativa rápida y basada en probabilidades matemáticas.",
     strategy: "DigitDiffer",
-    accuracy: 87.4,
+    accuracy: 85.8,
     operations: 7898,
     imageUrl: "",
     createdAt: "2024-06-10",
@@ -1187,6 +1187,29 @@ function onTradeResult(result) {
     usageInstructions: `Accede a la plataforma\nHaz clic aquí para descargar el bot\n@https://drive.google.com/file/d/1IXDg2wcI5w9rxymwVID6aycJ8QU8tgdR/view?usp=sharing\n\nInicia sesión en tu cuenta Deriv (Demo o Real).\nImporta el archivo .xml del bot Bot A.I en la plataforma Binary Bot o Deriv Bot.\nConfigura los parámetros según tu gestión de riesgo.\nHaz clic en 'Ejecutar' para iniciar el bot.`,
     isFavorite: false,
     ranking: 6
+  },
+  {
+    id: 'apalancamiento-100x',
+    name: 'Apalancamiento 100X',
+    description: 'Bot especializado en operaciones apalancadas con factor 100x, diseñado para mercados de alta volatilidad. Ideal para traders experimentados que buscan maximizar ganancias en cortos períodos, utilizando estrategias avanzadas de gestión de riesgo y protección contra liquidaciones.',
+    strategy: 'Apalancamiento Extremo',
+    accuracy: 86.7,
+    operations: 0,
+    imageUrl: '',
+    createdAt: '2024-07-26',
+    updatedAt: '2024-07-26',
+    version: '1.0',
+    author: 'Equipo de Análisis',
+    profitFactor: 3.2,
+    expectancy: 42.1,
+    drawdown: 28.5,
+    riskLevel: 10, // Máximo
+    tradedAssets: ['Futuros', 'Cripto', 'Forex'],
+    code: `// Estrategia de Apalancamiento 100X\nfunction initialize() {\n    // Configuración inicial\n    this.leverage = 100; // Apalancamiento\n    this.riskControl = true;\n}\n\nfunction onTick(tick) {\n    // Lógica de trading apalancado\n    if (this.riskControl && tick.volatility > 0.8) {\n        this.buy(tick.symbol, 1, this.leverage);\n    }\n    if (this.position && tick.price < this.stopLoss) {\n        this.sell(tick.symbol, 1);\n    }\n}\n`,
+    usageInstructions: `ATENCIÓN: Este bot utiliza apalancamiento extremo (100x).\n\nNota de Alerta: Las operaciones apalancadas implican un alto riesgo de pérdida total del capital invertido. Recomendado solo para traders experimentados.\n\nAntes de usar:\n- Asegúrate de comprender completamente los riesgos del apalancamiento.\n- Utiliza siempre stop loss y limita tu exposición.\n- Nunca inviertas más de lo que puedes permitirte perder.\n\nPara usar el Bot del Apalancamiento 100X, configúralo en activos de Futuros, Cripto o Forex en plataformas compatibles.\n\nEnlace de descarga: https://drive.google.com/file/d/15CKip4R6gzhuV050eGMpnINjI6NsTlxS/view?usp=sharing`,
+    isFavorite: false,
+    downloadUrl: 'https://drive.google.com/file/d/15CKip4R6gzhuV050eGMpnINjI6NsTlxS/view?usp=sharing',
+    ranking: 1
   }
 ];
 
