@@ -59,7 +59,6 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
     { name: 'Analítica', icon: <ChartLine size={20} />, path: '/analytics' },
     { name: 'Mejores Horarios', icon: <Clock size={20} />, path: '/mejores-horarios' },
     { name: 'Tutorial de Instalación', icon: <FileText size={20} />, path: '/installation-tutorial' },
-    { name: 'Admin Panel', icon: <Settings size={20} />, path: '/admin' },
     { name: 'Configuración', icon: <Settings size={20} />, path: '/settings' }
   ];
 
