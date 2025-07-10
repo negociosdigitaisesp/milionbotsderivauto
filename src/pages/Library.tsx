@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, ChartLine, Clock, Filter, Search, Sliders, Star, LayoutGrid, LayoutList, Info, ArrowUpDown, Award, Gauge, TrendingUp, BarChart3, X, User } from 'lucide-react';
+import { Bot, ChartLine, Clock, Filter, Search, Sliders, Star, LayoutGrid, LayoutList, Info, ArrowUpDown, Award, Gauge, TrendingUp, BarChart3, X, User, AlertTriangle } from 'lucide-react';
 import SearchInput from '../components/SearchInput';
 import BotCard from '../components/BotCard';
 import FilterBar from '../components/FilterBar';
@@ -223,6 +223,23 @@ const Library = () => {
                   <Clock size={16} className="text-primary" />
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* Investment Risk Warning Banner */}
+      <section className="mb-8">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-red-500 flex-shrink-0" size={20} />
+            <div className="text-sm">
+              <p className="font-medium text-red-700 dark:text-red-400 mb-1">
+                 AVISO SOBRE RIESGOS DE INVERSIÓN
+               </p>
+               <p className="text-red-600 dark:text-red-300">
+                  Los retornos pasados no garantizan retornos futuros. La negociación de productos financieros complejos, como opciones y derivados, implica un elevado nivel de riesgo y puede resultar en la pérdida de todo el capital invertido. Asegúrese de comprender plenamente los riesgos antes de invertir y nunca arriesgue más dinero del que pueda permitirse perder.
+                </p>
             </div>
           </div>
         </div>
@@ -724,4 +741,4 @@ const Library = () => {
   );
 };
 
-export default Library; 
+export default Library;

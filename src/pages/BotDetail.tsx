@@ -20,6 +20,7 @@ const BotDetail = () => {
   return (
     <div className="container mx-auto p-6">
       <a href="/" className="text-primary hover:underline mb-8 block">&larr; Volver a la biblioteca</a>
+      
       <BotDetailView bot={bot} />
     </div>
   );

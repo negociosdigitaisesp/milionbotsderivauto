@@ -58,6 +58,23 @@ const BotDetailView = ({
     return data;
   };
 
+  // Investment Risk Warning Banner Component
+  const InvestmentWarningBanner = () => (
+    <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="text-red-500 flex-shrink-0" size={20} />
+        <div className="text-sm">
+          <p className="font-medium text-red-700 dark:text-red-400 mb-1">
+             AVISO SOBRE RIESGOS DE INVERSIÓN
+           </p>
+           <p className="text-red-600 dark:text-red-300">
+              Los retornos pasados no garantizan retornos futuros. La negociación de productos financieros complejos, como opciones y derivados, implica un elevado nivel de riesgo y puede resultar en la pérdida de todo el capital invertido. Asegúrese de comprender plenamente los riesgos antes de invertir y nunca arriesgue más dinero del que pueda permitirse perder.
+            </p>
+        </div>
+      </div>
+    </div>
+  );
+
   // Special content for bots
   const renderBotSpecificOverview = () => {
     if (bot.id === "8") {
@@ -97,17 +114,7 @@ const BotDetailView = ({
                 </div>
               </div>
               
-              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30">
-                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
-                  <AlertTriangle size={16} />
-                  Aviso de Riesgo Elevado
-                </h4>
-                <p className="text-sm text-danger/80">
-                  Debido a la naturaleza de la estrategia de Martingale, especialmente la forma agresiva implementada 
-                  cuando las pérdidas se acumulan, este robot presenta RIESGO ELEVADO. Es imperativo que lo pruebe
-                  exhaustivamente en una cuenta demo antes de considerar su uso en una cuenta real.
-                </p>
-              </div>
+
             </CardContent>
           </Card>
           
@@ -212,17 +219,7 @@ const BotDetailView = ({
                 </p>
               </div>
               
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 flex items-center gap-2 text-warning">
-                  <AlertTriangle size={16} />
-                  Aviso de Riesgo
-                </h4>
-                <p className="text-sm text-warning/80">
-                  Este robot utiliza un Martingale peculiar, ya que usa un factor negativo y menor que 1 sobre la pérdida total. 
-                  Esto significa que la siguiente apuesta será el 35% de la pérdida total, pero como el factor es negativo, intenta "apostar contra" 
-                  la pérdida de una forma que puede no ser matemáticamente ideal para una recuperación total inmediata.
-                </p>
-              </div>
+
             </CardContent>
           </Card>
           
@@ -536,17 +533,7 @@ const BotDetailView = ({
                 </div>
               </div>
               
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 flex items-center gap-2 text-warning">
-                  <AlertTriangle size={16} />
-                  Consideraciones Específicas para el Nexus Bot
-                </h4>
-                <p className="text-sm text-warning/80">
-                  El Nexus Bot utiliza un Martingale con factor <strong>-0.35</strong>, que es menos agresivo que otros bots,
-                  pero aún así exige cuidado. Las operaciones de 5 minutos de duración significan que los resultados demoran más 
-                  para aparecer, así que configure un Stop Loss adecuado para evitar pérdidas mientras espera el cierre de las operaciones.
-                </p>
-                </div>
+
               </div>
             </CardContent>
         </Card>;
@@ -603,17 +590,7 @@ const BotDetailView = ({
                 </div>
               </div>
               
-              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30 mt-4">
-                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
-                  <AlertTriangle size={16} />
-                  Advertencia de Riesgo Extremo
-                </h4>
-                <p className="text-sm text-danger/80">
-                  Este robot utiliza un factor Martingale de <strong>-1.07</strong>, que es extremadamente agresivo.
-                  Además, el XBot tiene la peculiaridad de siempre comprar contratos CALL, independientemente de
-                  la tendencia identificada en los indicadores, lo que puede resultar en riesgos adicionales.
-                </p>
-              </div>
+
             </div>
           </CardContent>
         </Card>;
@@ -680,13 +657,7 @@ const BotDetailView = ({
                 </p>
               </div>
               
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 text-warning">⚠️ Importante</h4>
-                <p className="text-sm">
-                  Este robot <strong>NO utiliza Martingale</strong>, lo que lo hace menos arriesgado que otros bots de la plataforma.
-                  Sin embargo, siempre pruebe en cuenta demo antes de usar capital real.
-                </p>
-              </div>
+
               </div>
             </CardContent>
         </Card>;
@@ -901,17 +872,7 @@ const BotDetailView = ({
                 </div>
               </div>
               
-              <div className="bg-danger/10 p-4 rounded-lg border border-danger/30 mt-4">
-                <h4 className="font-medium mb-2 flex items-center gap-2 text-danger">
-                  <AlertTriangle size={16} />
-                  Aviso de Risco Elevado
-                </h4>
-                <p className="text-sm text-danger/80">
-                  Este robô utiliza um Martingale com fator <strong>-0.5</strong>, o que significa uma estratégia de recuperação agressiva.
-                  Quanto maior for seu prejuízo acumulado, maior será o próximo stake, aumentando significativamente o risco.
-                  Nunca opere este robô sem um stop loss adequado.
-                </p>
-              </div>
+
               </div>
             </CardContent>
         </Card>;
@@ -951,10 +912,7 @@ const BotDetailView = ({
               </li>
             </ol>
             
-            <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-              <h4 className="font-medium mb-2 text-warning">Importante</h4>
-              <p className="text-sm">Nunca active en cuenta real sin probar primero en cuenta demo. Todas las operaciones automatizadas implican riesgo. Los resultados pasados no garantizan resultados futuros. Pruebe el robot en una cuenta de demo antes de usar con capital real.</p>
-                </div>
+
           </div>
         </CardContent>
       </Card>;
@@ -1020,14 +978,7 @@ const BotDetailView = ({
                 </li>
               </ol>
               
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 text-warning">Recuerde</h4>
-                <p className="text-sm">
-                  Este robot utiliza una combinación de <strong>filtrado de dígito</strong> y <strong>cruce de SMAs</strong> con un Martingale agresivo.
-                  Siempre pruebe exhaustivamente en la cuenta Demo antes de considerar el uso en cuenta real.
-                  Trading automatizado implica riesgos. Nunca invierta más de lo que puede perder.
-                </p>
-              </div>
+
             </div>
           </CardContent>
         </Card>;
@@ -1098,14 +1049,7 @@ const BotDetailView = ({
                 </li>
               </ol>
               
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 text-warning">Recuerde</h4>
-                <p className="text-sm">
-                  El Nexus Bot opera en el índice <strong>RDBEAR</strong> con operaciones de 5 minutos de duración y sistema de venta anticipada.
-                  Este robot utiliza un Martingale específico con factor -0.35, que a pesar de ser menos agresivo que otros bots, 
-                  aún implica riesgos significativos. Siempre pruebe en cuenta demo antes de usar en cuenta real.
-                </p>
-              </div>
+
             </div>
           </CardContent>
         </Card>;
@@ -1183,15 +1127,7 @@ const BotDetailView = ({
                 </li>
               </ol>
               
-              <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-                <h4 className="font-medium mb-2 text-warning">Importante</h4>
-                <p className="text-sm">
-                  El robot <strong>Quantum Bot</strong> utiliza una estrategia de alternancia simple de dirección con contratos de 1 tick de duración <strong>sin sistema Martingale</strong>.
-                  <strong> SIEMPRE pruebe en cuenta demo antes de usar en cuenta real</strong>.
-                  Se recomienda un capital mínimo de $50 USD para operar adecuadamente con los Stop Loss y Stop Win predefinidos.
-                  Nunca invierta más de lo que puede permitirse perder.
-                </p>
-              </div>
+
               </div>
             </CardContent>
         </Card>;
@@ -1231,16 +1167,18 @@ const BotDetailView = ({
               </li>
             </ol>
             
-            <div className="bg-warning/10 p-4 rounded-lg border border-warning/30 mt-4">
-              <h4 className="font-medium mb-2 text-warning">Importante</h4>
-              <p className="text-sm">Nunca active en cuenta real sin probar primero en cuenta demo. Todas las operaciones automatizadas implican riesgo. Los resultados pasados no garantizan resultados futuros. Pruebe el robot en una cuenta de demo antes de usar con capital real.</p>
-            </div>
+
           </div>
         </CardContent>
       </Card>;
   };
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Investment Risk Warning Banner */}
+      <div className="lg:col-span-3">
+        <InvestmentWarningBanner />
+      </div>
+      
       {/* Left Column - Main Info */}
       <div className="lg:col-span-2 space-y-6">
         {/* Header Card */}

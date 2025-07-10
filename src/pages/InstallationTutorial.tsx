@@ -9,6 +9,56 @@ const InstallationTutorial = () => {
         <p className="text-muted-foreground">Sigue los pasos a continuación para instalar y configurar tu robot de trading con Deriv.</p>
       </div>
 
+      {/* Video Tutorial Section */}
+      <div className="mb-10 bg-gradient-to-br from-primary/5 to-primary/10 p-8 rounded-2xl border border-primary/20 shadow-lg">
+        <div className="text-center mb-6">
+           <h2 className="text-2xl font-bold text-foreground mb-3 flex items-center justify-center gap-3">
+             <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+               <svg className="w-5 h-5 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
+                 <path d="M8 5v10l8-5-8-5z"/>
+               </svg>
+             </div>
+             Video Tutorial Completo
+           </h2>
+           <p className="text-muted-foreground max-w-2xl mx-auto">
+             Mira el tutorial en video para una explicación visual detallada de todo el proceso de instalación y configuración.
+           </p>
+           <div className="mt-4 p-4 bg-primary/10 rounded-lg border border-primary/30 max-w-3xl mx-auto">
+             <p className="text-sm font-medium text-foreground">
+               💡 <strong>Recomendación:</strong> Te recomendamos ver el video hasta el final para utilizar los robots de la mejor forma posible y aprovechar al máximo todas las funcionalidades.
+             </p>
+           </div>
+         </div>
+        
+        <div className="relative max-w-4xl mx-auto">
+          <div className="relative rounded-xl overflow-hidden shadow-2xl border-4 border-primary/20">
+            <div className="aspect-video bg-black/5">
+              <iframe
+                className="w-full h-full"
+                src="https://www.youtube.com/embed/K2GAE-vJ490"
+                title="Tutorial de Instalação - Million Bots"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              ></iframe>
+            </div>
+          </div>
+          
+          {/* Call to action */}
+            <div className="mt-6 text-center">
+              <a 
+                href="https://deriv.com/?t=TRCjAn8FEcUivlVU8hndU2Nd7ZgqdRLk&utm_source=affiliate_223442&utm_medium=affiliate&utm_campaign=MyAffiliates&utm_content=&referrer=" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                <ExternalLink size={18} />
+                Ingresar en Deriv
+              </a>
+            </div>
+        </div>
+      </div>
+
       {/* Preparation section */}
       <div className="mb-10 bg-card p-6 rounded-xl border border-border shadow-md">
         <h2 className="text-xl font-bold mb-4">Preparación Inicial</h2>
@@ -133,10 +183,10 @@ const InstallationTutorial = () => {
           </div>
           <div className="bg-card shadow-md rounded-xl p-6 flex-1 border border-border">
             <h3 className="text-xl font-bold mb-2">Importa el robot</h3>
-            <p className="text-muted-foreground mb-4">En el menú superior de la plataforma Binary Bot, haz clic en la opción "Importar" (o "Load").</p>
+            <p className="text-muted-foreground mb-4">En el menú superior de la plataforma Deriv Bot, haz clic en la opción "Importar" (o "Load").</p>
             
             <div className="bg-accent/30 p-4 rounded-lg border border-border mb-4">
-              <p className="text-sm"><span className="font-medium">Consejo:</span> Asegúrate de estar en la interfaz de Binary Bot antes de continuar con este paso.</p>
+              <p className="text-sm"><span className="font-medium">Consejo:</span> Asegúrate de estar en la interfaz de Deriv Bot antes de continuar con este paso.</p>
             </div>
             
             <div className="rounded-lg overflow-hidden border border-border shadow-sm">
@@ -163,7 +213,7 @@ const InstallationTutorial = () => {
             
             <div className="flex items-center gap-2 p-4 bg-muted rounded-lg border border-border mb-4">
               <AlertCircle size={18} className="text-amber-500" />
-              <p className="text-sm">Asegúrate de haber descargado el archivo .xml antes de este paso. El archivo debe tener la extensión .xml y ser compatible con Binary Bot.</p>
+              <p className="text-sm">Asegúrate de haber descargado el archivo .xml antes de este paso. El archivo debe tener la extensión .xml y ser compatible con Deriv Bot.</p>
             </div>
             
             <div className="rounded-lg overflow-hidden border border-border shadow-sm">
@@ -189,7 +239,7 @@ const InstallationTutorial = () => {
             <p className="text-muted-foreground mb-4">Confirma que el robot apareció correctamente en el área de trabajo de la plataforma.</p>
             
             <div className="bg-accent/30 p-4 rounded-lg border border-border mb-4">
-              <p className="text-sm"><span className="font-medium">Verificación:</span> Debes visualizar los bloques y la lógica del robot en el área de trabajo de Binary Bot.</p>
+              <p className="text-sm"><span className="font-medium">Verificación:</span> Debes visualizar los bloques y la lógica del robot en el área de trabajo de Deriv Bot.</p>
             </div>
             
             <div className="rounded-lg overflow-hidden border border-border shadow-sm">
@@ -387,7 +437,7 @@ const InstallationTutorial = () => {
             </h3>
             <p className="mb-2">Verifica si:</p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-              <li>Estás en la plataforma correcta (Binary Bot o DBot)</li>
+              <li>Estás en la plataforma correcta (Deriv Bot o DBot)</li>
               <li>El archivo XML es compatible con la plataforma que estás usando</li>
               <li>Has completado el proceso de importación completo</li>
             </ul>
@@ -464,4 +514,4 @@ const InstallationTutorial = () => {
   );
 };
 
-export default InstallationTutorial; 
+export default InstallationTutorial;

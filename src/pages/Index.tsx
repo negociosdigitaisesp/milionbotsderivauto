@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, ChartLine, Clock, User, Zap, Search, Award, ArrowRight } from 'lucide-react';
+import { Bot, ChartLine, Clock, User, Zap, Search, Award, ArrowRight, AlertTriangle } from 'lucide-react';
 import SearchInput from '../components/SearchInput';
 import StatCard from '../components/StatCard';
 import BotCard from '../components/BotCard';
@@ -334,6 +334,23 @@ const Index = () => {
             icon={<User size={24} />}
             trend={{ value: 5.1, isPositive: true }}
           />
+        </div>
+      </section>
+      
+      {/* Investment Risk Warning Banner */}
+      <section className="px-6 py-4">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-red-500 flex-shrink-0" size={20} />
+            <div className="text-sm">
+              <p className="font-medium text-red-700 dark:text-red-400 mb-1">
+                 AVISO SOBRE RIESGOS DE INVERSIÓN
+               </p>
+               <p className="text-red-600 dark:text-red-300">
+                  Los retornos pasados no garantizan retornos futuros. La negociación de productos financieros complejos, como opciones y derivados, implica un elevado nivel de riesgo y puede resultar en la pérdida de todo el capital invertido. Asegúrese de comprender plenamente los riesgos antes de invertir y nunca arriesgue más dinero del que pueda permitirse perder.
+                </p>
+            </div>
+          </div>
         </div>
       </section>
       
