@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminPanel from "./pages/AdminPanel";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,15 @@ const App = () => {
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
                         <Index />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/admin" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <AdminPanel />
                       </main>
                     </>
                   } />
