@@ -24,9 +24,11 @@ interface UserProfile {
   full_name: string;
   email: string;
   role: 'admin' | 'user';
-  status: 'active' | 'inactive' | 'expired';
+  status: 'active' | 'inactive' | 'expired' | 'pending';
   expiration_date: string | null;
   created_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
 }
 
 const UserManagementTable = () => {
@@ -38,15 +40,18 @@ const UserManagementTable = () => {
 
   const queryClient = useQueryClient();
 
-  // Buscar usuários
-  const { data: users, isLoading } = useQuery({
+  // Buscar TODOS os usuários registrados
+  const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin-users', { search: searchTerm, role: roleFilter, status: statusFilter }],
     queryFn: async () => {
+      console.log('Buscando usuários...');
+      
       let query = supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
+      // Aplicar filtros apenas se especificados
       if (roleFilter !== 'all') {
         query = query.eq('role', roleFilter);
       }
@@ -58,8 +63,45 @@ const UserManagementTable = () => {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Erro ao buscar usuários:', error);
+        throw error;
+      }
+      
+      console.log('Usuários encontrados:', data?.length || 0);
+      console.log('Dados dos usuários:', data);
+      
       return data as UserProfile[];
+    },
+    retry: 3,
+    retryDelay: 1000,
+  });
+
+  // Mutation para aprovar usuário
+  const approveUserMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ 
+          status: 'active',
+          approved_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      toast.success(`Usuário ${data.email} aprovado com sucesso!`);
+    },
+    onError: (error: any) => {
+      console.error('Erro ao aprovar usuário:', error);
+      toast.error(`Erro ao aprovar usuário: ${error.message}`);
     }
   });
 
@@ -85,6 +127,7 @@ const UserManagementTable = () => {
       toast.success(`Status do usuário atualizado para ${data.status}`);
     },
     onError: (error: any) => {
+      console.error('Erro ao atualizar status:', error);
       toast.error(`Erro ao atualizar status: ${error.message}`);
     }
   });
@@ -108,6 +151,7 @@ const UserManagementTable = () => {
       toast.success(`Role do usuário atualizada para ${data.role}`);
     },
     onError: (error: any) => {
+      console.error('Erro ao atualizar role:', error);
       toast.error(`Erro ao atualizar role: ${error.message}`);
     }
   });
@@ -116,11 +160,18 @@ const UserManagementTable = () => {
     const variants = {
       active: 'default',
       inactive: 'secondary',
-      expired: 'destructive'
+      expired: 'destructive',
+      pending: 'outline'
+    };
+    const colors = {
+      active: 'text-green-600',
+      inactive: 'text-gray-500',
+      expired: 'text-red-600',
+      pending: 'text-yellow-600'
     };
     return (
-      <Badge variant={variants[status as keyof typeof variants] as any}>
-        {status}
+      <Badge variant={variants[status as keyof typeof variants] as any} className={colors[status as keyof typeof colors]}>
+        {status === 'pending' ? 'Pendente' : status}
       </Badge>
     );
   };
@@ -129,7 +180,7 @@ const UserManagementTable = () => {
     return (
       <Badge variant={role === 'admin' ? 'default' : 'outline'}>
         {role === 'admin' ? <Shield className="h-3 w-3 mr-1" /> : <User className="h-3 w-3 mr-1" />}
-        {role}
+        {role === 'admin' ? 'Administrador' : 'Usuário'}
       </Badge>
     );
   };
@@ -140,7 +191,23 @@ const UserManagementTable = () => {
   };
 
   if (isLoading) {
-    return <div className="p-4 text-center">Carregando usuários...</div>;
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Carregando usuários...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-destructive mb-4">Erro ao carregar usuários: {error.message}</p>
+        <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['admin-users'] })}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -162,7 +229,7 @@ const UserManagementTable = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as roles</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="admin">Administrador</SelectItem>
             <SelectItem value="user">Usuário</SelectItem>
           </SelectContent>
         </Select>
@@ -172,11 +239,22 @@ const UserManagementTable = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="pending">Pendente</SelectItem>
             <SelectItem value="active">Ativo</SelectItem>
             <SelectItem value="inactive">Inativo</SelectItem>
             <SelectItem value="expired">Expirado</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Informações de debug */}
+      <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+        <p>Total de usuários encontrados: {users?.length || 0}</p>
+        {users?.length === 0 && (
+          <p className="text-yellow-600">
+            Nenhum usuário encontrado. Verifique se a tabela 'profiles' existe no Supabase e possui dados.
+          </p>
+        )}
       </div>
 
       {/* Tabela */}
@@ -188,6 +266,7 @@ const UserManagementTable = () => {
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Data de Registro</TableHead>
               <TableHead>Expiração</TableHead>
               <TableHead className="w-[70px]">Ações</TableHead>
             </TableRow>
@@ -200,9 +279,12 @@ const UserManagementTable = () => {
                 <TableCell>{getRoleBadge(user.role)}</TableCell>
                 <TableCell>{getStatusBadge(user.status)}</TableCell>
                 <TableCell>
+                  {user.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : 'N/A'}
+                </TableCell>
+                <TableCell>
                   {user.expiration_date ? (
                     <span className="text-sm">
-                      {new Date(user.expiration_date).toLocaleDateString()}
+                      {new Date(user.expiration_date).toLocaleDateString('pt-BR')}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>
@@ -216,8 +298,18 @@ const UserManagementTable = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                      <DropdownMenuLabel>Ações do Usuário</DropdownMenuLabel>
                       <DropdownMenuSeparator />
+                      
+                      {/* Aprovar usuário pendente */}
+                      {user.status === 'pending' && (
+                        <DropdownMenuItem
+                          onClick={() => approveUserMutation.mutate({ userId: user.id })}
+                          className="text-green-600"
+                        >
+                          ✅ Aprovar Usuário
+                        </DropdownMenuItem>
+                      )}
                       
                       {/* Status Actions */}
                       <DropdownMenuItem
@@ -226,18 +318,20 @@ const UserManagementTable = () => {
                           newStatus: user.status === 'active' ? 'inactive' : 'active' 
                         })}
                       >
-                        {user.status === 'active' ? 'Desativar' : 'Ativar'}
+                        {user.status === 'active' ? '❌ Desativar' : '✅ Ativar'}
                       </DropdownMenuItem>
                       
-                      {/* Role Actions */}
-                      <DropdownMenuItem
-                        onClick={() => updateRoleMutation.mutate({ 
-                          userId: user.id, 
-                          newRole: user.role === 'admin' ? 'user' : 'admin' 
-                        })}
-                      >
-                        {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
-                      </DropdownMenuItem>
+                      {/* Role Actions - não permitir alterar o próprio admin */}
+                      {user.email !== 'brendacostatrader@gmail.com' && (
+                        <DropdownMenuItem
+                          onClick={() => updateRoleMutation.mutate({ 
+                            userId: user.id, 
+                            newRole: user.role === 'admin' ? 'user' : 'admin' 
+                          })}
+                        >
+                          {user.role === 'admin' ? '👤 Remover Admin' : '🛡️ Tornar Admin'}
+                        </DropdownMenuItem>
+                      )}
                       
                       <DropdownMenuSeparator />
                       
@@ -257,9 +351,12 @@ const UserManagementTable = () => {
         </Table>
       </div>
 
-      {users?.length === 0 && (
-        <div className="text-center py-6 text-muted-foreground">
-          Nenhum usuário encontrado
+      {users?.length === 0 && !isLoading && (
+        <div className="text-center py-8 text-muted-foreground">
+          <p className="text-lg mb-2">Nenhum usuário encontrado</p>
+          <p className="text-sm">
+            Verifique se existem usuários registrados na tabela 'profiles' do Supabase
+          </p>
         </div>
       )}
 
