@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { Calendar, Trash2 } from 'lucide-react';
 
 interface UserProfile {
@@ -72,19 +72,12 @@ const UserExpirationModal: React.FC<UserExpirationModalProps> = ({
     onSuccess: (data) => {
       onSuccess();
       onOpenChange(false);
-      toast({
-        title: "Expiração atualizada",
-        description: data.expiration_date 
-          ? `Expiração definida para ${new Date(data.expiration_date).toLocaleString()}`
-          : "Expiração removida",
-      });
+      toast.success(data.expiration_date 
+        ? `Expiração definida para ${new Date(data.expiration_date).toLocaleString()}`
+        : "Expiração removida");
     },
     onError: (error: any) => {
-      toast({
-        title: "Erro ao atualizar expiração",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro ao atualizar expiração: ${error.message}`);
     }
   });
 
@@ -99,11 +92,7 @@ const UserExpirationModal: React.FC<UserExpirationModalProps> = ({
       const now = new Date();
       
       if (selectedDate <= now) {
-        toast({
-          title: "Data inválida",
-          description: "A data de expiração deve ser no futuro",
-          variant: "destructive",
-        });
+        toast.error("A data de expiração deve ser no futuro");
         return;
       }
       

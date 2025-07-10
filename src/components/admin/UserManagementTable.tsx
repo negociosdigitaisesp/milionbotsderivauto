@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { Search, MoreHorizontal, Calendar, Shield, User } from 'lucide-react';
 import {
   DropdownMenu,
@@ -82,17 +82,10 @@ const UserManagementTable = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast({
-        title: "Status atualizado",
-        description: `Status do usuário atualizado para ${data.status}`,
-      });
+      toast.success(`Status do usuário atualizado para ${data.status}`);
     },
     onError: (error: any) => {
-      toast({
-        title: "Erro ao atualizar status",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro ao atualizar status: ${error.message}`);
     }
   });
 
@@ -112,17 +105,10 @@ const UserManagementTable = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast({
-        title: "Role atualizada",
-        description: `Role do usuário atualizada para ${data.role}`,
-      });
+      toast.success(`Role do usuário atualizada para ${data.role}`);
     },
     onError: (error: any) => {
-      toast({
-        title: "Erro ao atualizar role",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro ao atualizar role: ${error.message}`);
     }
   });
 
