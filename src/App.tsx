@@ -15,9 +15,11 @@ import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import PendingApproval from "./pages/PendingApproval";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminPanel from "./pages/AdminPanel";
+import AdminGuard from "./components/AdminGuard";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,7 @@ const App = () => {
               <Routes>
                 <Route path="/login" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/pending-approval" element={<PendingApproval />} />
                 
                 {/* Rotas protegidas */}
                 <Route element={<ProtectedRoute />}>
@@ -51,13 +54,14 @@ const App = () => {
                     </>
                   } />
                   
+                  {/* Rota admin protegida */}
                   <Route path="/admin" element={
-                    <>
+                    <AdminGuard>
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
                         <AdminPanel />
                       </main>
-                    </>
+                    </AdminGuard>
                   } />
                   
                   <Route path="/bot/:id" element={
