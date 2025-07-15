@@ -30,6 +30,7 @@ export interface UserProfile {
   session_timeout?: number;
   ip_whitelisting?: boolean;
   login_notifications?: boolean;
+  expires_at?: string;
   updated_at?: string;
   created_at?: string;
 }

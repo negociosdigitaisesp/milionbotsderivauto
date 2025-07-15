@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Home, BookOpen, ChartLine, Settings, FileText, Clock, LogOut } from 'lucide-react';
+import { Menu, X, Home, BookOpen, ChartLine, Settings, FileText, Clock, LogOut, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -56,6 +56,8 @@ const Sidebar = ({ collapsed, toggleSidebar }: SidebarProps) => {
   const navItems = [
     { name: 'Inicio', icon: <Home size={20} />, path: '/' },
     { name: 'Biblioteca', icon: <BookOpen size={20} />, path: '/library' },
+    { name: 'Bots de Apalancamiento', icon: <Zap size={20} />, path: '/bots-apalancamiento' },
+
     { name: 'Analítica', icon: <ChartLine size={20} />, path: '/analytics' },
     { name: 'Mejores Horarios', icon: <Clock size={20} />, path: '/mejores-horarios' },
     { name: 'Tutorial de Instalación', icon: <FileText size={20} />, path: '/installation-tutorial' },

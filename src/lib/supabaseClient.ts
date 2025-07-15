@@ -16,12 +16,12 @@ const isValidUrl = (url: string | undefined): boolean => {
   }
 };
 
-// Validate JWT format for anon key
-const isValidJWT = (token: string | undefined): boolean => {
+// Validate anon key format (JWT or publishable key)
+const isValidAnonKey = (token: string | undefined): boolean => {
   if (!token) return false;
-  // Basic JWT format check: should have three parts separated by dots
+  // Check for JWT format (three parts separated by dots) or publishable key format
   const parts = token.split('.');
-  return parts.length === 3;
+  return parts.length === 3 || token.startsWith('sb_publishable_');
 };
 
 // Check configuration and warn if not set correctly
@@ -30,8 +30,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Make sure to create a .env.local file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
 } else if (!isValidUrl(supabaseUrl as string)) {
   console.error('⚠️ Error: VITE_SUPABASE_URL is not a valid URL!');
-} else if (!isValidJWT(supabaseAnonKey as string)) {
-  console.error('⚠️ Error: VITE_SUPABASE_ANON_KEY is not a valid JWT format!');
+} else if (!isValidAnonKey(supabaseAnonKey as string)) {
+  console.error('⚠️ Error: VITE_SUPABASE_ANON_KEY is not a valid format!');
 } else {
   console.log('Supabase configuration detected:', 
     supabaseDebug ? 
@@ -193,4 +193,4 @@ export const handleSupabaseError = (error: any): string => {
   
   // Return a user-friendly message if available, otherwise the original message
   return errorMessages[code] || message;
-}; 
+};

@@ -1279,6 +1279,16 @@ const BotDetailView = ({
                   <Download size={16} />
                   <span>Descargar</span>
                 </a>
+              ) : bot.id === "factor50x" && bot.downloadUrl ? (
+                <a
+                  href={bot.downloadUrl}
+                  className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Download size={16} />
+                  <span>Descargar</span>
+                </a>
               ) : bot.id === "12" ? (
                 <a 
                   href="https://drive.google.com/file/d/1zA_tgqK8MPNM9DTiNgXkYg63qqo5c0RF/view?usp=sharing"                   className="flex items-center gap-1 bg-primary text-black px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"                  target="_blank"                   rel="noopener noreferrer"

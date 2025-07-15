@@ -85,7 +85,7 @@ const AuthCallback = () => {
             }
             
             // Redirect to dashboard after successful action
-            setTimeout(() => navigate('/'), 2000);
+            setTimeout(() => navigate('/dashboard'), 2000);
             return;
           } else {
             // For other auth actions
@@ -94,7 +94,7 @@ const AuthCallback = () => {
             toast.success('Autenticación exitosa');
             
             // Redirect to dashboard
-            setTimeout(() => navigate('/'), 2000);
+            setTimeout(() => navigate('/dashboard'), 2000);
             return;
           }
         }
@@ -126,7 +126,7 @@ const AuthCallback = () => {
           toast.success('Iniciando sesión con su cuenta existente');
           
           // Redirect to dashboard
-          setTimeout(() => navigate('/'), 2000);
+          setTimeout(() => navigate('/dashboard'), 2000);
           return;
         }
         
@@ -190,4 +190,4 @@ const AuthCallback = () => {
   );
 };
 
-export default AuthCallback; 
+export default AuthCallback;

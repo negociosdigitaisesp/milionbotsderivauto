@@ -1210,6 +1210,29 @@ function onTradeResult(result) {
     isFavorite: false,
     downloadUrl: 'https://drive.google.com/file/d/15CKip4R6gzhuV050eGMpnINjI6NsTlxS/view?usp=sharing',
     ranking: 1
+  },
+  {
+    id: 'factor50x',
+    name: 'Factor50X',
+    description: 'Bot avanzado de apalancamiento 50x especializado en análisis de momentum y volatilidad. Combina indicadores técnicos sofisticados con gestión inteligente de riesgo para maximizar oportunidades en mercados de alta frecuencia. Diseñado para traders que buscan un equilibrio entre rentabilidad y control de riesgo.',
+    strategy: 'Momentum & Volatilidad',
+    accuracy: 87.2,
+    operations: 0,
+    imageUrl: '',
+    createdAt: '2024-12-19',
+    updatedAt: '2024-12-19',
+    version: '1.0.0',
+    author: 'Factor Trading Systems',
+    profitFactor: 2.8,
+    expectancy: 38.5,
+    drawdown: 24.2,
+    riskLevel: 9,
+    tradedAssets: ['R_100', 'R_75', 'Volatility_Index'],
+    code: `// Factor50X - Momentum & Volatility Strategy\nfunction initialize() {\n    // Configuración de apalancamiento\n    this.leverage = 50;\n    this.initialStake = 0.50;\n    this.maxDrawdown = 25.0;\n    \n    // Indicadores técnicos\n    this.ema = EMA(8);\n    this.rsi = RSI(14);\n    this.volatility = ATR(10);\n    \n    // Control de riesgo\n    this.totalProfit = 0;\n    this.consecutiveLosses = 0;\n}\n\nfunction onTick(tick) {\n    // Calcular indicadores\n    const emaValue = this.ema.calculate(tick.close);\n    const rsiValue = this.rsi.calculate(tick.close);\n    const volatilityValue = this.volatility.calculate(tick);\n    \n    // Condiciones de entrada\n    const bullishMomentum = tick.close > emaValue && rsiValue < 70 && volatilityValue > 0.5;\n    const bearishMomentum = tick.close < emaValue && rsiValue > 30 && volatilityValue > 0.5;\n    \n    // Ejecutar operaciones\n    if (bullishMomentum && this.consecutiveLosses < 3) {\n        this.buyCall(tick.symbol, this.calculateStake(), 5); // 5 ticks\n    } else if (bearishMomentum && this.consecutiveLosses < 3) {\n        this.buyPut(tick.symbol, this.calculateStake(), 5); // 5 ticks\n    }\n}\n\nfunction calculateStake() {\n    // Ajustar stake basado en pérdidas consecutivas\n    return this.initialStake * Math.pow(1.2, this.consecutiveLosses);\n}\n\nfunction onTradeResult(result) {\n    this.totalProfit += result.profit;\n    \n    if (result.profit > 0) {\n        this.consecutiveLosses = 0;\n    } else {\n        this.consecutiveLosses++;\n    }\n    \n    // Stop loss por drawdown\n    if (this.totalProfit <= -this.maxDrawdown) {\n        this.stop(\"Drawdown máximo alcanzado\");\n    }\n}`,
+    usageInstructions: `Acceda a la plataforma\nHaga clic aquí para descargar Factor50X\n@https://drive.google.com/file/d/1FUH0Hf4rwVxhdt7L7M9o22pRn-uxON7v/view?usp=sharing\n\nInicie sesión en su cuenta\nInicie sesión en su cuenta Deriv (Demo o Real).\n\nImporte el robot\nEn el menú superior, haga clic en \"Importar\" (o \"Load\" en Binary Bot).\n\nCargue el archivo\nLocalice el archivo .xml del robot Factor50X en su computadora y cárguelo.\n\nVerifique la carga\nEl robot aparecerá en el área de trabajo de la plataforma.\n\nConfiguración Recomendada:\n• Stake Inicial: $0.50 USD\n• Stop Loss: $25.00 USD\n• Stop Win: $15.00 USD\n• Apalancamiento: 50x\n• Activos: R_100, R_75, Volatility Index\n\n⚠️ GESTIÓN DE RIESGO AVANZADA:\n• El bot incluye protección contra drawdown excesivo\n• Sistema de escalado inteligente de stakes\n• Límite de 3 pérdidas consecutivas antes de pausa\n• Análisis de volatilidad para filtrar señales\n\nEjecute el robot\nHaga clic en el botón \"Ejecutar\" (o \"Run\") para iniciar el robot.\n\n⚠️ IMPORTANTE: SIEMPRE PRUEBE EN CUENTA DEMO PRIMERO\nEste bot utiliza apalancamiento alto (50x). Recomendado para traders con experiencia en gestión de riesgo.`,
+    isFavorite: false,
+    downloadUrl: 'https://drive.google.com/file/d/1FUH0Hf4rwVxhdt7L7M9o22pRn-uxON7v/view?usp=sharing',
+    ranking: 0
   }
 ];
 

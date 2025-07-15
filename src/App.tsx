@@ -15,8 +15,15 @@ import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import PendingApprovalPage from "./pages/PendingApprovalPage";
+import VerificandoAcessoPage from "./pages/VerificandoAcessoPage";
+import BotsApalancamiento from "./pages/BotsApalancamiento";
+import RiskManagement from "./pages/RiskManagement";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import SecurityGate from "./components/SecurityGate";
+import PaginaDeTeste from "./pages/PaginaDeTeste";
+import PaginaBloqueada from "./pages/PaginaBloqueada";
 
 const queryClient = new QueryClient();
 
@@ -38,10 +45,15 @@ const App = () => {
               <Routes>
                 <Route path="/login" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/pending-approval" element={<PendingApprovalPage />} />
+                <Route path="/verificando-acesso" element={<VerificandoAcessoPage />} />
+                
+                {/* Rota raiz com Portão de Segurança */}
+                <Route path="/" element={<SecurityGate><Index /></SecurityGate>} />
                 
                 {/* Rotas protegidas */}
                 <Route element={<ProtectedRoute />}>
-                  <Route path="/" element={
+                  <Route path="/dashboard" element={
                     <>
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
@@ -103,8 +115,28 @@ const App = () => {
                       </main>
                     </>
                   } />
+                  
+                  <Route path="/bots-apalancamiento" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <BotsApalancamiento />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/risk-management" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <RiskManagement />
+                      </main>
+                    </>
+                  } />
                 </Route>
                 
+                <Route path="/pagina-de-teste" element={<PaginaDeTeste />} />
+                <Route path="/PaginaBloqueada" element={<PaginaBloqueada />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>

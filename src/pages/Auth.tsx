@@ -10,6 +10,7 @@ const Auth = () => {
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -21,10 +22,10 @@ const Auth = () => {
   } = useAuth();
   const navigate = useNavigate();
 
-  // Verificar si el usuario ya está autenticado y redirigirlo
+  // Verificar si el usuario ya está autenticado y redirigirlo al portão de segurança
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      navigate('/verificando-acesso', { replace: true });
     }
   }, [isAuthenticated, navigate]);
   const validateForm = () => {
@@ -42,6 +43,10 @@ const Auth = () => {
     }
     if (password.length < 6) {
       toast.error('La contraseña debe tener al menos 6 caracteres');
+      return false;
+    }
+    if (!isSignIn && name.trim() === '') {
+      toast.error('Por favor ingrese su nombre');
       return false;
     }
     return true;
@@ -69,8 +74,8 @@ const Auth = () => {
               try {
                 const retryResult = await signIn(email, password);
                 if (retryResult.success) {
-                  toast.success('¡Inicio de sesión exitoso!');
-                  navigate('/');
+                  // Navegar para página de verificação após login bem-sucedido
+                  navigate('/verificando-acesso', { replace: true });
                 } else {
                   toast.error('Error al iniciar sesión: Por favor intente nuevamente');
                 }
@@ -87,15 +92,15 @@ const Auth = () => {
             toast.error('Error al iniciar sesión: ' + (error.message || 'Verifique sus credenciales'));
           }
         } else if (success) {
-          toast.success('¡Inicio de sesión exitoso!');
-          navigate('/');
+          // Navegar para página de verificação após login bem-sucedido
+          navigate('/verificando-acesso', { replace: true });
         }
       } else {
-        const {
-          error,
-          success
-        } = await signUp(email, password);
-        if (error) {
+          const {
+            error,
+            success
+          } = await signUp(email, password, name);
+          if (error) {
           if (error.message === 'Email already registered') {
             toast.info('Este correo ya está registrado. Intente iniciar sesión.');
             setIsSignIn(true);
@@ -105,7 +110,7 @@ const Auth = () => {
         } else if (success) {
           if (isDemoMode) {
             toast.success('¡Cuenta creada con éxito! Iniciando sesión...');
-            navigate('/');
+            navigate('/verificando-acesso', { replace: true });
           } else {
             toast.success('¡Cuenta creada! Por favor verifique su correo electrónico para confirmar.');
             setIsSignIn(true);
@@ -123,6 +128,8 @@ const Auth = () => {
   };
   const toggleView = () => setIsSignIn(!isSignIn);
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
+
+
   return <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
         <div className="bg-card rounded-lg shadow-lg border border-border p-8">
@@ -150,6 +157,15 @@ const Auth = () => {
                 <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="su@correo.com" className="pl-10" />
               </div>
             </div>
+
+            {!isSignIn && (
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium">
+                  Nombre
+                </label>
+                <Input id="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Su nombre" />
+              </div>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">

@@ -16,13 +16,14 @@ interface AuthContextType {
     error: any | null;
     success: boolean;
   }>;
-  signUp: (email: string, password: string) => Promise<{
+  signUp: (email: string, password: string, name?: string) => Promise<{
     error: any | null;
     success: boolean;
   }>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
   isDemoMode: boolean;
+  checkUserActiveStatus: (userId: string) => Promise<{ isActive: boolean; error?: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -132,6 +133,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Función para verificar el estado is_active del usuario usando la nueva API
+  const checkUserActiveStatus = async (userId: string) => {
+    try {
+      // Obtener el token de autenticación actual
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (!currentSession?.access_token) {
+        throw new Error('No authentication token available');
+      }
+
+      // Usar la nueva función de verificación de status
+      const { verificarStatusDoUsuario } = await import('../services/verificarStatusDoUsuario');
+      const resultado = await verificarStatusDoUsuario(userId, currentSession.access_token);
+      
+      if (!resultado.success) {
+        throw new Error(resultado.error || 'Failed to verify user status');
+      }
+      
+      return { isActive: resultado.isActive };
+      
+    } catch (error) {
+      console.error('Error in checkUserActiveStatus:', error);
+      throw error;
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
@@ -148,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setSession(tokenData as Session);
               setIsOfflineMode(true);
               toast.success('¡Inicio de sesión exitoso (modo demo)!');
-              return { error: null, success: true };
+              return { error: null, success: true, redirectTo: '/' };
             }
           } catch (err) {
             // Ignore parsing errors, will continue with normal flow
@@ -244,6 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(data.session);
       setUser(data.user);
       setIsOfflineMode(false);
+      
       toast.success('¡Inicio de sesión exitoso!');
       return { error: null, success: true };
     } catch (error: any) {
@@ -255,7 +283,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, name?: string) => {
     try {
       setLoading(true);
       
@@ -278,7 +306,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // In demo mode, we consider registration successful and direct the user
         toast.success('¡Cuenta creada con éxito! Iniciando sesión...');
         await signIn(email, password);
-        navigate('/');
+        navigate('/verificando-acesso');
         return { error: null, success: true };
       } else {
         // Normal behavior with real Supabase
@@ -290,10 +318,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
               // Add additional user metadata if needed
-              name: email.split('@')[0]
+              full_name: name || email.split('@')[0]
             }
           }
         });
+
+        if (!error && data.user) {
+          const profileData = {
+            id: data.user.id,
+            full_name: name || email.split('@')[0],
+            is_active: false
+          };
+          const { error: profileError } = await supabase.from('profiles').insert(profileData);
+          if (profileError) {
+            console.error('Error inserting profile:', profileError);
+            toast.error('Cuenta creada, pero error al guardar el nombre. Contacte soporte.');
+          }
+        }
 
         if (error) {
           console.error('Supabase signup error:', error);
@@ -319,7 +360,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Try to sign in automatically
             const signInResult = await signIn(email, password);
             if (signInResult.success) {
-              navigate('/');
+              navigate('/verificando-acesso');
               return { error: null, success: true };
             }
           } else {
@@ -398,7 +439,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         isAuthenticated: !!session || isOfflineMode,
-        isDemoMode: isSupabaseDemoMode || isOfflineMode
+        isDemoMode: isSupabaseDemoMode || isOfflineMode,
+        checkUserActiveStatus
       }}
     >
       {children}

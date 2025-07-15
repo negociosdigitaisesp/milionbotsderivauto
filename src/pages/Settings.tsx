@@ -63,6 +63,7 @@ const SettingsPage = () => {
   const [userCompany, setUserCompany] = useState<string>('');
   const [userLocation, setUserLocation] = useState<string>('');
   const [userBio, setUserBio] = useState<string>('');
+  const [expiresAt, setExpiresAt] = useState<string>('');
   
   // Notification states
   const [emailNotifications, setEmailNotifications] = useState<boolean>(true);
@@ -162,6 +163,18 @@ const SettingsPage = () => {
         setSessionTimeout(profile.session_timeout || 30);
         setIpWhitelisting(profile.ip_whitelisting || false);
         setLoginNotifications(profile.login_notifications !== undefined ? profile.login_notifications : true);
+
+        if (user?.email) {
+          const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .select('expires_at')
+            .eq('email', user.email)
+            .single();
+
+          if (clientData && !clientError) {
+            setExpiresAt(clientData.expires_at || '');
+          }
+        }
       } else {
         // Set default values if no profile exists
         if (user?.email) {
@@ -461,6 +474,22 @@ const SettingsPage = () => {
                       </div>
                     </div>
                     
+                    <div className="space-y-2">
+                      <label htmlFor="expiresAt" className="block text-sm font-medium">
+                        Fecha de Expiración
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="expiresAt"
+                          type="text"
+                          value={expiresAt}
+                          className="w-full p-2.5 bg-background border border-border rounded-md shadow-sm pl-9"
+                          readOnly
+                        />
+                        <Clock size={16} className="absolute left-3 top-3 text-muted-foreground" />
+                      </div>
+                    </div>
+
                     <div className="col-span-2 space-y-2">
                       <label htmlFor="bio" className="block text-sm font-medium">
                         Biografía
