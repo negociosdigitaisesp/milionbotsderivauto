@@ -15,6 +15,8 @@ import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import DerivCallback from "./pages/DerivCallback";
+import DerivIntegration from "./pages/DerivIntegration";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import VerificandoAcessoPage from "./pages/VerificandoAcessoPage";
 import BotsApalancamiento from "./pages/BotsApalancamiento";
@@ -45,6 +47,7 @@ const App = () => {
               <Routes>
                 <Route path="/login" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/deriv/callback" element={<DerivCallback />} />
                 <Route path="/pending-approval" element={<PendingApprovalPage />} />
                 <Route path="/verificando-acesso" element={<VerificandoAcessoPage />} />
                 
@@ -130,6 +133,15 @@ const App = () => {
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
                         <RiskManagement />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/deriv-integration" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <DerivIntegration />
                       </main>
                     </>
                   } />
