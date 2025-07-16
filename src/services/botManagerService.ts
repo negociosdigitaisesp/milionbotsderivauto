@@ -19,7 +19,7 @@ export interface BotWorker {
 
 class BotManagerService {
   private workers: Map<string, BotWorker> = new Map();
-  private readonly APP_ID = import.meta.env.VITE_DERIV_APP_ID || 'qfbVc5YUYapY6S8';
+  private readonly APP_ID = import.meta.env.VITE_DERIV_APP_ID || '85515';
 
   // Ativar um bot
   async activateBot(userId: string, botConfig: any): Promise<string> {

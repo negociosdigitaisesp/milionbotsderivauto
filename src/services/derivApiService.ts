@@ -46,7 +46,8 @@ const decryptToken = (encryptedToken: string): string => {
 };
 
 class DerivApiService {
-  private readonly APP_ID = import.meta.env.VITE_DERIV_APP_ID || 'qfbVc5YUYapY6S8';
+  private readonly APP_ID = import.meta.env.VITE_DERIV_APP_ID || '85515';
+  private readonly API_TOKEN = import.meta.env.VITE_DERIV_API_TOKEN || 'R9mD6PO5A1x7rz5';
   private readonly OAUTH_URL = 'https://oauth.deriv.com/oauth2/authorize';
   private readonly TOKEN_URL = 'https://oauth.deriv.com/oauth2/token';
   private readonly WS_URL = 'wss://ws.binaryws.com/websockets/v3';

@@ -86,12 +86,16 @@ const DerivIntegration = () => {
   // Teste de depuração da variável de ambiente
   const handleTestEnvironmentVariable = () => {
     const appId = import.meta.env.VITE_DERIV_APP_ID;
+    const apiToken = import.meta.env.VITE_DERIV_API_TOKEN;
     const allViteVars = Object.keys(import.meta.env).filter(key => key.startsWith('VITE_'));
     
     const testResults = {
       'VITE_DERIV_APP_ID': appId || 'UNDEFINED',
-      'Tipo': typeof appId,
-      'Está vazio?': !appId ? 'SIM' : 'NÃO',
+      'VITE_DERIV_API_TOKEN': apiToken ? `${apiToken.substring(0, 5)}...` : 'UNDEFINED',
+      'App ID Tipo': typeof appId,
+      'Token Tipo': typeof apiToken,
+      'App ID está vazio?': !appId ? 'SIM' : 'NÃO',
+      'Token está vazio?': !apiToken ? 'SIM' : 'NÃO',
       'Todas as variáveis VITE encontradas': allViteVars.join(', ') || 'Nenhuma'
     };
     
