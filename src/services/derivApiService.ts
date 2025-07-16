@@ -46,7 +46,7 @@ const decryptToken = (encryptedToken: string): string => {
 };
 
 class DerivApiService {
-  private readonly APP_ID = 'qfbVc5YUYapY6S8';
+  private readonly APP_ID = import.meta.env.VITE_DERIV_APP_ID || 'qfbVc5YUYapY6S8';
   private readonly OAUTH_URL = 'https://oauth.deriv.com/oauth2/authorize';
   private readonly TOKEN_URL = 'https://oauth.deriv.com/oauth2/token';
   private readonly WS_URL = 'wss://ws.binaryws.com/websockets/v3';
@@ -67,6 +67,10 @@ class DerivApiService {
 
   // Gerar URL de autorização OAuth
   generateAuthUrl(redirectUri: string): string {
+    // DEPURAÇÃO: Verificar o APP_ID sendo usado
+    console.log('🔍 DEPURAÇÃO - APP_ID no derivApiService:', this.APP_ID);
+    console.log('🔍 DEPURAÇÃO - Variável de ambiente direta:', import.meta.env.VITE_DERIV_APP_ID);
+    
     const params = new URLSearchParams({
       app_id: this.APP_ID,
       l: 'PT',
@@ -75,7 +79,10 @@ class DerivApiService {
       scope: 'read,trade'
     });
     
-    return `${this.OAUTH_URL}?${params.toString()}`;
+    const finalUrl = `${this.OAUTH_URL}?${params.toString()}`;
+    console.log('🔍 DEPURAÇÃO - URL final gerada:', finalUrl);
+    
+    return finalUrl;
   }
 
   // Trocar código de autorização por token de acesso

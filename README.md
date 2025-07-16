@@ -30,11 +30,12 @@ cd bot-strategy-hub
 npm install
 ```
 
-3. Create a `.env.local` file in the project root with your Supabase credentials:
+3. Create a `.env.local` file in the project root with your Supabase and Deriv credentials:
 ```
 VITE_SUPABASE_URL=https://your-project-url.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_SUPABASE_DEBUG=true  # Set to false in production
+VITE_DERIV_APP_ID=your-deriv-app-id  # Get this from Deriv API dashboard
 ```
 
 4. Set up your Supabase project:
@@ -95,5 +96,6 @@ When deploying to Netlify, make sure to configure the following environment vari
 
 1. `VITE_SUPABASE_URL` - Your Supabase project URL (e.g., https://your-project-id.supabase.co)
 2. `VITE_SUPABASE_ANON_KEY` - Your Supabase anon/public key
+3. `VITE_DERIV_APP_ID` - Your Deriv API App ID (get this from Deriv API dashboard)
 
 Additionally, ensure you have Netlify redirects correctly set up in the netlify.toml file for proper SPA routing and authentication callbacks.

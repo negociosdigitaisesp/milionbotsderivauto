@@ -83,12 +83,45 @@ const DerivIntegration = () => {
     }
   };
 
+  // Teste de depuração da variável de ambiente
+  const handleTestEnvironmentVariable = () => {
+    const appId = import.meta.env.VITE_DERIV_APP_ID;
+    const allViteVars = Object.keys(import.meta.env).filter(key => key.startsWith('VITE_'));
+    
+    const testResults = {
+      'VITE_DERIV_APP_ID': appId || 'UNDEFINED',
+      'Tipo': typeof appId,
+      'Está vazio?': !appId ? 'SIM' : 'NÃO',
+      'Todas as variáveis VITE encontradas': allViteVars.join(', ') || 'Nenhuma'
+    };
+    
+    alert(`🔍 TESTE DE VARIÁVEL DE AMBIENTE:\n\n${Object.entries(testResults).map(([key, value]) => `${key}: ${value}`).join('\n')}`);
+  };
+
   // Conectar com a Deriv
   const handleConnect = () => {
     if (!user) return;
     
+    // 1. LEITURA DA VARIÁVEL
+    const appId = import.meta.env.VITE_DERIV_APP_ID;
+    
+    // 2. LINHA DE DEPURAÇÃO DEFINITIVA
+    alert('O App ID que será usado é: "' + appId + '"');
+    
+    // Se o alerta mostrar "undefined" ou estiver em branco, PARE. O problema é a leitura da variável.
+    if (!appId) {
+      alert('ERRO: O app_id é nulo ou indefinido! Verifique o arquivo .env e o prefixo VITE_');
+      return; // Interrompe a execução para não ir para a Deriv com erro.
+    }
+    
+    // 3. CONSTRUÇÃO DA URL
     const redirectUri = `${window.location.origin}/deriv/callback`;
     const authUrl = derivApiService.generateAuthUrl(redirectUri);
+    
+    // 4. DEPURAÇÃO ADICIONAL - Mostrar a URL completa
+    alert('URL que será usada: ' + authUrl);
+    
+    // 5. REDIRECIONAMENTO
     window.location.href = authUrl;
   };
 
@@ -271,6 +304,19 @@ const DerivIntegration = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Botão de Teste de Depuração */}
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-yellow-800">🔍 Teste de Depuração</h4>
+                <p className="text-sm text-yellow-700">Clique para verificar se a variável VITE_DERIV_APP_ID está sendo lida corretamente</p>
+              </div>
+              <Button onClick={handleTestEnvironmentVariable} variant="outline" size="sm" className="border-yellow-300 text-yellow-800 hover:bg-yellow-100">
+                Testar Variável
+              </Button>
+            </div>
+          </div>
+
           {isConnected ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
