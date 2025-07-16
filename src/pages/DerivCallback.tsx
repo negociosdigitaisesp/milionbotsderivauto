@@ -59,7 +59,7 @@ const DerivCallback = () => {
 
       // Redirecionar após 3 segundos
       setTimeout(() => {
-        navigate('/deriv-integration');
+        navigate('/');
       }, 3000);
 
     } catch (error) {
@@ -76,7 +76,7 @@ const DerivCallback = () => {
   };
 
   const handleGoBack = () => {
-    navigate('/deriv-integration');
+    navigate('/');
   };
 
   return (

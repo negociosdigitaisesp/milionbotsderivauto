@@ -16,7 +16,7 @@ import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import DerivCallback from "./pages/DerivCallback";
-import DerivIntegration from "./pages/DerivIntegration";
+
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import VerificandoAcessoPage from "./pages/VerificandoAcessoPage";
 import BotsApalancamiento from "./pages/BotsApalancamiento";
@@ -137,14 +137,7 @@ const App = () => {
                     </>
                   } />
                   
-                  <Route path="/deriv-integration" element={
-                    <>
-                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
-                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
-                        <DerivIntegration />
-                      </main>
-                    </>
-                  } />
+
                 </Route>
                 
                 <Route path="/pagina-de-teste" element={<PaginaDeTeste />} />
