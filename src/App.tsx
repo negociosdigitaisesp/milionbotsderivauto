@@ -20,6 +20,7 @@ import DerivCallback from "./pages/DerivCallback";
 import PendingApprovalPage from "./pages/PendingApprovalPage";
 import VerificandoAcessoPage from "./pages/VerificandoAcessoPage";
 import BotsApalancamiento from "./pages/BotsApalancamiento";
+import Factor50XPage from "./pages/Factor50XPage";
 import RiskManagement from "./pages/RiskManagement";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -124,6 +125,15 @@ const App = () => {
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
                         <BotsApalancamiento />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/factor50x" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <Factor50XPage />
                       </main>
                     </>
                   } />

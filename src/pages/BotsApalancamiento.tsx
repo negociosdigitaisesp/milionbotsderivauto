@@ -415,10 +415,10 @@ const BotsApalancamiento = () => {
                       {selectedBot === bot.id ? 'Ocultar Detalles' : 'Ver Detalles'}
                     </button>
                     <button 
-                      onClick={() => navigate(`/bot/${bot.id}`)}
+                      onClick={() => navigate(bot.id === 'factor50x' ? '/factor50x' : `/bot/${bot.id}`)}
                       className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors text-center flex items-center justify-center gap-1"
                     >
-                      Usar Bot
+                      {bot.id === 'factor50x' ? 'Ver Configurações' : 'Usar Bot'}
                       <ArrowRight size={14} />
                     </button>
                   </div>

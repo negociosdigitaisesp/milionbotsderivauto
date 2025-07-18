@@ -337,218 +337,105 @@ const Library = () => {
           {isFilterOpen && (
             <div className="mt-4 p-4 bg-background rounded-lg border border-border animate-in fade-in slide-in-from-top-4 duration-300">
               <div className="flex flex-col lg:flex-row justify-between gap-6">
-                <div className="space-y-4 flex-1">
-                  <div>
-                    <h3 className="text-sm font-medium mb-3 flex items-center gap-1 border-b pb-2">
-                      <Sliders size={14} className="text-primary" />
-                      Filtrar por Estrategia
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      <button 
-                        onClick={() => handleStrategyChange('')}
-                        className={cn(
-                          "px-3 py-1.5 text-xs rounded-full transition-all",
-                          currentStrategy === '' 
-                            ? "bg-primary text-white" 
-                            : "bg-background border border-border hover:bg-muted hover:border-primary/30"
-                        )}
-                      >
-                        Todas
-                      </button>
-                      {filterOptions.strategies.map(strategy => (
-                        <button 
-                          key={strategy.value}
-                          onClick={() => handleStrategyChange(strategy.value)}
-                          className={cn(
-                            "px-3 py-1.5 text-xs rounded-full transition-all",
-                            currentStrategy === strategy.value 
-                              ? "bg-primary text-white" 
-                              : "bg-background border border-border hover:bg-muted hover:border-primary/30"
-                          )}
-                        >
-                          {strategy.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
-                      <TrendingUp size={14} className="text-primary" />
-                      Activos Operados
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      <button 
-                        onClick={() => handleAssetChange('')}
-                        className={cn(
-                          "px-3 py-1 text-xs rounded-full transition-colors",
-                          currentAsset === '' 
-                            ? "bg-primary text-white" 
-                            : "bg-muted hover:bg-muted/80"
-                        )}
-                      >
-                        Todos
-                      </button>
-                      {filterOptions.assets.map(asset => (
-                        <button 
-                          key={asset.value}
-                          onClick={() => handleAssetChange(asset.value)}
-                          className={cn(
-                            "px-3 py-1 text-xs rounded-full transition-colors",
-                            currentAsset === asset.value 
-                              ? "bg-primary text-white" 
-                              : "bg-muted hover:bg-muted/80"
-                          )}
-                        >
-                          {asset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col">
-                  <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
-                    <ArrowUpDown size={14} className="text-primary" />
-                    Ordenar Por
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    <button 
-                      onClick={() => handleSortChange('performance')}
-                      className={cn(
-                        "px-3 py-1 text-xs rounded-full transition-colors",
-                        sortBy === 'performance' 
-                          ? "bg-primary text-white" 
-                          : "bg-muted hover:bg-muted/80"
-                      )}
+                <div className="space-y-4">
+                  {filteredBots.map(bot => (
+                    <Link 
+                      to={bot.id === 'factor50x' ? `/factor50x` : `/bot/${bot.id}`}
+                      key={bot.id} 
+                      className="group flex flex-col md:flex-row gap-4 p-5 bg-card rounded-xl border border-border hover:bg-card/70 hover:border-primary/20 transition-all duration-300 relative"
                     >
-                      Asertividad
-                    </button>
-                    <button 
-                      onClick={() => handleSortChange('newest')}
-                      className={cn(
-                        "px-3 py-1 text-xs rounded-full transition-colors",
-                        sortBy === 'newest' 
-                          ? "bg-primary text-white" 
-                          : "bg-muted hover:bg-muted/80"
+                      {/* Ranking badge */}
+                      {activeTab === 'all' && bot.ranking && (
+                        <div className="absolute top-0 left-0 z-10 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-3 py-1 rounded-br-lg font-semibold shadow-md">
+                          #{bot.ranking}
+                        </div>
                       )}
-                    >
-                      Más Recientes
-                    </button>
-                    <button 
-                      onClick={() => handleSortChange('operations')}
-                      className={cn(
-                        "px-3 py-1 text-xs rounded-full transition-colors",
-                        sortBy === 'operations' 
-                          ? "bg-primary text-white" 
-                          : "bg-muted hover:bg-muted/80"
-                      )}
-                    >
-                      Más Operaciones
-                    </button>
-                  </div>
-                  
-                  {/* Assertiveness distribution - Redesigned with better visuals */}
-                  <div className="rounded-xl border shadow-sm bg-card overflow-hidden mt-4">
-                    <div className="p-5 border-b bg-muted/40 flex items-center gap-2">
-                      <Gauge className="text-primary" size={18} />
-                      <h2 className="text-lg font-semibold">Distribución de Asertividad</h2>
-                    </div>
-                    
-                    <div className="p-6">
-                      <div className="space-y-5">
-                        {/* High assertiveness */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded-full bg-emerald-500`}></div>
-                              <h3 className="font-medium text-sm">Alta Asertividad ({ASSERTIVENESS_LEVELS.HIGH.min}%+)</h3>
-                            </div>
-                            <div className="font-medium text-sm">{accuracyDistribution.high} bots</div>
-                          </div>
-                          
-                          <div className="relative w-full h-4 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="absolute top-0 left-0 h-full bg-emerald-500 rounded-full transition-all" 
-                              style={{ 
-                                width: `${(accuracyDistribution.high / filteredBots.length) * 100}%`,
-                              }}
-                            ></div>
-                          </div>
-                          
-                          <p className="text-xs text-muted-foreground">
-                            {Math.round((accuracyDistribution.high / filteredBots.length) * 100)}% del total • {ASSERTIVENESS_LEVELS.HIGH.description}
-                          </p>
+                      
+                      {/* Bot Image/Logo */}
+                      <div className="md:w-48 h-28 md:h-auto bg-gradient-to-br from-slate-900 via-slate-700 to-zinc-600 rounded-lg flex items-center justify-center overflow-hidden relative group-hover:shadow-md transition-all">
+                        <div className="absolute inset-0 opacity-30">
+                          <div className="absolute w-32 h-32 rounded-full bg-primary/30 blur-2xl -top-10 -right-10"></div>
+                          <div className="absolute w-24 h-24 rounded-full bg-primary/20 blur-xl bottom-5 -left-10"></div>
                         </div>
-                        
-                        {/* Medium assertiveness */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded-full bg-blue-500`}></div>
-                              <h3 className="font-medium text-sm">Media Asertividad ({ASSERTIVENESS_LEVELS.MEDIUM.min}-{ASSERTIVENESS_LEVELS.MEDIUM.max}%)</h3>
-                            </div>
-                            <div className="font-medium text-sm">{accuracyDistribution.medium} bots</div>
-                          </div>
-                          
-                          <div className="relative w-full h-4 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="absolute top-0 left-0 h-full bg-blue-500 rounded-full transition-all" 
-                              style={{ 
-                                width: `${(accuracyDistribution.medium / filteredBots.length) * 100}%`,
-                              }}
-                            ></div>
-                          </div>
-                          
-                          <p className="text-xs text-muted-foreground">
-                            {Math.round((accuracyDistribution.medium / filteredBots.length) * 100)}% del total • {ASSERTIVENESS_LEVELS.MEDIUM.description}
-                          </p>
-                        </div>
-                        
-                        {/* Low assertiveness */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded-full bg-rose-500`}></div>
-                              <h3 className="font-medium text-sm">Baja Asertividad (Debajo de {ASSERTIVENESS_LEVELS.LOW.max}%)</h3>
-                            </div>
-                            <div className="font-medium text-sm">{accuracyDistribution.low} bots</div>
-                          </div>
-                          
-                          <div className="relative w-full h-4 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="absolute top-0 left-0 h-full bg-rose-500 rounded-full transition-all" 
-                              style={{ 
-                                width: `${(accuracyDistribution.low / filteredBots.length) * 100}%`,
-                              }}
-                            ></div>
-                          </div>
-                          
-                          <p className="text-xs text-muted-foreground">
-                            {Math.round((accuracyDistribution.low / filteredBots.length) * 100)}% del total • {ASSERTIVENESS_LEVELS.LOW.description}
-                          </p>
-                        </div>
-                        
-                        {/* Summary card */}
-                        <div className="mt-5 p-4 bg-primary/5 rounded-lg border border-primary/20 flex items-start gap-3">
-                          <Info size={18} className="text-primary mt-0.5" />
+                        <h3 className="text-xl font-bold text-white relative z-10 px-4 text-center">
+                          {bot.name}
+                          <div className="mt-1 text-xs text-blue-100/80 font-medium uppercase tracking-wider">{bot.strategy}</div>
+                        </h3>
+                      </div>
+                      
+                      {/* Bot Info */}
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div className="flex flex-col md:flex-row justify-between items-start gap-3">
                           <div>
-                            <h4 className="text-sm font-medium mb-1">Análisis de Asertividad</h4>
-                            <p className="text-sm text-muted-foreground">
-                              La mayoría de los bots ({Math.max(accuracyDistribution.high, accuracyDistribution.medium, accuracyDistribution.low)} de {filteredBots.length}) 
-                              tienen asertividad <span className="font-medium text-foreground">
-                                {accuracyDistribution.high >= accuracyDistribution.medium && accuracyDistribution.high >= accuracyDistribution.low ? 'alta' : 
-                                 accuracyDistribution.medium >= accuracyDistribution.high && accuracyDistribution.medium >= accuracyDistribution.low ? 'media' : 'baja'}
-                              </span>.
-                              {accuracyDistribution.high > 0 && 
-                                ` ${accuracyDistribution.high} ${accuracyDistribution.high === 1 ? 'bot tiene' : 'bots tienen'} asertividad por encima de ${ASSERTIVENESS_LEVELS.HIGH.min}%.`
-                              }
-                            </p>
+                            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{bot.name}</h3>
+                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{bot.description}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <span className={cn(
+                              "text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5", 
+                              bot.accuracy >= 60 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
+                              bot.accuracy >= 40 ? "bg-blue-50 text-blue-700 border-blue-200" : 
+                              "bg-rose-50 text-rose-700 border-rose-200"
+                            )}>
+                              <span className={cn(
+                                "w-2 h-2 rounded-full",
+                                bot.accuracy >= 60 ? "bg-emerald-500" : 
+                                bot.accuracy >= 40 ? "bg-blue-500" : 
+                                "bg-rose-500"
+                              )}></span>
+                              <span>
+                                <span className="font-semibold">{bot.accuracy}%</span> asertivo
+                              </span>
+                            </span>
+                            
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Here you would toggle the favorite state
+                              }}
+                              className="p-2 rounded-full hover:bg-primary/5 transition-colors"
+                              aria-label={bot.isFavorite ? "Eliminar de favoritos" : "Añadir a favoritos"}
+                            >
+                              <Star 
+                                size={18} 
+                                className={bot.isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"} 
+                              />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                          <div className="text-xs py-1 px-2.5 bg-primary/10 text-primary rounded-full flex items-center gap-1">
+                            <Gauge size={12} />
+                            {bot.strategy}
+                          </div>
+                          
+                          <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1">
+                            <Clock size={12} />
+                            {bot.operations.toLocaleString()} operaciones
+                          </div>
+                          
+                          <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1">
+                            <Info size={12} />
+                            v{bot.version}
+                          </div>
+                          
+                          {bot.tradedAssets.map((asset, i) => (
+                            <div key={i} className="text-xs py-1 px-2.5 bg-card border border-border rounded-full">
+                              {asset}
+                            </div>
+                          ))}
+                          
+                          <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1 ml-auto">
+                            <User size={12} />
+                            {bot.author}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    </Link>
+                  ))}
                 </div>
               </div>
             </div>
@@ -585,7 +472,7 @@ const Library = () => {
             <div className="space-y-4">
               {filteredBots.map(bot => (
                 <Link 
-                  to={`/bot/${bot.id}`}
+                  to={bot.id === 'factor50x' ? `/factor50x` : `/bot/${bot.id}`}
                   key={bot.id} 
                   className="group flex flex-col md:flex-row gap-4 p-5 bg-card rounded-xl border border-border hover:bg-card/70 hover:border-primary/20 transition-all duration-300 relative"
                 >

@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Star, Clock } from 'lucide-react';
+import { ArrowRight, Star, Clock, Download, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useToast } from '../hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-interface BotCardProps {
+interface Factor50XCardProps {
   id: string;
   name: string;
   description: string;
@@ -14,9 +20,14 @@ interface BotCardProps {
   imageUrl: string;
   ranking?: number;
   isFavorite?: boolean;
+  downloadUrls?: {
+    conservative: string;
+    intermediate: string;
+    aggressive: string;
+  };
 }
 
-const BotCard = ({ 
+const Factor50XCard = ({ 
   id, 
   name, 
   description, 
@@ -25,8 +36,13 @@ const BotCard = ({
   operations, 
   imageUrl,
   ranking,
-  isFavorite: initialFavorite = false
-}: BotCardProps) => {
+  isFavorite: initialFavorite = false,
+  downloadUrls = {
+    conservative: '#',
+    intermediate: '#',
+    aggressive: '#'
+  }
+}: Factor50XCardProps) => {
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const { toast } = useToast();
 
@@ -42,9 +58,18 @@ const BotCard = ({
     });
   };
 
+  const handleDownload = (level: string, url: string) => {
+    toast({
+      title: "Descarga iniciada",
+      description: `Descargando configuración ${level} de ${name}`,
+      duration: 3000
+    });
+    // Aquí iría la lógica real de descarga
+    window.open(url, '_blank');
+  };
+
   // Get unique gradient and text styles based on bot ID
   const getBotStyles = (botId: string) => {
-    // Use AlphaBot's slate/zinc gradient for all bots
     return {
       gradient: "from-slate-900 via-slate-700 to-zinc-600",
       textGradient: "from-slate-100 to-white",
@@ -142,8 +167,58 @@ const BotCard = ({
           Detalles <ArrowRight size={12} />
         </Link>
       </div>
+
+      {/* Factor50X Specific Download Section */}
+      <div className="mt-4 pt-3 border-t border-border/50">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md">
+              <Download size={16} />
+              Obtener Configuraciones
+              <ChevronDown size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent 
+            align="center" 
+            className="w-56 bg-card border border-border/50 shadow-lg rounded-lg p-1"
+          >
+            <DropdownMenuItem 
+              onClick={() => handleDownload('Conservador', downloadUrls.conservative)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+            >
+              <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm"></div>
+              <div className="flex-1">
+                <div className="font-medium text-sm">Nivel Conservador</div>
+                <div className="text-xs text-muted-foreground">Riesgo bajo, ganancias estables</div>
+              </div>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem 
+              onClick={() => handleDownload('Intermedio', downloadUrls.intermediate)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+            >
+              <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm"></div>
+              <div className="flex-1">
+                <div className="font-medium text-sm">Nivel Intermedio</div>
+                <div className="text-xs text-muted-foreground">Equilibrio riesgo-beneficio</div>
+              </div>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem 
+              onClick={() => handleDownload('Hard (Arriesgado)', downloadUrls.aggressive)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+            >
+              <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm"></div>
+              <div className="flex-1">
+                <div className="font-medium text-sm">Nivel Hard (Arriesgado)</div>
+                <div className="text-xs text-muted-foreground">Alto riesgo, máximo potencial</div>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 };
 
-export default BotCard;
+export default Factor50XCard;
