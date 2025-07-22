@@ -1,6 +1,9 @@
 # Dependências para o Sistema de Trading Automatizado
 # Instale com: pip install -r requirements.txt
 
+# Build tools e setuptools para compatibilidade com Python 3.12
+setuptools>=65.0.0
+
 # API da Deriv para trading
 python-deriv-api==0.1.6
 
