@@ -1,0 +1,18 @@
+# Dependências para o Sistema de Trading Automatizado
+# Instale com: pip install -r requirements.txt
+
+# API da Deriv para trading
+python-deriv-api==0.1.6
+
+# Cliente do Supabase para banco de dados
+supabase==2.17.0
+
+# Carregamento de variáveis de ambiente
+python-dotenv==1.1.1
+
+# Bibliotecas para análise técnica (opcional, para indicadores)
+numpy==1.24.3
+pandas==2.0.3
+
+# Bibliotecas para logging e monitoramento (opcional)
+colorama==0.4.6

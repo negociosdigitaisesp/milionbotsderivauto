@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Dashboard de Estatísticas dos Bots de Trading</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .timestamp {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: inline-block;
+            font-size: 0.9em;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            text-align: center;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn.refresh {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn.clear {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+
+        .status {
+            padding: 20px 30px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+
+        .loading {
+            color: #3498db;
+            animation: pulse 2s infinite;
+        }
+
+        .success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 10px;
+        }
+
+        .error {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .summary-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .summary-card .icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .positive { color: #27ae60; }
+        .negative { color: #e74c3c; }
+        .neutral { color: #f39c12; }
+
+        .bots-section {
+            padding: 30px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 3px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            border-radius: 2px;
+        }
+
+        .bots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+        }
+
+        .bot-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bot-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        }
+
+        .bot-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .bot-card.rank-1::before {
+            background: linear-gradient(135deg, #f1c40f 0%, #f39c12 100%);
+        }
+
+        .bot-card.rank-2::before {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+        }
+
+        .bot-card.rank-3::before {
+            background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+        }
+
+        .bot-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .bot-rank {
+            font-size: 3em;
+            margin-right: 15px;
+        }
+
+        .bot-info h3 {
+            font-size: 1.5em;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .bot-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-profitable {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-loss {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            transition: background 0.3s ease;
+        }
+
+        .stat-item:hover {
+            background: #e9ecef;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 8px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        .console-section {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 30px;
+            margin-top: 20px;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .console-output {
+            background: #34495e;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .console-line {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .console-timestamp {
+            color: #3498db;
+            margin-right: 10px;
+        }
+
+        .console-error {
+            color: #e74c3c;
+        }
+
+        .console-success {
+            color: #27ae60;
+        }
+
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .bots-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📊 Dashboard de Estatísticas dos Bots</h1>
+            <div class="subtitle">Sistema de Trading Automatizado</div>
+            <div class="timestamp" id="timestamp">
+                🕒 Última atualização: <span id="last-update">Carregando...</span>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn" onclick="carregarEstatisticas()">
+                🔍 Carregar Estatísticas
+            </button>
+            <button class="btn refresh" onclick="atualizarAutomatico()">
+                🔄 Atualização Automática
+            </button>
+            <button class="btn" onclick="simularDados()">
+                📊 Simular Dados
+            </button>
+            <button class="btn" onclick="toggleConsole()">
+                📋 Console
+            </button>
+            <button class="btn clear" onclick="limparDados()">
+                🧹 Limpar
+            </button>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="status loading">
+            🔄 Clique em "Carregar Estatísticas" para começar...
+        </div>
+
+        <!-- Summary Section -->
+        <div id="summary-section" class="summary-section" style="display: none;">
+            <h2 class="section-title">📈 Resumo Geral</h2>
+            <div class="summary-grid" id="summary-grid">
+                <!-- Summary cards will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Bots Section -->
+        <div id="bots-section" class="bots-section" style="display: none;">
+            <h2 class="section-title">🤖 Ranking dos Bots</h2>
+            <div class="bots-grid" id="bots-grid">
+                <!-- Bot cards will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Console Section -->
+        <div id="console-section" class="console-section">
+            <div class="console-header">
+                <h3>📋 Console de Debug</h3>
+                <button class="btn" onclick="limparConsole()">Limpar Console</button>
+            </div>
+            <div class="console-output" id="console-output">
+                <div class="console-line">
+                    <span class="console-timestamp">[Sistema]</span>
+                    Console inicializado. Aguardando comandos...
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>🚀 Bot Trading System v2.0 | Desenvolvido com ❤️ para maximizar seus lucros</p>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis globais
+        let autoUpdateInterval = null;
+        let isAutoUpdating = false;
+        let lastUpdateTime = null;
+
+        // Dados simulados para teste
+        const dadosSimulados = [
+            {
+                nome_bot: "Factor50X_Conservador",
+                lucro_total: 1.70,
+                total_operacoes: 14,
+                vitorias: 10,
+                derrotas: 4,
+                taxa_vitoria: 71.43,
+                maior_lucro: 0.57,
+                maior_perda: -1.40
+            },
+            {
+                nome_bot: "BotAI_2.0",
+                lucro_total: -11.15,
+                total_operacoes: 391,
+                vitorias: 355,
+                derrotas: 36,
+                taxa_vitoria: 90.79,
+                maior_lucro: 0.07,
+                maior_perda: -1.00
+            },
+            {
+                nome_bot: "BK_BOT_1.0",
+                lucro_total: -42.60,
+                total_operacoes: 425,
+                vitorias: 287,
+                derrotas: 138,
+                taxa_vitoria: 67.53,
+                maior_lucro: 0.86,
+                maior_perda: -1.00
+            }
+        ];
+
+        // Funções de utilidade
+        function formatarMoeda(valor) {
+            return `$${valor.toFixed(2)}`;
+        }
+
+        function formatarPercentual(valor) {
+            return `${valor.toFixed(1)}%`;
+        }
+
+        function obterTimestamp() {
+            return new Date().toLocaleString('pt-BR');
+        }
+
+        function log(message, type = 'info') {
+            const consoleOutput = document.getElementById('console-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const colorClass = type === 'error' ? 'console-error' : type === 'success' ? 'console-success' : '';
+            
+            const logLine = document.createElement('div');
+            logLine.className = `console-line ${colorClass}`;
+            logLine.innerHTML = `<span class="console-timestamp">[${timestamp}]</span> ${message}`;
+            
+            consoleOutput.appendChild(logLine);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // Função para atualizar timestamp
+        function atualizarTimestamp() {
+            document.getElementById('last-update').textContent = obterTimestamp();
+            lastUpdateTime = new Date();
+        }
+
+        // Função para criar resumo geral
+        function criarResumoGeral(dados) {
+            const totalBots = dados.length;
+            const lucroTotalGeral = dados.reduce((sum, bot) => sum + bot.lucro_total, 0);
+            const totalOperacoesGeral = dados.reduce((sum, bot) => sum + bot.total_operacoes, 0);
+            const botsLucrativos = dados.filter(bot => bot.lucro_total > 0).length;
+            const taxaBotsLucrativos = totalBots > 0 ? (botsLucrativos / totalBots) * 100 : 0;
+
+            const summaryGrid = document.getElementById('summary-grid');
+            summaryGrid.innerHTML = `
+                <div class="summary-card">
+                    <div class="icon">🤖</div>
+                    <div class="value">${totalBots}</div>
+                    <div class="label">Total de Bots</div>
+                </div>
+                <div class="summary-card">
+                    <div class="icon">💰</div>
+                    <div class="value ${lucroTotalGeral >= 0 ? 'positive' : 'negative'}">${formatarMoeda(lucroTotalGeral)}</div>
+                    <div class="label">Lucro Total Geral</div>
+                </div>
+                <div class="summary-card">
+                    <div class="icon">📊</div>
+                    <div class="value">${totalOperacoesGeral}</div>
+                    <div class="label">Total de Operações</div>
+                </div>
+                <div class="summary-card">
+                    <div class="icon">✅</div>
+                    <div class="value">${botsLucrativos}/${totalBots}</div>
+                    <div class="label">Bots Lucrativos</div>
+                </div>
+                <div class="summary-card">
+                    <div class="icon">📈</div>
+                    <div class="value ${taxaBotsLucrativos >= 50 ? 'positive' : 'negative'}">${formatarPercentual(taxaBotsLucrativos)}</div>
+                    <div class="label">Taxa de Sucesso</div>
+                </div>
+            `;
+        }
+
+        // Função para criar cards dos bots
+        function criarCardsBots(dados) {
+            const botsGrid = document.getElementById('bots-grid');
+            const emojisRanking = ['🥇', '🥈', '🥉'];
+            
+            botsGrid.innerHTML = dados.map((bot, index) => {
+                const posicao = index + 1;
+                const emoji = emojisRanking[index] || '🤖';
+                const statusClass = bot.lucro_total >= 0 ? 'status-profitable' : 'status-loss';
+                const statusText = bot.lucro_total >= 0 ? 'Lucrativo' : 'Em Ajuste';
+                const rankClass = `rank-${Math.min(posicao, 3)}`;
+                
+                return `
+                    <div class="bot-card ${rankClass}">
+                        <div class="bot-header">
+                            <div class="bot-rank">${emoji}</div>
+                            <div class="bot-info">
+                                <h3>${bot.nome_bot}</h3>
+                                <div class="bot-status ${statusClass}">${statusText}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value ${bot.lucro_total >= 0 ? 'positive' : 'negative'}">
+                                    ${formatarMoeda(bot.lucro_total)}
+                                </div>
+                                <div class="stat-label">💰 Lucro Total</div>
+                            </div>
+                            
+                            <div class="stat-item">
+                                <div class="stat-value">${bot.total_operacoes}</div>
+                                <div class="stat-label">📊 Operações</div>
+                            </div>
+                            
+                            <div class="stat-item">
+                                <div class="stat-value positive">${bot.vitorias}</div>
+                                <div class="stat-label">✅ Vitórias</div>
+                            </div>
+                            
+                            <div class="stat-item">
+                                <div class="stat-value negative">${bot.derrotas}</div>
+                                <div class="stat-label">❌ Derrotas</div>
+                            </div>
+                            
+                            <div class="stat-item">
+                                <div class="stat-value ${bot.taxa_vitoria >= 70 ? 'positive' : bot.taxa_vitoria >= 50 ? 'neutral' : 'negative'}">
+                                    ${formatarPercentual(bot.taxa_vitoria)}
+                                </div>
+                                <div class="stat-label">📈 Taxa de Vitória</div>
+                            </div>
+                            
+                            <div class="stat-item">
+                                <div class="stat-value positive">${formatarMoeda(bot.maior_lucro)}</div>
+                                <div class="stat-label">🏆 Maior Lucro</div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-bar">
+                            <div class="progress-fill ${bot.taxa_vitoria >= 70 ? 'positive' : bot.taxa_vitoria >= 50 ? 'neutral' : 'negative'}" 
+                                 style="width: ${bot.taxa_vitoria}%; background: ${bot.taxa_vitoria >= 70 ? '#27ae60' : bot.taxa_vitoria >= 50 ? '#f39c12' : '#e74c3c'};">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Função para exibir estatísticas
+        function exibirEstatisticas(dados) {
+            if (!dados || dados.length === 0) {
+                document.getElementById('status').innerHTML = '<div class="error">⚠️ Nenhuma estatística encontrada!</div>';
+                return;
+            }
+
+            // Ordenar dados por lucro total (decrescente)
+            dados.sort((a, b) => b.lucro_total - a.lucro_total);
+
+            // Exibir seções
+            document.getElementById('summary-section').style.display = 'block';
+            document.getElementById('bots-section').style.display = 'block';
+
+            // Criar resumo e cards
+            criarResumoGeral(dados);
+            criarCardsBots(dados);
+
+            // Atualizar status
+            document.getElementById('status').innerHTML = '<div class="success">✅ Estatísticas carregadas com sucesso!</div>';
+            atualizarTimestamp();
+
+            log(`Estatísticas carregadas: ${dados.length} bots encontrados`, 'success');
+        }
+
+        // Função principal para carregar estatísticas
+        async function carregarEstatisticas() {
+            try {
+                document.getElementById('status').innerHTML = '<div class="loading">🔄 Carregando estatísticas dos bots...</div>';
+                log('Iniciando carregamento de estatísticas...', 'info');
+
+                // Simular delay de rede
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Usar dados simulados (em produção, aqui seria uma chamada real à API)
+                exibirEstatisticas(dadosSimulados);
+
+            } catch (error) {
+                console.error('Erro ao carregar estatísticas:', error);
+                document.getElementById('status').innerHTML = '<div class="error">❌ Erro ao carregar estatísticas: ' + error.message + '</div>';
+                log(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // Função para simular dados
+        function simularDados() {
+            log('Simulando dados de teste...', 'info');
+            exibirEstatisticas(dadosSimulados);
+        }
+
+        // Função para atualização automática
+        function atualizarAutomatico() {
+            const btn = event.target;
+            
+            if (isAutoUpdating) {
+                clearInterval(autoUpdateInterval);
+                isAutoUpdating = false;
+                btn.textContent = '🔄 Atualização Automática';
+                btn.style.background = 'linear-gradient(135deg, #27ae60 0%, #229954 100%)';
+                log('Atualização automática desativada', 'info');
+            } else {
+                autoUpdateInterval = setInterval(carregarEstatisticas, 30000); // 30 segundos
+                isAutoUpdating = true;
+                btn.textContent = '⏸️ Parar Atualização';
+                btn.style.background = 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)';
+                log('Atualização automática ativada (30s)', 'success');
+                carregarEstatisticas(); // Carregar imediatamente
+            }
+        }
+
+        // Função para toggle do console
+        function toggleConsole() {
+            const consoleSection = document.getElementById('console-section');
+            const isVisible = consoleSection.style.display !== 'none';
+            consoleSection.style.display = isVisible ? 'none' : 'block';
+            log(isVisible ? 'Console ocultado' : 'Console exibido', 'info');
+        }
+
+        // Função para limpar console
+        function limparConsole() {
+            document.getElementById('console-output').innerHTML = `
+                <div class="console-line">
+                    <span class="console-timestamp">[${new Date().toLocaleTimeString()}]</span>
+                    Console limpo.
+                </div>
+            `;
+        }
+
+        // Função para limpar dados
+        function limparDados() {
+            document.getElementById('summary-section').style.display = 'none';
+            document.getElementById('bots-section').style.display = 'none';
+            document.getElementById('status').innerHTML = '<div class="loading">🔄 Dados limpos. Clique em "Carregar Estatísticas" para recarregar...</div>';
+            
+            if (isAutoUpdating) {
+                clearInterval(autoUpdateInterval);
+                isAutoUpdating = false;
+                document.querySelector('.btn.refresh').textContent = '🔄 Atualização Automática';
+                document.querySelector('.btn.refresh').style.background = 'linear-gradient(135deg, #27ae60 0%, #229954 100%)';
+            }
+            
+            log('Dados limpos', 'info');
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Dashboard inicializado', 'success');
+            atualizarTimestamp();
+        });
+    </script>
+</body>
+</html>

@@ -1167,6 +1167,157 @@ function onTradeResult(result) {
     ranking: 0
   },
   {
+    id: 'bk-bot-1-0',
+    name: 'BK BOT 1.0',
+    description: 'Bot especializado em análise de dígitos com sistema de pausa por risco e martingale adaptativo. Estratégia baseada em análise de dígitos para operações em índices sintéticos com gestão inteligente de risco.',
+    strategy: 'Análise de Dígitos',
+    accuracy: 78.5,
+    operations: 1245,
+    imageUrl: '',
+    createdAt: '2024-12-19',
+    updatedAt: '2024-12-19',
+    version: '1.0.0',
+    author: 'BK Trading Systems',
+    profitFactor: 1.8,
+    expectancy: 0.42,
+    drawdown: 18.5,
+    riskLevel: 5,
+    tradedAssets: ['R_100', 'R_75', 'R_50'],
+    code: `// BK BOT 1.0 - Estratégia baseada em análise de dígitos
+function initialize() {
+    // Variáveis de estado do bot
+    this.stake_inicial = 1.0;
+    this.stop_loss = 50.0;
+    this.stop_win = 20.0;
+    
+    // Sistema de pausa por risco
+    this.max_perdas_consecutivas = 3;
+    this.perdas_consecutivas = 0;
+    this.em_pausa = false;
+    this.tempo_pausa = 30000; // 30 segundos
+    
+    // Martingale adaptativo
+    this.multiplicador_martingale = 2.2;
+    this.stake_atual = this.stake_inicial;
+    
+    // Controle de lucro/prejuízo
+    this.lucro_total = 0;
+    this.operacoes_realizadas = 0;
+}
+
+function onTick(tick) {
+    // Verificar condições de parada
+    if (this.lucro_total <= -this.stop_loss || this.lucro_total >= this.stop_win) {
+        this.stop("Meta atingida: " + this.lucro_total);
+        return;
+    }
+    
+    // Verificar se está em pausa
+    if (this.em_pausa) {
+        return;
+    }
+    
+    // Análise de dígitos
+    const preco_str = tick.close.toString();
+    const ultimo_digito = parseInt(preco_str.slice(-1));
+    const penultimo_digito = parseInt(preco_str.slice(-2, -1));
+    
+    // Lógica de entrada baseada em dígitos
+    if (this.analisarPadrao(ultimo_digito, penultimo_digito)) {
+        const direcao = this.determinarDirecao(ultimo_digito, penultimo_digito);
+        
+        if (direcao === "CALL") {
+            this.buyCall(tick.symbol, this.stake_atual, 5); // 5 ticks
+        } else if (direcao === "PUT") {
+            this.buyPut(tick.symbol, this.stake_atual, 5); // 5 ticks
+        }
+        
+        this.operacoes_realizadas++;
+    }
+}
+
+function analisarPadrao(ultimo, penultimo) {
+    // Padrões favoráveis para entrada
+    const soma = ultimo + penultimo;
+    const diferenca = Math.abs(ultimo - penultimo);
+    
+    // Condições de entrada
+    return (soma >= 8 && soma <= 12) || (diferenca >= 3 && diferenca <= 6);
+}
+
+function determinarDirecao(ultimo, penultimo) {
+    // Lógica para determinar direção
+    if (ultimo > penultimo) {
+        return ultimo % 2 === 0 ? "CALL" : "PUT";
+    } else {
+        return penultimo % 2 === 0 ? "PUT" : "CALL";
+    }
+}
+
+function onTradeResult(result) {
+    this.lucro_total += result.profit;
+    
+    if (result.profit > 0) {
+        // Operação vencedora
+        this.perdas_consecutivas = 0;
+        this.stake_atual = this.stake_inicial; // Reset stake
+        this.em_pausa = false;
+    } else {
+        // Operação perdedora
+        this.perdas_consecutivas++;
+        
+        // Aplicar martingale
+        this.stake_atual *= this.multiplicador_martingale;
+        
+        // Verificar se deve entrar em pausa
+        if (this.perdas_consecutivas >= this.max_perdas_consecutivas) {
+            this.em_pausa = true;
+            this.perdas_consecutivas = 0;
+            this.stake_atual = this.stake_inicial;
+            
+            // Sair da pausa após tempo determinado
+            setTimeout(() => {
+                this.em_pausa = false;
+            }, this.tempo_pausa);
+        }
+    }
+    
+    console.log("Operação: " + result.type + ", Lucro: " + result.profit + ", Total: " + this.lucro_total);
+}`,
+    usageInstructions: `Acesse a plataforma
+Clique aqui para acessar a plataforma Deriv
+@https://track.deriv.be/_XZsgLOqstMrrhBvO3lYd_WNd7ZgqdRLk/1/
+
+Faça login na sua conta
+Faça login na sua conta Deriv (Demo ou Real).
+
+Importe o robô
+No menu superior, clique em "Importar" (ou "Load" no Binary Bot).
+
+Carregue o arquivo
+Localize o arquivo .xml do robô BK BOT 1.0 no seu computador e carregue-o.
+
+Verifique o carregamento
+O robô aparecerá na área de trabalho da plataforma.
+
+Configure os parâmetros
+Antes de iniciar, revise e ajuste as configurações:
+• Stake Inicial: $1.00 USD
+• Stop Loss: $50.00 USD
+• Stop Win: $20.00 USD
+• Multiplicador Martingale: 2.2
+• Máximo de perdas consecutivas: 3
+
+Execute o robô
+Clique no botão "Executar" (ou "Run") para iniciar o robô.
+
+⚠️ IMPORTANTE: SEMPRE TESTE EM CONTA DEMO PRIMEIRO
+O bot utiliza sistema de martingale adaptativo e pausa por risco para proteção do capital.`,
+    isFavorite: false,
+    downloadUrl: 'https://drive.google.com/file/d/14-IUlPjA2N5Pi-_CpJ5K-YLKUiGni8kR/view?usp=sharing',
+    ranking: 0
+  },
+  {
     id: "16",
     name: "Bot A.I",
     description: "Bot especializado en la estrategia DigitDiffer para operar en índices sintéticos. Analiza el último dígito de cada tick y ejecuta operaciones cuando detecta patrones estadísticos favorables, buscando diferenciar el dígito final del precio respecto al anterior. Ideal para quienes buscan una operativa rápida y basada en probabilidades matemáticas.",

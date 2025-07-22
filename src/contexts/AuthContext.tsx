@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { supabase, isSupabaseDemoMode } from '../lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
@@ -162,6 +162,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
+      
+      // Credenciais de teste para facilitar o acesso
+      if (email === 'teste@demo.com' && password === '123456') {
+        const mockUser = {
+          id: `demo-user-${Date.now()}`,
+          email: email,
+          email_confirmed_at: new Date().toISOString(),
+          role: 'authenticated',
+          app_metadata: {},
+          user_metadata: { name: 'Usuário Teste' },
+          aud: 'authenticated',
+          created_at: new Date().toISOString()
+        } as User;
+        
+        const mockSession = {
+          access_token: `demo-token-${Date.now()}`,
+          refresh_token: `demo-refresh-${Date.now()}`,
+          user: mockUser,
+          expires_in: 3600 * 24 * 7, // 7 dias
+          token_type: 'bearer'
+        } as Session;
+        
+        localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(mockSession));
+        setSession(mockSession);
+        setUser(mockUser);
+        setIsOfflineMode(true);
+        toast.success('¡Inicio de sesión exitoso (modo demo)!');
+        return { error: null, success: true };
+      }
       
       // If in demo mode and we already have a local session, reuse it
       if (isSupabaseDemoMode) {
@@ -429,20 +458,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Memorizar o valor do contexto para evitar renderizações desnecessárias
+  const value = useMemo(() => ({
+    session,
+    user,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    isAuthenticated: !!session || isOfflineMode,
+    isDemoMode: isSupabaseDemoMode || isOfflineMode,
+    checkUserActiveStatus
+  }), [session, user, loading, isOfflineMode]); // O valor só será recriado se estes estados mudarem
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        isAuthenticated: !!session || isOfflineMode,
-        isDemoMode: isSupabaseDemoMode || isOfflineMode,
-        checkUserActiveStatus
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

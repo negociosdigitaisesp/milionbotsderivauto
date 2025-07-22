@@ -46,8 +46,8 @@ const VerificandoAcessoPage: React.FC = () => {
         // Ação 3: Conditional Actions baseada no resultado da consulta
          // Condição IF: Action Output -> dadosDoPerfil -> is_active Is Equal To True
          if (dadosDoPerfil && dadosDoPerfil.is_active === true) {
-           // No Bloco IF TRUE: Navigate To DashboardPage (com Replace Route)
-           navigate('/dashboard', { replace: true });
+           // No Bloco IF TRUE: Navigate To Library (Ranking del Asertividad) (com Replace Route)
+        navigate('/', { replace: true });
          } else {
            // No Bloco ELSE: Navigate To PendingApprovalPage (com Replace Route)
            navigate('/pending-approval', { replace: true });

@@ -6,24 +6,17 @@ import BotCard from '../components/BotCard';
 import FilterBar from '../components/FilterBar';
 import PerformanceChart from '../components/PerformanceChart';
 import { bots, dashboardStats, performanceData, filterOptions } from '../lib/mockData';
+import { atualizarRankingBots, verificarAtualizacoesPendentes } from '../services/botRankingService';
 
 const BotFinderRadar = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [foundBot, setFoundBot] = useState<typeof bots[0] | null>(null);
   const [currentBotIndex, setCurrentBotIndex] = useState(0);
-  const [sortedBots, setSortedBots] = useState<typeof bots>([]);
   const [showInitial, setShowInitial] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const radarRef = useRef<HTMLDivElement>(null);
   const [showParticles, setShowParticles] = useState(false);
-
-  // Sort bots by accuracy once on component mount
-  useEffect(() => {
-    const sorted = [...bots].sort((a, b) => b.accuracy - a.accuracy);
-    setSortedBots(sorted);
-    console.log("Bots ordenados:", sorted.length);
-  }, []);
 
   useEffect(() => {
     if (isSearching) {
@@ -42,7 +35,8 @@ const BotFinderRadar = () => {
     setCurrentBotIndex(0);
     
     setTimeout(() => {
-      const botsToUse = sortedBots.length > 0 ? sortedBots : bots;
+      // Usar bots ordenados por accuracy
+      const botsToUse = [...bots].sort((a, b) => b.accuracy - a.accuracy);
       console.log("Bots disponíveis:", botsToUse.length);
       setFoundBot(botsToUse[0]);
       setIsSearching(false);
@@ -83,9 +77,11 @@ const BotFinderRadar = () => {
     
     console.log("=== BOTÃO BUSCAR OTRO CLICADO ===");
     console.log("Índice atual:", currentBotIndex);
-    console.log("Bots disponíveis:", sortedBots.length);
     
-    if (sortedBots.length === 0) {
+    const botsToUse = [...bots].sort((a, b) => b.accuracy - a.accuracy);
+    console.log("Bots disponíveis:", botsToUse.length);
+    
+    if (botsToUse.length === 0) {
       alert("Não há bots disponíveis!");
       return;
     }
@@ -94,14 +90,14 @@ const BotFinderRadar = () => {
     setFoundBot(null);
     
     setTimeout(() => {
-      const nextIndex = (currentBotIndex + 1) % Math.min(5, sortedBots.length);
+      const nextIndex = (currentBotIndex + 1) % Math.min(5, botsToUse.length);
       console.log("Próximo índice:", nextIndex);
       
       setCurrentBotIndex(nextIndex);
-      setFoundBot(sortedBots[nextIndex]);
+      setFoundBot(botsToUse[nextIndex]);
       setIsSearching(false);
       
-      console.log("Novo bot selecionado:", sortedBots[nextIndex]?.name);
+      console.log("Novo bot selecionado:", botsToUse[nextIndex]?.name);
     }, 1200);
   };
 
@@ -228,6 +224,49 @@ const Index = () => {
   const [currentAsset, setCurrentAsset] = useState('');
   const [sortBy, setSortBy] = useState('performance');
   const [showRanking, setShowRanking] = useState(true);
+  const [sortedBots, setSortedBots] = useState<typeof bots>([]);
+  const [isLoadingRanking, setIsLoadingRanking] = useState(false);
+  const [rankingError, setRankingError] = useState<string | null>(null);
+
+
+
+  // Carrega e atualiza o ranking dos bots com dados do Supabase
+  useEffect(() => {
+    const carregarRankingBots = async () => {
+      try {
+        setIsLoadingRanking(true);
+        setRankingError(null);
+        
+        // Atualizar bots com dados reais do Supabase
+        const botsAtualizados = await atualizarRankingBots();
+        
+        // Ordenar por precisão (accuracy) para manter o ranking correto
+        const sorted = botsAtualizados.sort((a, b) => b.accuracy - a.accuracy);
+        setSortedBots(sorted);
+        
+        // Atualizar filteredBots com os dados atualizados
+        setFilteredBots(sorted);
+        
+      } catch (error) {
+        setRankingError('Erro ao carregar dados do ranking');
+        
+        // Fallback para dados locais
+        const sorted = [...bots].sort((a, b) => b.accuracy - a.accuracy);
+        setSortedBots(sorted);
+        setFilteredBots(sorted);
+        
+      } finally {
+        setIsLoadingRanking(false);
+      }
+    };
+
+    carregarRankingBots();
+  }, []);
+
+  // Atualiza filteredBots quando sortedBots muda
+  useEffect(() => {
+    filterBots(searchTerm, currentStrategy, currentAsset, sortBy);
+  }, [sortedBots, showRanking]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value;
@@ -252,7 +291,10 @@ const Index = () => {
   };
 
   const filterBots = (term: string, strategy: string, asset: string, sort: string) => {
-    let result = bots.filter(bot => {
+    // Usar sortedBots (com dados do Supabase) em vez de bots estáticos
+    const botsToFilter = sortedBots.length > 0 ? sortedBots : bots;
+    
+    let result = botsToFilter.filter(bot => {
       return (
         (term === '' || bot.name.toLowerCase().includes(term.toLowerCase()) || 
          bot.description.toLowerCase().includes(term.toLowerCase())) &&
@@ -382,7 +424,27 @@ const Index = () => {
       {/* Bots Library Section */}
       <section className="px-6 py-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Ranking de Bots</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">Ranking de Bots</h2>
+            {isLoadingRanking && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                Actualizando ranking...
+              </div>
+            )}
+            {rankingError && (
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <AlertTriangle size={16} />
+                Usando datos locales
+              </div>
+            )}
+            {!isLoadingRanking && !rankingError && sortedBots.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Datos actualizados
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <label htmlFor="show-ranking" className="text-sm">
               Mostrar Ranking
@@ -406,22 +468,21 @@ const Index = () => {
         />
         
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filteredBots.length > 0 ? (
-            filteredBots.map(bot => (
-              <BotCard 
-                key={bot.id}
-                id={bot.id}
-                name={bot.name}
-                description={bot.description}
-                strategy={bot.strategy}
-                accuracy={bot.accuracy}
-                operations={bot.operations}
-                imageUrl={bot.imageUrl}
-                ranking={showRanking ? bot.ranking : undefined}
-                isFavorite={bot.isFavorite}
-              />
-            ))
-          ) : (
+          {filteredBots.map(bot => (
+            <BotCard 
+              key={bot.id}
+              id={bot.id}
+              name={bot.name}
+              description={bot.description}
+              strategy={bot.strategy}
+              accuracy={bot.accuracy}
+              operations={bot.operations}
+              imageUrl={bot.imageUrl}
+              ranking={showRanking ? bot.ranking : undefined}
+              isFavorite={bot.isFavorite}
+            />
+          ))}
+          {filteredBots.length === 0 && (
             <div className="col-span-full py-12 text-center text-muted-foreground">
               <p>No se encontraron bots con los filtros actuales.</p>
               <p className="mt-2">Intenta ajustar los filtros o buscar con otros términos.</p>

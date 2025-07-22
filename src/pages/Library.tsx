@@ -1,142 +1,351 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Bot, ChartLine, Clock, Filter, Search, Sliders, Star, LayoutGrid, LayoutList, Info, ArrowUpDown, Award, Gauge, TrendingUp, BarChart3, X, User, AlertTriangle } from 'lucide-react';
-import SearchInput from '../components/SearchInput';
-import BotCard from '../components/BotCard';
-import FilterBar from '../components/FilterBar';
-import { bots, filterOptions } from '../lib/mockData';
-import { cn } from '../lib/utils';
+import React, { useState, useEffect, useMemo } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import BotPerformanceCard from '../components/BotPerformanceCard';
+import SkeletonCard from '../components/SkeletonCard';
+import TimeFilterControls from '../components/TimeFilterControls';
+import LoadingState from '../components/LoadingState';
+import { 
+  Search, 
+  Filter, 
+  SortDesc, 
+  ChevronDown, 
+  Shield, 
+  BarChart3, 
+  Target, 
+  Users, 
+  Star,
+  TrendingUp,
+  Activity,
+  Zap,
+  Award,
+  Bot,
+  DollarSign,
+  Trophy,
+  Sparkles,
+  ArrowUpDown,
+  X
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-// Constants for assertiveness levels
-const ASSERTIVENESS_LEVELS = {
-  HIGH: { 
-    min: 60, 
-    label: 'Alta', 
-    color: 'emerald',
-    description: 'Bots con alta tasa de acierto en sus operaciones'
-  },
-  MEDIUM: { 
-    min: 45, 
-    max: 60, 
-    label: 'Media', 
-    color: 'blue',
-    description: 'Bots con tasa de acierto moderada'
-  },
-  LOW: { 
-    max: 45, 
-    label: 'Baja', 
-    color: 'rose',
-    description: 'Bots que necesitan optimización'
-  }
-};
+interface BotStats {
+  nome_bot: string;
+  total_operacoes: number;
+  vitorias: number;
+  derrotas: number;
+  assertividade_percentual: number;
+  lucro_total?: number;
+}
 
 const Library = () => {
-  const [filteredBots, setFilteredBots] = useState(bots);
+  const navigate = useNavigate();
+  
+  // Estados principais - ÚNICA FONTE DE DADOS
+  const [periodoSelecionado, setPeriodoSelecionado] = useState('24 hours');
+  const [stats, setStats] = useState<BotStats[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Estados para filtros profissionais
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentStrategy, setCurrentStrategy] = useState('');
-  const [currentAsset, setCurrentAsset] = useState('');
-  const [sortBy, setSortBy] = useState('performance');
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'popular' | 'newest'>('all');
-
+  const [performanceFilter, setPerformanceFilter] = useState<'all' | 'excellent' | 'good' | 'average'>('all');
+  const [sortBy, setSortBy] = useState<'accuracy' | 'operations' | 'wins' | 'name'>('accuracy');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Estados para filtros avançados
+  const [advancedFilters, setAdvancedFilters] = useState({
+    showMostAssertive: false,    // Más Asertivos (>80%)
+    showMostProfitable: false    // Más Lucrativos (mayor lucro y positivos)
+  });
+  
+  // Novos estados para controle de exibição
+  const [showResults, setShowResults] = useState(false);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [isLoadingTransition, setIsLoadingTransition] = useState(false);
+  
+  // Função para lidar com a mudança de período
+  const handlePeriodChange = (periodo: string) => {
+    // Se for a primeira seleção ou uma mudança de período
+    if (isFirstLoad || periodoSelecionado !== periodo) {
+      setPeriodoSelecionado(periodo);
+      setIsLoadingTransition(true);
+      
+      // Se for a primeira carga, atualizar o estado
+      if (isFirstLoad) {
+        setIsFirstLoad(false);
+      }
+      
+      // Simular um tempo de carregamento para melhor UX
+      setTimeout(() => {
+        setShowResults(true);
+        setIsLoadingTransition(false);
+      }, 1500); // Tempo suficiente para mostrar a animação de loading
+    }
+  };
+  
+  // useEffect principal - ÚNICA FONTE DE DADOS
   useEffect(() => {
-    filterBots(searchTerm, currentStrategy, currentAsset, sortBy);
-  }, [showFavoritesOnly]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    filterBots(term, currentStrategy, currentAsset, sortBy);
-  };
-
-  const handleStrategyChange = (strategy: string) => {
-    setCurrentStrategy(strategy);
-    filterBots(searchTerm, strategy, currentAsset, sortBy);
-  };
-
-  const handleAssetChange = (asset: string) => {
-    setCurrentAsset(asset);
-    filterBots(searchTerm, currentStrategy, asset, sortBy);
-  };
-
-  const handleSortChange = (sort: string) => {
-    setSortBy(sort);
-    filterBots(searchTerm, currentStrategy, currentAsset, sort);
-  };
-
-  const filterBots = (term: string, strategy: string, asset: string, sort: string) => {
-    let result = bots.filter(bot => {
-      // Apply basic filters
-      const matchesSearch = 
-        term === '' || 
-        bot.name.toLowerCase().includes(term.toLowerCase()) || 
-        bot.description.toLowerCase().includes(term.toLowerCase());
-      
-      const matchesStrategy = strategy === '' || bot.strategy === strategy;
-      const matchesAsset = asset === '' || bot.tradedAssets.includes(asset);
-      const matchesFavorites = !showFavoritesOnly || bot.isFavorite;
-      
-      return matchesSearch && matchesStrategy && matchesAsset && matchesFavorites;
-    });
-    
-    // Apply tab filtering
-    if (activeTab === 'popular') {
-      result = result.sort((a, b) => b.operations - a.operations).slice(0, 8);
-    } else if (activeTab === 'newest') {
-      result = result.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ).slice(0, 8);
-    }
-    
-    // Apply sorting
-    switch (sort) {
-      case 'performance':
-        result = result.sort((a, b) => b.accuracy - a.accuracy);
-        break;
-      case 'newest':
-        result = result.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    // Só buscar dados se não for a primeira carga (após seleção do usuário)
+    if (!isFirstLoad) {
+      const fetchFilteredStats = async () => {
+        setLoading(true);
+        setError(null);
+  
+        console.log(`[DIAGNÓSTICO] Chamando RPC com período: '${periodoSelecionado}'`);
+  
+        const { data, error: rpcError } = await supabase.rpc(
+          'calcular_estatisticas_por_periodo',
+          { periodo: periodoSelecionado }
         );
-        break;
-      case 'operations':
-        result = result.sort((a, b) => b.operations - a.operations);
-        break;
-      default:
-        break;
+  
+        if (rpcError) {
+          console.error("[DIAGNÓSTICO] Erro na chamada RPC:", rpcError);
+          setError("Não foi possível carregar os dados. Verifique o console para detalhes técnicos.");
+        } else {
+          console.log(`[DIAGNÓSTICO] Dados recebidos da RPC:`, data);
+          setStats(data || []);
+        }
+        
+        setLoading(false);
+      };
+    
+      fetchFilteredStats();
     }
+  }, [periodoSelecionado, isFirstLoad]);
+  
+  // Função para mapear nomes de bots para suas rotas específicas
+  const getBotRoute = (botName: string): string => {
+    const normalizedName = botName.toLowerCase().replace(/[_\s]/g, '');
     
-    // Update rankings based on accuracy after filtering
-    result = [...result].map((bot, index) => ({
-      ...bot,
-      ranking: index + 1
-    }));
+    const botRoutes: { [key: string]: string } = {
+      'quantumbotfixedstake': '/bot/11',
+      'quantumbot': '/bot/11',
+      'botapalancamiento': '/apalancamiento-100x',
+      'apalancamiento': '/apalancamiento-100x',
+      'botai2.0': '/bot/16',
+      'botai': '/bot/16',
+      'factor50xconservador': '/factor50x',
+      'factor50x': '/factor50x',
+      'wolfbot2.0': '/bot/wolf-bot',
+      'wolfbot': '/bot/wolf-bot',
+      'sniperbotmartingale': '/bot/15',
+      'sniperbot': '/bot/15',
+      'nexusbot': '/bot/14',
+      'bkbot1.0': '/bk-bot',
+      'bkbot': '/bk-bot'
+    };
+  
+    return botRoutes[normalizedName] || '/';
+  };
+  
+  // Função para navegar para a página do bot
+  const handleBotClick = (botName: string) => {
+    const route = getBotRoute(botName);
+    navigate(route);
+  };
+  
+  // Función para obtener el color de la asertividad
+  const getAccuracyColor = (accuracy: number) => {
+    if (accuracy >= 80) return 'text-emerald-500';
+    if (accuracy >= 70) return 'text-primary';
+    if (accuracy >= 60) return 'text-blue-500';
+    return 'text-orange-500';
+  };
+  
+  // Función para obtener el color del progreso
+  const getProgressColor = (accuracy: number) => {
+    if (accuracy >= 80) return 'from-emerald-500 to-emerald-400';
+    if (accuracy >= 70) return 'from-primary to-primary/80';
+    if (accuracy >= 60) return 'from-blue-500 to-blue-400';
+    return 'from-orange-500 to-orange-400';
+  };
+  
+  // Lógica de filtros e ordenação com useMemo para performance
+  const filteredAndSortedStats = useMemo(() => {
+    let filtered = stats.filter(bot => {
+      // Filtro de busca
+      const matchesSearch = bot.nome_bot.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filtro de performance
+      const accuracy = parseFloat(bot.assertividade_percentual?.toString() || '0');
+      let matchesPerformance = true;
+      
+      switch (performanceFilter) {
+        case 'excellent':
+          matchesPerformance = accuracy >= 80;
+          break;
+        case 'good':
+          matchesPerformance = accuracy >= 70 && accuracy < 80;
+          break;
+        case 'average':
+          matchesPerformance = accuracy < 70;
+          break;
+        default:
+          matchesPerformance = true;
+      }
+      
+      // Filtros avançados simplificados
+      let matchesMostAssertive = true;
+      if (advancedFilters.showMostAssertive) {
+        matchesMostAssertive = bot.assertividade_percentual >= 80;
+      }
+      
+      let matchesMostProfitable = true;
+      if (advancedFilters.showMostProfitable && bot.lucro_total !== undefined) {
+        matchesMostProfitable = bot.lucro_total > 0;
+      }
+
+      return matchesSearch && matchesPerformance && matchesMostAssertive && matchesMostProfitable;
+    });
+
+    // Ordenação
+    filtered.sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+      
+      // Se o filtro "Más Lucrativos" estiver ativo, priorizar ordenação por lucro
+      if (advancedFilters.showMostProfitable && sortBy === 'accuracy') {
+        aValue = a.lucro_total || 0;
+        bValue = b.lucro_total || 0;
+      } else {
+        switch (sortBy) {
+          case 'accuracy':
+            aValue = parseFloat(a.assertividade_percentual?.toString() || '0');
+            bValue = parseFloat(b.assertividade_percentual?.toString() || '0');
+            break;
+          case 'operations':
+            aValue = parseInt(a.total_operacoes?.toString() || '0');
+            bValue = parseInt(b.total_operacoes?.toString() || '0');
+            break;
+          case 'wins':
+            aValue = parseInt(a.vitorias?.toString() || '0');
+            bValue = parseInt(b.vitorias?.toString() || '0');
+            break;
+          case 'name':
+            aValue = a.nome_bot.toLowerCase();
+            bValue = b.nome_bot.toLowerCase();
+            break;
+          default:
+            aValue = parseFloat(a.assertividade_percentual?.toString() || '0');
+            bValue = parseFloat(b.assertividade_percentual?.toString() || '0');
+        }
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  }, [stats, searchTerm, performanceFilter, sortBy, sortOrder, advancedFilters]);
+
+  // Estatísticas calculadas
+  const localStats = useMemo(() => {
+    const totalBots = filteredAndSortedStats.length;
+    const avgAccuracy = totalBots > 0 ? filteredAndSortedStats.reduce((sum, bot) => sum + parseFloat(bot.assertividade_percentual?.toString() || '0'), 0) / totalBots : 0;
+    const totalOperations = filteredAndSortedStats.reduce((sum, bot) => sum + parseInt(bot.total_operacoes?.toString() || '0'), 0);
+    const excellentBots = filteredAndSortedStats.filter(bot => parseFloat(bot.assertividade_percentual?.toString() || '0') >= 80).length;
     
-    setFilteredBots(result);
-  };
+    return {
+      totalBots,
+      avgAccuracy: Math.round(avgAccuracy * 10) / 10,
+      totalOperations,
+      excellentBots
+    };
+  }, [filteredAndSortedStats]);
 
-  // Stats based on the filtered bots
-  const libraryStats = {
-    totalBots: filteredBots.length,
-    averageAccuracy: Math.round(filteredBots.reduce((sum, bot) => sum + bot.accuracy, 0) / filteredBots.length || 0),
-    highestAccuracy: Math.max(...filteredBots.map(bot => bot.accuracy), 0),
-    totalOperations: filteredBots.reduce((sum, bot) => sum + bot.operations, 0)
-  };
+  // Renderização condicional para loading inicial
+  if (loading && isLoadingTransition === false) {
+    return (
+      <div className="container max-w-7xl mx-auto py-8 px-4 animate-in fade-in duration-500">
+        <section className="mb-12">
+          <div className="relative overflow-hidden rounded-2xl shadow-xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/15 to-background"></div>
+            
+            <div className="relative z-10 py-12 px-8 text-center">
+              <div className="inline-block mb-3 bg-primary/10 backdrop-blur-sm rounded-full px-4 py-1.5 border border-primary/20">
+                <span className="text-primary font-medium text-sm flex items-center gap-2">
+                  <Award size={14} className="text-primary" />
+                  Ranking de Asertividad
+                </span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold mb-8 text-foreground leading-tight">
+                🏆 <span className="text-primary">Ranking de Asertividad</span>
+              </h1>
+              
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-6 max-w-md mx-auto">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Bot className="text-primary animate-spin" size={20} />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-primary">Cargando datos</h3>
+                    <p className="text-sm text-muted-foreground">Analizando rendimiento de bots</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                  <span>Procesando estadísticas...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
-  const accuracyDistribution = {
-    high: filteredBots.filter(bot => bot.accuracy >= ASSERTIVENESS_LEVELS.HIGH.min).length,
-    medium: filteredBots.filter(bot => bot.accuracy >= ASSERTIVENESS_LEVELS.MEDIUM.min && bot.accuracy < ASSERTIVENESS_LEVELS.MEDIUM.max).length,
-    low: filteredBots.filter(bot => bot.accuracy < ASSERTIVENESS_LEVELS.LOW.max).length
-  };
+  if (error && stats.length === 0 && !isFirstLoad) {
+    return (
+      <div className="container max-w-7xl mx-auto py-8 px-4 animate-in fade-in duration-500">
+        <section className="mb-12">
+          <div className="relative overflow-hidden rounded-2xl shadow-xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/15 to-background"></div>
+            
+            <div className="relative z-10 py-12 px-8 text-center">
+              <div className="inline-block mb-3 bg-primary/10 backdrop-blur-sm rounded-full px-4 py-1.5 border border-primary/20">
+                <span className="text-primary font-medium text-sm flex items-center gap-2">
+                  <Award size={14} className="text-primary" />
+                  Ranking de Asertividad
+                </span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold mb-8 text-foreground leading-tight">
+                🏆 <span className="text-primary">Ranking de Asertividad</span>
+              </h1>
+              
+              <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-6 max-w-md mx-auto">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center">
+                    <Bot className="text-destructive" size={20} />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-destructive">Error al cargar datos</h3>
+                    <p className="text-sm text-muted-foreground">Problema de conexión detectado</p>
+                  </div>
+                </div>
+                <p className="text-sm text-destructive/80 mb-4">{error}</p>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                  <span>Cargando datos simulados...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-7xl mx-auto py-8 px-4 animate-in fade-in duration-500">
-      {/* Hero Section - Enhanced with more professional design elements */}
+      {/* Hero Section */}
       <section className="mb-12">
         <div className="relative overflow-hidden rounded-2xl shadow-xl">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/15 to-background"></div>
           
-          {/* Decorative elements */}
+          {/* Elementos decorativos */}
           <div className="absolute inset-0 w-full h-full overflow-hidden opacity-70">
             <div className="absolute w-[600px] h-[600px] rounded-full bg-gradient-to-br from-primary/20 to-transparent -top-[350px] -right-[100px] blur-md"></div>
             <div className="absolute w-[500px] h-[500px] rounded-full bg-gradient-to-br from-primary/15 to-transparent top-[50%] -left-[200px] blur-md"></div>
@@ -150,480 +359,298 @@ const Library = () => {
             <div className="flex-1 max-w-3xl">
               <div className="inline-block mb-3 bg-primary/10 backdrop-blur-sm rounded-full px-4 py-1.5 border border-primary/20">
                 <span className="text-primary font-medium text-sm flex items-center gap-2">
-                  <Bot size={14} className="text-primary" />
-                  Explora nuestro catálogo completo
+                  <Award size={14} className="text-primary" />
+                  Ranking de Asertividad
                 </span>
               </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-4 text-foreground leading-tight">
-                Biblioteca de <span className="text-primary relative z-10">Bots 
-                  <svg className="absolute -bottom-2 -z-10 left-0 w-full opacity-20" viewBox="0 0 200 20" xmlns="http://www.w3.org/2000/svg">
-                    <path fill="currentColor" d="M0,0 Q50,40 100,0 Q150,40 200,0 Z" />
-                  </svg>
-                </span>
+                🏆 <span className="text-primary">Ranking de Asertividad</span>
               </h1>
-              <p className="text-xl mb-6 text-muted-foreground leading-relaxed max-w-2xl">
-                Explora nuestra colección completa de bots de trading. Encuentra el bot perfecto para tu estrategia
-                y comienza a operar con más eficiencia.
+              <p className="text-lg text-muted-foreground mb-6">
+                Descubre los bots de trading con mejor desempeño en nuestra plataforma. 
+                Analiza su asertividad, operaciones y resultados en diferentes períodos de tiempo.
               </p>
-              <div className="w-full max-w-md">
-                <SearchInput onChange={handleSearch} placeholder="Busca bots por nombre, estrategia o descripción..." />
-              </div>
-              <div className="mt-8 hidden md:flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">Filtros rápidos:</span>
-                <button 
-                  onClick={() => handleStrategyChange("Martingale")}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-card hover:bg-primary/5 text-xs rounded-full border border-border"
-                >
-                  <TrendingUp size={12} /> Martingale
-                </button>
-                <button 
-                  onClick={() => handleStrategyChange("Seguidor de Tendência")}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-card hover:bg-primary/5 text-xs rounded-full border border-border"
-                >
-                  <TrendingUp size={12} /> Seguidor de Tendencia
-                </button>
-                <button 
-                  onClick={() => handleSortChange("newest")}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-card hover:bg-primary/5 text-xs rounded-full border border-border"
-                >
-                  <Clock size={12} /> Más recientes
-                </button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 bg-card/80 backdrop-blur-sm rounded-lg p-6 border border-border/50 shadow-sm min-w-[300px]">
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Total de Bots</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{libraryStats.totalBots}</span>
-                  <Bot size={16} className="text-primary" />
-                </div>
-              </div>
               
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Asertividad Media</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{libraryStats.averageAccuracy}%</span>
-                  <ChartLine size={16} className="text-primary" />
-                </div>
-              </div>
-              
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Mejor Asertividad</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{libraryStats.highestAccuracy}%</span>
-                  <Award size={16} className="text-emerald-500" />
-                </div>
-              </div>
-              
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Total de Operaciones</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{libraryStats.totalOperations.toLocaleString()}</span>
-                  <Clock size={16} className="text-primary" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      
-      {/* Investment Risk Warning Banner */}
-      <section className="mb-8">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="text-red-500 flex-shrink-0" size={20} />
-            <div className="text-sm">
-              <p className="font-medium text-red-700 dark:text-red-400 mb-1">
-                 AVISO SOBRE RIESGOS DE INVERSIÓN
-               </p>
-               <p className="text-red-600 dark:text-red-300">
-                  Los retornos pasados no garantizan retornos futuros. La negociación de productos financieros complejos, como opciones y derivados, implica un elevado nivel de riesgo y puede resultar en la pérdida de todo el capital invertido. Asegúrese de comprender plenamente los riesgos antes de invertir y nunca arriesgue más dinero del que pueda permitirse perder.
-                </p>
-            </div>
-          </div>
-        </div>
-      </section>
-      
-      {/* Filter and Display Controls - Enhanced with more professional and intuitive UI */}
-      <section className="mb-8">
-        <div className="bg-card/50 rounded-xl border border-border shadow-sm p-4">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              <span className="text-sm font-medium text-muted-foreground mr-2">Ver:</span>
-              <button 
-                onClick={() => setActiveTab('all')} 
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-                  activeTab === 'all' 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "bg-card border border-border hover:bg-muted hover:border-primary/30"
-                )}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Bot size={15} />
-                  Todos los Bots
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => setActiveTab('popular')} 
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-                  activeTab === 'popular' 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "bg-card border border-border hover:bg-muted hover:border-primary/30"
-                )}
-              >
-                <span className="flex items-center gap-1.5">
-                  <TrendingUp size={15} />
-                  Más Populares
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => setActiveTab('newest')} 
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-                  activeTab === 'newest' 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "bg-card border border-border hover:bg-muted hover:border-primary/30"
-                )}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Clock size={15} />
-                  Nuevos Bots
-                </span>
-              </button>
-            </div>
-            
-            <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border transition-all",
-                    showFavoritesOnly 
-                      ? "bg-yellow-500/10 text-yellow-600 border-yellow-200" 
-                      : "bg-card border-border hover:bg-muted"
-                  )}
-                >
-                  <Star size={16} className={showFavoritesOnly ? "fill-yellow-500 text-yellow-500" : ""} />
-                  <span className="hidden sm:inline">Favoritos</span>
-                </button>
-                
-                <button 
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border transition-all",
-                    isFilterOpen
-                      ? "bg-primary/10 text-primary border-primary/20"
-                      : "bg-card border-border hover:bg-muted"
-                  )}
-                >
-                  <Filter size={16} />
-                  <span className="hidden sm:inline">Filtros</span>
-                  {(currentStrategy || currentAsset || sortBy !== 'performance') && (
-                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs bg-primary text-white rounded-full">
-                      {(currentStrategy ? 1 : 0) + (currentAsset ? 1 : 0) + (sortBy !== 'performance' ? 1 : 0)}
+              {showResults && (
+                <div className="flex flex-wrap gap-4 mt-6">
+                  <div className="flex items-center gap-2 bg-primary/10 backdrop-blur-sm rounded-full px-4 py-2 border border-primary/20">
+                    <Zap size={16} className="text-primary" />
+                    <span className="text-sm font-medium">
+                      <span className="text-primary">{localStats.totalBots}</span> Bots Analizados
                     </span>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Expanded Filter Bar - Enhanced with animation and better organization */}
-          {isFilterOpen && (
-            <div className="mt-4 p-4 bg-background rounded-lg border border-border animate-in fade-in slide-in-from-top-4 duration-300">
-              <div className="flex flex-col lg:flex-row justify-between gap-6">
-                <div className="space-y-4">
-                  {filteredBots.map(bot => (
-                    <Link 
-                      to={bot.id === 'factor50x' ? `/factor50x` : `/bot/${bot.id}`}
-                      key={bot.id} 
-                      className="group flex flex-col md:flex-row gap-4 p-5 bg-card rounded-xl border border-border hover:bg-card/70 hover:border-primary/20 transition-all duration-300 relative"
-                    >
-                      {/* Ranking badge */}
-                      {activeTab === 'all' && bot.ranking && (
-                        <div className="absolute top-0 left-0 z-10 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-3 py-1 rounded-br-lg font-semibold shadow-md">
-                          #{bot.ranking}
-                        </div>
-                      )}
-                      
-                      {/* Bot Image/Logo */}
-                      <div className="md:w-48 h-28 md:h-auto bg-gradient-to-br from-slate-900 via-slate-700 to-zinc-600 rounded-lg flex items-center justify-center overflow-hidden relative group-hover:shadow-md transition-all">
-                        <div className="absolute inset-0 opacity-30">
-                          <div className="absolute w-32 h-32 rounded-full bg-primary/30 blur-2xl -top-10 -right-10"></div>
-                          <div className="absolute w-24 h-24 rounded-full bg-primary/20 blur-xl bottom-5 -left-10"></div>
-                        </div>
-                        <h3 className="text-xl font-bold text-white relative z-10 px-4 text-center">
-                          {bot.name}
-                          <div className="mt-1 text-xs text-blue-100/80 font-medium uppercase tracking-wider">{bot.strategy}</div>
-                        </h3>
-                      </div>
-                      
-                      {/* Bot Info */}
-                      <div className="flex-1 flex flex-col justify-between">
-                        <div className="flex flex-col md:flex-row justify-between items-start gap-3">
-                          <div>
-                            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{bot.name}</h3>
-                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{bot.description}</p>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <span className={cn(
-                              "text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5", 
-                              bot.accuracy >= 60 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
-                              bot.accuracy >= 40 ? "bg-blue-50 text-blue-700 border-blue-200" : 
-                              "bg-rose-50 text-rose-700 border-rose-200"
-                            )}>
-                              <span className={cn(
-                                "w-2 h-2 rounded-full",
-                                bot.accuracy >= 60 ? "bg-emerald-500" : 
-                                bot.accuracy >= 40 ? "bg-blue-500" : 
-                                "bg-rose-500"
-                              )}></span>
-                              <span>
-                                <span className="font-semibold">{bot.accuracy}%</span> asertivo
-                              </span>
-                            </span>
-                            
-                            <button 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                // Here you would toggle the favorite state
-                              }}
-                              className="p-2 rounded-full hover:bg-primary/5 transition-colors"
-                              aria-label={bot.isFavorite ? "Eliminar de favoritos" : "Añadir a favoritos"}
-                            >
-                              <Star 
-                                size={18} 
-                                className={bot.isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"} 
-                              />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-wrap items-center gap-3 mt-2">
-                          <div className="text-xs py-1 px-2.5 bg-primary/10 text-primary rounded-full flex items-center gap-1">
-                            <Gauge size={12} />
-                            {bot.strategy}
-                          </div>
-                          
-                          <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1">
-                            <Clock size={12} />
-                            {bot.operations.toLocaleString()} operaciones
-                          </div>
-                          
-                          <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1">
-                            <Info size={12} />
-                            v{bot.version}
-                          </div>
-                          
-                          {bot.tradedAssets.map((asset, i) => (
-                            <div key={i} className="text-xs py-1 px-2.5 bg-card border border-border rounded-full">
-                              {asset}
-                            </div>
-                          ))}
-                          
-                          <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1 ml-auto">
-                            <User size={12} />
-                            {bot.author}
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                  </div>
+                  <div className="flex items-center gap-2 bg-emerald-500/10 backdrop-blur-sm rounded-full px-4 py-2 border border-emerald-500/20">
+                    <TrendingUp size={16} className="text-emerald-500" />
+                    <span className="text-sm font-medium">
+                      <span className="text-emerald-500">{localStats.excellentBots}</span> Bots Excelentes
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-blue-500/10 backdrop-blur-sm rounded-full px-4 py-2 border border-blue-500/20">
+                    <Activity size={16} className="text-blue-500" />
+                    <span className="text-sm font-medium">
+                      <span className="text-blue-500">{localStats.avgAccuracy}%</span> Precisión Media
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-      
-      {/* Bots Display - List view only */}
-      <section className="mb-6">
-        {filteredBots.length > 0 ? (
-          <>
-            {/* Results count and current filter info */}
-            <div className="flex justify-between items-center mb-4 px-2">
-              <div className="text-sm text-muted-foreground">
-                Mostrando <span className="font-medium text-foreground">{filteredBots.length}</span> {filteredBots.length === 1 ? 'bot' : 'bots'}
-                {currentStrategy && <span> con estrategia <span className="font-medium text-primary">{currentStrategy}</span></span>}
-                {currentAsset && <span> para el activo <span className="font-medium text-primary">{currentAsset}</span></span>}
-              </div>
-              
-              {(currentStrategy || currentAsset) && (
-                <button 
-                  onClick={() => {
-                    setCurrentStrategy('');
-                    setCurrentAsset('');
-                    filterBots('', '', '', sortBy);
-                  }}
-                  className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
-                >
-                  Limpiar filtros <X size={12} />
-                </button>
               )}
             </div>
-          
-            <div className="space-y-4">
-              {filteredBots.map(bot => (
-                <Link 
-                  to={bot.id === 'factor50x' ? `/factor50x` : `/bot/${bot.id}`}
-                  key={bot.id} 
-                  className="group flex flex-col md:flex-row gap-4 p-5 bg-card rounded-xl border border-border hover:bg-card/70 hover:border-primary/20 transition-all duration-300 relative"
-                >
-                  {/* Ranking badge */}
-                  {activeTab === 'all' && bot.ranking && (
-                    <div className="absolute top-0 left-0 z-10 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white px-3 py-1 rounded-br-lg font-semibold shadow-md">
-                      #{bot.ranking}
+            
+            {showResults && (
+              <div className="w-full md:w-auto mt-8 md:mt-0">
+                <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-6 shadow-lg">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <BarChart3 className="text-primary" size={24} />
                     </div>
-                  )}
-                  
-                  {/* Bot Image/Logo */}
-                  <div className="md:w-48 h-28 md:h-auto bg-gradient-to-br from-slate-900 via-slate-700 to-zinc-600 rounded-lg flex items-center justify-center overflow-hidden relative group-hover:shadow-md transition-all">
-                    <div className="absolute inset-0 opacity-30">
-                      <div className="absolute w-32 h-32 rounded-full bg-primary/30 blur-2xl -top-10 -right-10"></div>
-                      <div className="absolute w-24 h-24 rounded-full bg-primary/20 blur-xl bottom-5 -left-10"></div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">Estadísticas Globales</h3>
+                      <p className="text-sm text-muted-foreground">Período: {periodoSelecionado}</p>
                     </div>
-                    <h3 className="text-xl font-bold text-white relative z-10 px-4 text-center">
-                      {bot.name}
-                      <div className="mt-1 text-xs text-blue-100/80 font-medium uppercase tracking-wider">{bot.strategy}</div>
-                    </h3>
                   </div>
                   
-                  {/* Bot Info */}
-                  <div className="flex-1 flex flex-col justify-between">
-                    <div className="flex flex-col md:flex-row justify-between items-start gap-3">
-                      <div>
-                        <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{bot.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{bot.description}</p>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-muted-foreground">Operaciones Totales</span>
+                        <span className="text-sm font-medium">{localStats.totalOperations.toLocaleString()}</span>
                       </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <span className={cn(
-                          "text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-1.5", 
-                          bot.accuracy >= 60 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
-                          bot.accuracy >= 40 ? "bg-blue-50 text-blue-700 border-blue-200" : 
-                          "bg-rose-50 text-rose-700 border-rose-200"
-                        )}>
-                          <span className={cn(
-                            "w-2 h-2 rounded-full",
-                            bot.accuracy >= 60 ? "bg-emerald-500" : 
-                            bot.accuracy >= 40 ? "bg-blue-500" : 
-                            "bg-rose-500"
-                          )}></span>
-                          <span>
-                            <span className="font-semibold">{bot.accuracy}%</span> asertivo
-                          </span>
-                        </span>
-                        
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // Here you would toggle the favorite state
-                          }}
-                          className="p-2 rounded-full hover:bg-primary/5 transition-colors"
-                          aria-label={bot.isFavorite ? "Eliminar de favoritos" : "Añadir a favoritos"}
-                        >
-                          <Star 
-                            size={18} 
-                            className={bot.isFavorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"} 
-                          />
-                        </button>
+                      <div className="h-2 bg-background rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-primary/50 to-primary rounded-full" style={{ width: '100%' }}></div>
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-3 mt-2">
-                      <div className="text-xs py-1 px-2.5 bg-primary/10 text-primary rounded-full flex items-center gap-1">
-                        <Gauge size={12} />
-                        {bot.strategy}
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-muted-foreground">Precisión Media</span>
+                        <span className="text-sm font-medium">{localStats.avgAccuracy}%</span>
                       </div>
-                      
-                      <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1">
-                        <Clock size={12} />
-                        {bot.operations.toLocaleString()} operaciones
+                      <div className="h-2 bg-background rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-emerald-500/50 to-emerald-500 rounded-full" style={{ width: `${localStats.avgAccuracy}%` }}></div>
                       </div>
-                      
-                      <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1">
-                        <Info size={12} />
-                        v{bot.version}
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-muted-foreground">Bots Excelentes</span>
+                        <span className="text-sm font-medium">{localStats.excellentBots} de {localStats.totalBots}</span>
                       </div>
-                      
-                      {bot.tradedAssets.map((asset, i) => (
-                        <div key={i} className="text-xs py-1 px-2.5 bg-card border border-border rounded-full">
-                          {asset}
-                        </div>
-                      ))}
-                      
-                      <div className="text-xs py-1 px-2.5 bg-card border border-border rounded-full flex items-center gap-1 ml-auto">
-                        <User size={12} />
-                        {bot.author}
+                      <div className="h-2 bg-background rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500/50 to-blue-500 rounded-full" style={{ width: `${(localStats.excellentBots / Math.max(localStats.totalBots, 1)) * 100}%` }}></div>
                       </div>
                     </div>
                   </div>
-                </Link>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="py-16 text-center">
-            <div className="bg-muted/50 mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4">
-              <Bot size={40} className="text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-medium mb-2">Ningún bot encontrado</h3>
-            <p className="text-muted-foreground max-w-md mx-auto mb-6">
-              Ningún bot corresponde a los filtros actuales. Intenta ajustar los filtros o limpiar la búsqueda.
-            </p>
-            <button 
-              onClick={() => {
-                setSearchTerm('');
-                setCurrentStrategy('');
-                setCurrentAsset('');
-                setShowFavoritesOnly(false);
-                filterBots('', '', '', sortBy);
-              }}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-md text-sm font-medium transition-colors"
-            >
-              Limpiar Filtros
-            </button>
-          </div>
-        )}
-      </section>
-      
-      {/* Footer Section - Adding professional footer */}
-      <section className="mt-16 border-t border-border pt-8 pb-12">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center gap-3 mb-4 md:mb-0">
-            <Bot size={24} className="text-primary" />
-            <span className="text-lg font-semibold">Million Bots Library</span>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <div className="text-sm text-muted-foreground">
-              Total de <span className="font-medium text-foreground">{bots.length}</span> bots disponibles
-            </div>
-            
-            <div className="h-6 w-px bg-border mx-2"></div>
-            
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                Documentación
-              </a>
-              <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                Soporte
-              </a>
-              <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                Términos de Uso
-              </a>
-            </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
+      
+      {/* Controles de filtro por período */}
+      <section className="mb-8">
+        <div className="flex justify-center">
+          <TimeFilterControls 
+            periodoAtual={periodoSelecionado} 
+            onPeriodoChange={handlePeriodChange}
+            showResults={showResults}
+          />
+        </div>
+      </section>
+
+      {/* Filtros Avanzados */}
+      {showResults && !isLoadingTransition && (
+        <section className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="max-w-6xl mx-auto">
+            {/* Header de los Filtros */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Filter className="text-primary" size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Filtros Avanzados</h2>
+                <p className="text-sm text-muted-foreground">Encuentra los robots más exitosos</p>
+              </div>
+            </div>
+
+            {/* Filtros Básicos - Siempre Visibles */}
+            <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-6 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Buscar por Nombre */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Search size={14} className="text-primary" />
+                    Buscar por Nombre
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Escribe el nombre del robot..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                    />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded"
+                      >
+                        <X size={14} className="text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filtro de Rendimiento */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Target size={14} className="text-primary" />
+                    Nivel de Rendimiento
+                  </label>
+                  <select
+                    value={performanceFilter}
+                    onChange={(e) => setPerformanceFilter(e.target.value)}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                  >
+                    <option value="all">Todos los Niveles</option>
+                    <option value="excellent">Excelente (≥80%)</option>
+                    <option value="good">Bueno (60-79%)</option>
+                    <option value="average">Promedio (40-59%)</option>
+                  </select>
+                </div>
+
+                {/* Filtro Elite: Más Asertivos */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <BarChart3 size={14} className="text-emerald-500" />
+                    Más Asertivos
+                  </label>
+                  <button
+                    onClick={() => setAdvancedFilters(prev => ({
+                      ...prev,
+                      showMostAssertive: !prev.showMostAssertive
+                    }))}
+                    className={`w-full px-4 py-2 rounded-lg border-2 transition-all duration-300 flex items-center justify-center gap-2 ${
+                      advancedFilters.showMostAssertive 
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-lg shadow-emerald-500/10' 
+                        : 'bg-background border-border hover:border-emerald-500/20 hover:bg-emerald-500/5 text-muted-foreground hover:text-emerald-600'
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                      advancedFilters.showMostAssertive ? 'bg-emerald-500' : 'bg-muted-foreground/30'
+                    }`}></div>
+                    <span className="text-sm font-medium">≥80%</span>
+                  </button>
+                </div>
+
+                {/* Filtro Elite: Más Lucrativos */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <DollarSign size={14} className="text-green-500" />
+                    Más Lucrativos
+                  </label>
+                  <button
+                    onClick={() => setAdvancedFilters(prev => ({
+                      ...prev,
+                      showMostProfitable: !prev.showMostProfitable
+                    }))}
+                    className={`w-full px-4 py-2 rounded-lg border-2 transition-all duration-300 flex items-center justify-center gap-2 ${
+                      advancedFilters.showMostProfitable 
+                        ? 'bg-green-500/10 border-green-500/30 text-green-600 shadow-lg shadow-green-500/10' 
+                        : 'bg-background border-border hover:border-green-500/20 hover:bg-green-500/5 text-muted-foreground hover:text-green-600'
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                      advancedFilters.showMostProfitable ? 'bg-green-500' : 'bg-muted-foreground/30'
+                    }`}></div>
+                    <span className="text-sm font-medium">Positivos</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Botón de Reset - Minimalista */}
+            <div className="flex justify-center mb-4">
+              <button
+                onClick={() => {
+                  setAdvancedFilters({
+                    showMostAssertive: false,
+                    showMostProfitable: false
+                  });
+                  setSearchTerm('');
+                  setPerformanceFilter('all');
+                  setSortBy('accuracy');
+                  setSortOrder('desc');
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted/80 rounded-lg border border-border transition-all duration-200 group"
+              >
+                <X size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                  Limpiar Filtros
+                </span>
+              </button>
+            </div>
+
+            {/* Resultados de los Filtros */}
+            <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Users size={14} />
+                <span>
+                  Mostrando <span className="font-medium text-primary">{filteredAndSortedStats.length}</span> de{' '}
+                  <span className="font-medium">{stats?.length || 0}</span> robots
+                </span>
+              </div>
+              {(searchTerm || performanceFilter !== 'all' || advancedFilters.showMostAssertive || 
+                advancedFilters.showMostProfitable) && (
+                <div className="flex items-center gap-2 text-primary">
+                  <Filter size={14} />
+                  <span>Filtros activos</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Estado de carregamento personalizado */}
+      {isLoadingTransition && (
+        <section className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <LoadingState message={`Analisando dados dos últimos ${periodoSelecionado}`} />
+        </section>
+      )}
+
+      {/* Container dos cards - Design profissional com cores nativas */}
+      {showResults && !isLoadingTransition && (
+        <section className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          {loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="text-center py-10 text-red-500">{error}</div>
+          )}
+
+          {!loading && !error && filteredAndSortedStats.length === 0 && (
+            <div className="text-center py-10 text-gray-500">
+              Nenhuma operação encontrada para este período.
+            </div>
+          )}
+
+          {!loading && !error && filteredAndSortedStats.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredAndSortedStats.map((bot, index) => (
+                <BotPerformanceCard 
+                  key={bot.nome_bot} 
+                  bot={bot} 
+                  index={index} 
+                  periodoSelecionado={periodoSelecionado}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 };

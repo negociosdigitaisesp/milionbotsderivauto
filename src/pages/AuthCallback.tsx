@@ -84,8 +84,8 @@ const AuthCallback = () => {
               toast.success('¡Correo electrónico actualizado!');
             }
             
-            // Redirect to dashboard after successful action
-            setTimeout(() => navigate('/dashboard'), 2000);
+            // Redirect to library (ranking) after successful action
+        setTimeout(() => navigate('/'), 2000);
             return;
           } else {
             // For other auth actions
@@ -93,8 +93,8 @@ const AuthCallback = () => {
             setMessage('Autenticación completada. Redirigiendo...');
             toast.success('Autenticación exitosa');
             
-            // Redirect to dashboard
-            setTimeout(() => navigate('/dashboard'), 2000);
+            // Redirect to library (ranking)
+        setTimeout(() => navigate('/'), 2000);
             return;
           }
         }
@@ -119,14 +119,14 @@ const AuthCallback = () => {
         // Try to get the current session as a fallback
         const { data: sessionData } = await supabase.auth.getSession();
         
-        // If we have a session, redirect to the dashboard
+        // If we have a session, redirect to the library (ranking)
         if (sessionData.session) {
-          console.log('Existing session found, redirecting to dashboard');
+          console.log('Existing session found, redirecting to library');
           setMessage('Sesión existente encontrada. Redirigiendo...');
           toast.success('Iniciando sesión con su cuenta existente');
           
-          // Redirect to dashboard
-          setTimeout(() => navigate('/dashboard'), 2000);
+          // Redirect to library (ranking)
+          setTimeout(() => navigate('/'), 2000);
           return;
         }
         

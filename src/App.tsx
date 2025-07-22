@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
-import Index from "./pages/Index";
 import BotDetail from "./pages/BotDetail";
 import NotFound from "./pages/NotFound";
 import InstallationTutorial from "./pages/InstallationTutorial";
@@ -21,6 +20,7 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import VerificandoAcessoPage from "./pages/VerificandoAcessoPage";
 import BotsApalancamiento from "./pages/BotsApalancamiento";
 import Factor50XPage from "./pages/Factor50XPage";
+import BKBot from "./pages/BKBot";
 import RiskManagement from "./pages/RiskManagement";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -52,34 +52,25 @@ const App = () => {
                 <Route path="/pending-approval" element={<PendingApprovalPage />} />
                 <Route path="/verificando-acesso" element={<VerificandoAcessoPage />} />
                 
-                {/* Rota raiz com Portão de Segurança */}
-                <Route path="/" element={<SecurityGate><Index /></SecurityGate>} />
-                
-                {/* Rotas protegidas */}
+                {/* Rota raiz protegida - agora carrega Library com Sidebar */}
                 <Route element={<ProtectedRoute />}>
-                  <Route path="/dashboard" element={
+                  <Route path="/" element={
                     <>
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
-                        <Index />
+                        <Library />
                       </main>
                     </>
                   } />
-                  
+                </Route>
+                
+                {/* Rotas protegidas */}
+                <Route element={<ProtectedRoute />}>
                   <Route path="/bot/:id" element={
                     <>
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
                         <BotDetail />
-                      </main>
-                    </>
-                  } />
-                  
-                  <Route path="/library" element={
-                    <>
-                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
-                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
-                        <Library />
                       </main>
                     </>
                   } />
@@ -143,6 +134,15 @@ const App = () => {
                       <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
                       <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
                         <RiskManagement />
+                      </main>
+                    </>
+                  } />
+                  
+                  <Route path="/bk-bot" element={
+                    <>
+                      <Sidebar collapsed={sidebarCollapsed} toggleSidebar={toggleSidebar} />
+                      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'main-content-expanded' : 'main-content'}`}>
+                        <BKBot />
                       </main>
                     </>
                   } />

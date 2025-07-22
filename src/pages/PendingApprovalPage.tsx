@@ -41,9 +41,9 @@ const PendingApprovalPage = () => {
       setTimeout(() => {
         // Ação 3: Lógica Condicional
         if (isActive === true) {
-          // IF TRUE: Navigate to DashboardPage
-          toast.success('Conta ativada! Redirecionando para o dashboard...');
-          navigate('/dashboard', { replace: true });
+          // IF TRUE: Navigate to Library (Ranking del Asertividad)
+        toast.success('Conta ativada! Redirecionando para o ranking...');
+        navigate('/', { replace: true });
         } else {
           // ELSE: Permanecer na PendingApprovalPage
           toast.warning('Sua conta ainda não foi ativada. Aguarde a aprovação do administrador.');
