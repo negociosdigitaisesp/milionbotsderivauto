@@ -1,9 +1,9 @@
 """
-Bot BK_1.0: Estratégia baseada em análise de dígitos com sistema de pausa por risco
-e martingale adaptativo
+Bot BK_1.0 Premium: Estratégia baseada em análise de dígitos com sistema de pausa por risco
+e martingale simples
 
 Este bot opera no ativo 1HZ10V com contratos DIGITUNDER, pausando quando detecta
-dígitos de risco (8 ou 9) e aplicando martingale após perdas.
+dígitos de risco (8 ou 9) e aplicando martingale simples após perdas.
 """
 
 import asyncio
@@ -11,7 +11,7 @@ from typing import Optional
 from ...utils.helpers import (
     salvar_operacao, aguardar_resultado_contrato, executar_compra,
     verificar_stops, obter_ultimo_tick, extrair_ultimo_digito,
-    log_resultado_operacao, criar_parametros_compra, calcular_martingale,
+    log_resultado_operacao, criar_parametros_compra,
     validar_e_ajustar_stake
 )
 from ...config.settings import BotSpecificConfig
@@ -21,24 +21,22 @@ logger = logging.getLogger(__name__)
 
 async def bot_bk_1_0(api) -> None:
     """
-    Bot BK_1.0: Estratégia baseada em análise de dígitos com sistema de pausa por risco
-    e martingale adaptativo
+    Bot BK_1.0 Premium: Estratégia baseada em análise de dígitos com sistema de pausa por risco
+    e martingale simples com stops ilimitados
     
     Args:
         api: Instância da API da Deriv
     """
-    nome_bot = "BK_BOT_1.0"
-    config = BotSpecificConfig.BK_BOT_CONFIG
+    nome_bot = "BK_BOT_1.0_PREMIUM"
     
     logger.info(f"🤖 Iniciando {nome_bot}...")
     print(f"🤖 Iniciando {nome_bot}...")
     
-    # Variáveis de estado do bot
-    stake_inicial = config['stake_inicial']
-    stake_maximo = config['stake_maximo']
-    stop_loss = config['stop_loss']
-    stop_win = config['stop_win']
-    ativo = config['symbol']
+    # Parâmetros de Gestão (conforme requisitos)
+    stake_inicial = 1.0
+    stop_loss = float('inf')  # Ilimitado
+    stop_win = float('inf')   # Ilimitado
+    ativo = '1HZ10V'          # Conforme especificado
     
     # Inicialização das variáveis
     stake_atual = stake_inicial
@@ -48,13 +46,15 @@ async def bot_bk_1_0(api) -> None:
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
-    print(f"   🛑 Stop Loss: ${stop_loss}")
-    print(f"   🎯 Stop Win: ${stop_win}")
+    print(f"   🛑 Stop Loss: Infinito")
+    print(f"   🎯 Stop Win: Infinito")
     print(f"   🏪 Ativo: {ativo}")
+    print(f"   🔄 Martingale: Simples (fator 1)")
+    print(f"   ⚠️ Sistema de pausa por risco: Ativo (dígitos 8 e 9)")
     
     while True:
         try:
-            # Verificar Stop Loss/Win
+            # Verificar Stop Loss/Win (sempre infinitos)
             resultado_stop = verificar_stops(total_profit, stop_loss, stop_win, nome_bot)
             if resultado_stop != 'continue':
                 break
@@ -67,9 +67,9 @@ async def bot_bk_1_0(api) -> None:
                 
             ultimo_digito = extrair_ultimo_digito(ultimo_preco)
             
-            print(f"🔍 {nome_bot}: Último dígito: {ultimo_digito} | Profit: ${total_profit:.2f} | Stake: ${stake_atual:.2f}")
+            print(f"🔍 {nome_bot}: Último dígito: {ultimo_digito} | Profit: ${total_profit:.2f} | Stake: ${stake_atual:.2f} | Perdas: {loss_seguidas}")
             
-            # Verificar dígito de risco (8 ou 9)
+            # Verificar dígito de risco (8 ou 9) - Lógica mantida
             if ultimo_digito in [8, 9]:
                 if not pausado_por_risco:
                     pausado_por_risco = True
@@ -78,7 +78,7 @@ async def bot_bk_1_0(api) -> None:
                 await asyncio.sleep(2)
                 continue
             
-            # Verificar se deve reativar o bot
+            # Verificar se deve reativar o bot - Lógica mantida
             if pausado_por_risco and ultimo_digito < 8:
                 pausado_por_risco = False
                 logger.info(f"✅ {nome_bot}: Reativando bot... (dígito: {ultimo_digito})")
@@ -92,7 +92,7 @@ async def bot_bk_1_0(api) -> None:
                 continue
             
             # Lógica de Compra (se não estiver pausado)
-            # Definir a predição baseada nas perdas seguidas
+            # Definir a predição baseada nas perdas seguidas - Lógica mantida
             if loss_seguidas == 0:
                 prediction = 8
             else:
@@ -129,31 +129,29 @@ async def bot_bk_1_0(api) -> None:
             
             # Atualizar lucro total
             total_profit += lucro
-            stake_usado = stake_atual
             
             # Salvar operação
             salvar_operacao(nome_bot, lucro)
             
-            # Tratamento do resultado
+            # Lógica Pós-Trade com Martingale Simples
             if lucro > 0:
-                # Vitória
-                log_resultado_operacao(nome_bot, lucro, total_profit, stake_usado, True)
-                # Reset do stake e perdas seguidas usando martingale
-                stake_atual = calcular_martingale(lucro, stake_atual, stake_inicial, stake_maximo, nome_bot)
+                # Vitória - Reset stake para inicial
+                log_resultado_operacao(nome_bot, lucro, total_profit, stake_atual, True)
+                stake_atual = stake_inicial
                 loss_seguidas = 0
+                print(f"✅ {nome_bot}: Vitória! Stake resetado para inicial: ${stake_atual:.2f}")
             else:
-                # Derrota
-                log_resultado_operacao(nome_bot, lucro, total_profit, stake_usado, False)
-                # Aumentar contador de perdas
+                # Derrota - Aplicar martingale simples (fator 1)
+                log_resultado_operacao(nome_bot, lucro, total_profit, stake_atual, False)
                 loss_seguidas += 1
-                # Aplicar martingale
-                stake_atual = calcular_martingale(lucro, stake_atual, stake_inicial, stake_maximo, nome_bot)
-                print(f"🔄 {nome_bot}: Perdas seguidas: {loss_seguidas} | Próximo stake: ${stake_atual:.2f}")
+                perda = abs(lucro)
+                stake_atual = perda  # Martingale simples: stake = valor da perda
+                print(f"❌ {nome_bot}: Derrota! Perdas seguidas: {loss_seguidas} | Próximo stake com martingale simples: ${stake_atual:.2f}")
+            
+            # Pausa entre operações
+            await asyncio.sleep(2)
             
         except Exception as e:
-            error_msg = f"❌ Erro no {nome_bot}: {e}"
-            logger.error(error_msg)
-            print(error_msg)
-        
-        # Pausa entre operações
-        await asyncio.sleep(2)
+            print(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
+            logger.error(f"Erro de conexão no {nome_bot}: {e}")
+            await asyncio.sleep(10)

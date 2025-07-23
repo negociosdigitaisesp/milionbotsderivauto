@@ -184,23 +184,37 @@ async def executar_compra(api, parametros_da_compra: Dict[str, Any], nome_bot: s
 def verificar_stops(total_profit: float, stop_loss: float, stop_win: float, nome_bot: str) -> str:
     """
     Verifica se os stops de loss ou win foram atingidos
+    CONFIGURAÇÃO VPS: Stops infinitos para operação contínua
     
     Args:
         total_profit (float): Lucro total atual
-        stop_loss (float): Valor do stop loss
-        stop_win (float): Valor do stop win
+        stop_loss (float): Valor do stop loss (ignorado se infinito)
+        stop_win (float): Valor do stop win (ignorado se infinito)
         nome_bot (str): Nome do bot para logging
         
     Returns:
-        str: 'stop_win', 'stop_loss' ou 'continue'
+        str: Sempre 'continue' para operação infinita em VPS
     """
-    if total_profit >= stop_win:
+    # Verificar se os stops estão configurados como infinitos
+    if stop_loss == float('inf') and stop_win == float('inf'):
+        # Stops infinitos - apenas log do status atual
+        if total_profit > 0:
+            logger.info(f"📈 {nome_bot}: Profit atual: ${total_profit:.2f} (Stops infinitos - Operação contínua)")
+        elif total_profit < 0:
+            logger.info(f"📉 {nome_bot}: Loss atual: ${total_profit:.2f} (Stops infinitos - Operação contínua)")
+        else:
+            logger.info(f"⚖️ {nome_bot}: Break-even: ${total_profit:.2f} (Stops infinitos - Operação contínua)")
+        
+        return 'continue'
+    
+    # Manter lógica original para compatibilidade (caso stops não sejam infinitos)
+    if stop_win != float('inf') and total_profit >= stop_win:
         msg = f"🎯 {nome_bot}: STOP WIN ATINGIDO! Profit: ${total_profit:.2f} >= ${stop_win}"
         logger.info(msg)
         print(msg)
         salvar_operacao(nome_bot, 0)  # Registro final
         return 'stop_win'
-    elif total_profit <= -stop_loss:
+    elif stop_loss != float('inf') and total_profit <= -stop_loss:
         msg = f"🛑 {nome_bot}: STOP LOSS ATINGIDO! Profit: ${total_profit:.2f} <= ${-stop_loss}"
         logger.info(msg)
         print(msg)
@@ -305,9 +319,9 @@ def criar_parametros_compra(stake: float, contract_type: str, symbol: str, barri
         }
     }
 
-def calcular_martingale(lucro: float, stake_atual: float, stake_inicial: float, stake_maximo: float, nome_bot: str) -> float:
+def calcular_martingale(lucro: float, stake_atual: float, stake_inicial: float, stake_maximo: float, nome_bot: str, nivel_martingale: int = 0, max_martingale_levels: int = 5) -> tuple[float, int]:
     """
-    Calcula o próximo stake baseado na estratégia de martingale
+    Calcula o próximo stake baseado na estratégia de martingale com limite de níveis
     
     Args:
         lucro (float): Lucro/prejuízo da operação anterior
@@ -315,29 +329,41 @@ def calcular_martingale(lucro: float, stake_atual: float, stake_inicial: float, 
         stake_inicial (float): Stake inicial (1.0)
         stake_maximo (float): Stake máximo permitido
         nome_bot (str): Nome do bot para logging
+        nivel_martingale (int): Nível atual do martingale (0 = stake inicial)
+        max_martingale_levels (int): Máximo de níveis de martingale permitidos (padrão: 5)
         
     Returns:
-        float: Próximo valor do stake
+        tuple[float, int]: (Próximo valor do stake, Novo nível do martingale)
     """
     if lucro > 0:
         # Vitória - Reset para stake inicial
         novo_stake = stake_inicial
-        logger.info(f"✅ {nome_bot}: Vitória! Reset stake para ${novo_stake:.2f}")
-        print(f"✅ {nome_bot}: Vitória! Reset stake para ${novo_stake:.2f}")
+        novo_nivel = 0
+        logger.info(f"✅ {nome_bot}: Vitória! Reset stake para ${novo_stake:.2f} (Nível 0)")
+        print(f"✅ {nome_bot}: Vitória! Reset stake para ${novo_stake:.2f} (Nível 0)")
     else:
-        # Derrota - Dobrar o stake (martingale)
-        novo_stake = stake_atual * 2
-        
-        # Verificar se não excede o limite máximo
-        if novo_stake > stake_maximo:
-            novo_stake = stake_maximo
-            logger.warning(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f}")
-            print(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f}")
+        # Derrota - Verificar se pode aplicar martingale
+        if nivel_martingale >= max_martingale_levels:
+            # Atingiu o limite máximo de martingales - Reset para stake inicial
+            novo_stake = stake_inicial
+            novo_nivel = 0
+            logger.warning(f"🔄 {nome_bot}: Limite de {max_martingale_levels} martingales atingido! Reset para ${novo_stake:.2f}")
+            print(f"🔄 {nome_bot}: Limite de {max_martingale_levels} martingales atingido! Reset para ${novo_stake:.2f}")
         else:
-            logger.info(f"🔄 {nome_bot}: Derrota! Martingale aplicado - Novo stake: ${novo_stake:.2f}")
-            print(f"🔄 {nome_bot}: Derrota! Martingale aplicado - Novo stake: ${novo_stake:.2f}")
+            # Aplicar martingale - Dobrar o stake
+            novo_stake = stake_atual * 2
+            novo_nivel = nivel_martingale + 1
+            
+            # Verificar se não excede o limite máximo
+            if novo_stake > stake_maximo:
+                novo_stake = stake_maximo
+                logger.warning(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f} (Nível {novo_nivel})")
+                print(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f} (Nível {novo_nivel})")
+            else:
+                logger.info(f"🔄 {nome_bot}: Derrota! Martingale Nível {novo_nivel} - Novo stake: ${novo_stake:.2f}")
+                print(f"🔄 {nome_bot}: Derrota! Martingale Nível {novo_nivel} - Novo stake: ${novo_stake:.2f}")
     
-    return novo_stake
+    return novo_stake, novo_nivel
 
 def validar_e_ajustar_stake(stake: float, nome_bot: str, limite_plataforma: float = 20.0) -> float:
     """

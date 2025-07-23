@@ -21,41 +21,40 @@ logger = logging.getLogger(__name__)
 
 async def wolf_bot_2_0(api) -> None:
     """
-    Wolf Bot 2.0 - Estratégia Adaptativa com Martingale
-    Opera com martingale baseado no último dígito do R_100 e no resultado da operação anterior
+    Wolf Bot 2.0 Original - Estratégia baseada na lógica original do XML
+    Opera com martingale adaptativo baseado em condições específicas de dígitos
     
     Args:
         api: Instância da API da Deriv
     """
-    nome_bot = "Wolf_Bot_2.0"
-    config = BotSpecificConfig.WOLF_CONFIG
+    # Parâmetros de Gestão (conforme XML original)
+    nome_bot = "Wolf_Bot_2.0_Original"
+    stake_inicial = 0.6
+    martingale_fator = 1.0  # Martingale simples, stake não aumenta
+    stop_loss = float('inf')  # Ilimitado
+    stop_win = float('inf')   # Ilimitado
+    ativo = 'R_100'
     
     logger.info(f"🤖 Iniciando {nome_bot}...")
     print(f"🤖 Iniciando {nome_bot}...")
     
-    # Definir parâmetros fixos
-    stake_inicial = config['stake_inicial']
-    stake_maximo = config['stake_maximo']
-    stop_loss = config['stop_loss']
-    stop_win = config['stop_win']
-    ativo = config['symbol']
-    
-    # Inicializar variáveis de estado
+    # Variáveis de Estado
     stake_atual = stake_inicial
     total_profit = 0
-    ultima_operacao_ganhou = None  # None, True ou False
+    ultimo_resultado = "vitoria"  # Inicializar com "vitoria"
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
-    print(f"   🔄 Stake máximo: ${stake_maximo}")
-    print(f"   🛑 Stop Loss: ${stop_loss}")
-    print(f"   🎯 Stop Win: ${stop_win}")
-    print(f"   🐺 Estratégia: Adaptativa com Martingale")
+    print(f"   🔄 Fator Martingale: {martingale_fator} (simples)")
+    print(f"   🛑 Stop Loss: Infinito")
+    print(f"   🎯 Stop Win: Infinito")
+    print(f"   🐺 Estratégia: Lógica Original XML")
     print(f"   🏪 Ativo: {ativo}")
+    print(f"   📈 Último resultado inicial: {ultimo_resultado}")
     
     while True:
         try:
-            # Verificar Stop Loss/Win no início de cada ciclo
+            # Verificar Stop Loss/Win no início de cada ciclo (sempre infinito)
             resultado_stop = verificar_stops(total_profit, stop_loss, stop_win, nome_bot)
             if resultado_stop != 'continue':
                 break
@@ -68,40 +67,40 @@ async def wolf_bot_2_0(api) -> None:
             
             ultimo_digito = extrair_ultimo_digito(ultimo_tick)
             
-            # Lógica adaptativa baseada no último dígito e resultado anterior
-            if ultima_operacao_ganhou is None:
-                # Primeira operação - usar lógica padrão
-                if ultimo_digito in [0, 1, 2, 3, 4]:
-                    contract_type = "DIGITOVER"
-                    barrier = 5
-                    estrategia = "OVER 5 (dígito baixo)"
-                else:
-                    contract_type = "DIGITUNDER"
-                    barrier = 4
-                    estrategia = "UNDER 4 (dígito alto)"
-            elif ultima_operacao_ganhou:
-                # Última operação ganhou - manter estratégia similar
-                if ultimo_digito in [0, 1, 2, 3, 4]:
-                    contract_type = "DIGITOVER"
-                    barrier = 4
-                    estrategia = "OVER 4 (mantendo sucesso)"
-                else:
-                    contract_type = "DIGITUNDER"
-                    barrier = 5
-                    estrategia = "UNDER 5 (mantendo sucesso)"
-            else:
-                # Última operação perdeu - inverter estratégia
-                if ultimo_digito in [0, 1, 2, 3, 4]:
-                    contract_type = "DIGITUNDER"
-                    barrier = 6
-                    estrategia = "UNDER 6 (invertendo após perda)"
-                else:
-                    contract_type = "DIGITOVER"
-                    barrier = 3
-                    estrategia = "OVER 3 (invertendo após perda)"
+            # Lógica de Entrada (Duas Condições)
+            entrada_valida = False
+            contract_type = None
+            barrier = None
+            estrategia = ""
             
-            print(f"🐺 {nome_bot}: Dígito: {ultimo_digito} | Estratégia: {estrategia}")
-            print(f"💰 {nome_bot}: Profit: ${total_profit:.2f} | Stake atual: ${stake_atual:.2f}")
+            # Condição 1: Se o ultimo_digito for 4
+            if ultimo_digito == 4:
+                entrada_valida = True
+                contract_type = "DIGITUNDER"
+                estrategia = "UNDER (dígito 4)"
+                
+            # Condição 2: Se o ultimo_digito for 6 E se stake_atual > stake_inicial
+            elif ultimo_digito == 6 and stake_atual > stake_inicial:
+                entrada_valida = True
+                contract_type = "DIGITOVER"
+                estrategia = "OVER (dígito 6 + stake > inicial)"
+            
+            # Se não atender às condições, aguardar próximo tick
+            if not entrada_valida:
+                print(f"🐺 {nome_bot}: Dígito: {ultimo_digito} | Stake: ${stake_atual:.2f} | Aguardando condições...")
+                await asyncio.sleep(1)
+                continue
+            
+            # Predição (barrier) adaptativa baseada no último resultado
+            if ultimo_resultado == "vitoria":
+                barrier = 8
+                predicao_info = "Predição 8 (após vitória)"
+            else:  # ultimo_resultado == "derrota"
+                barrier = 2
+                predicao_info = "Predição 2 (após derrota)"
+            
+            print(f"🐺 {nome_bot}: Dígito: {ultimo_digito} | {estrategia} | {predicao_info}")
+            print(f"💰 {nome_bot}: Profit: ${total_profit:.2f} | Stake atual: ${stake_atual:.2f} | Último: {ultimo_resultado}")
             
             # Validar e ajustar stake antes da compra
             stake_atual = validar_e_ajustar_stake(stake_atual, nome_bot)
@@ -134,22 +133,26 @@ async def wolf_bot_2_0(api) -> None:
             # Salvar operação
             salvar_operacao(nome_bot, lucro)
             
-            # Tratamento do resultado com martingale
+            # Lógica Pós-Trade (Martingale Original)
+            stake_anterior = stake_atual
+            
             if lucro > 0:
-                # Vitória
+                # Vitória: Resetar stake e definir último resultado
                 log_resultado_operacao(nome_bot, lucro, total_profit, stake_atual, True)
-                ultima_operacao_ganhou = True
-                stake_atual = calcular_martingale(lucro, stake_atual, stake_inicial, stake_maximo, nome_bot)
+                stake_atual = stake_inicial
+                ultimo_resultado = "vitoria"
+                print(f"✅ {nome_bot}: VITÓRIA! Stake resetado para ${stake_atual:.2f}")
             else:
-                # Derrota
+                # Derrota: Aplicar martingale e definir último resultado
                 log_resultado_operacao(nome_bot, lucro, total_profit, stake_atual, False)
-                ultima_operacao_ganhou = False
-                stake_atual = calcular_martingale(lucro, stake_atual, stake_inicial, stake_maximo, nome_bot)
+                stake_atual = stake_anterior * martingale_fator
+                ultimo_resultado = "derrota"
+                print(f"❌ {nome_bot}: DERROTA! Novo stake: ${stake_atual:.2f} (fator: {martingale_fator})")
+            
+            # Pausa final - aguardar próxima análise
+            await asyncio.sleep(1)
             
         except Exception as e:
-            error_msg = f"❌ Erro no {nome_bot}: {e}"
-            logger.error(error_msg)
-            print(error_msg)
-        
-        # Pausa final - aguardar próxima análise
-        await asyncio.sleep(1)
+            print(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
+            logger.error(f"Erro de conexão no {nome_bot}: {e}")
+            await asyncio.sleep(10)

@@ -1,73 +1,67 @@
 """
-Bot Sniper Martingale - Estratégia baseada em SMA com Martingale
-Opera com base na Média Móvel Simples (SMA) e aplica martingale após perdas
+Sniper Bot Original Martingale - Estratégia baseada em SMA com Martingale Original
+Opera com base na Média Móvel Simples (SMA) de 3 períodos e aplica martingale original
 
-Este bot analisa a tendência usando SMA e executa operações com
-sistema de martingale para recuperação de perdas.
+Este bot analisa a tendência usando SMA de 3 períodos e executa operações CALL/PUT
+com sistema de martingale original para recuperação de perdas.
 """
 
 import asyncio
-from typing import Optional, List
+from typing import Optional
 from ...utils.helpers import (
     salvar_operacao, aguardar_resultado_contrato, executar_compra,
-    verificar_stops, obter_ultimo_tick, extrair_ultimo_digito,
-    log_resultado_operacao, criar_parametros_compra, calcular_martingale,
-    validar_e_ajustar_stake
+    verificar_stops, obter_ultimo_tick, log_resultado_operacao, 
+    criar_parametros_compra, validar_e_ajustar_stake
 )
-from ...config.settings import BotSpecificConfig
 import logging
 
 logger = logging.getLogger(__name__)
 
-async def calcular_sma(api, symbol: str, periodo: int = 10) -> Optional[float]:
+async def calcular_sma_3_periodos(api, symbol: str) -> Optional[float]:
     """
-    Calcula a Média Móvel Simples (SMA) dos últimos ticks
+    Calcula a Média Móvel Simples (SMA) de 3 períodos
     
     Args:
         api: Instância da API da Deriv
         symbol: Símbolo do ativo
-        periodo: Número de períodos para calcular a SMA
         
     Returns:
-        float: Valor da SMA ou None se erro
+        float: Valor da SMA de 3 períodos ou None se erro
     """
     try:
         ticks = []
-        for _ in range(periodo):
+        for _ in range(3):
             tick = await obter_ultimo_tick(api, symbol)
             if tick is not None:
                 ticks.append(tick)
-            await asyncio.sleep(0.5)  # Aguardar entre ticks
+            await asyncio.sleep(0.3)  # Aguardar entre ticks
         
-        if len(ticks) >= periodo:
-            sma = sum(ticks) / len(ticks)
+        if len(ticks) == 3:
+            sma = sum(ticks) / 3
             return sma
         return None
     except Exception as e:
-        logger.error(f"Erro ao calcular SMA: {e}")
+        logger.error(f"Erro ao calcular SMA de 3 períodos: {e}")
         return None
 
 async def bot_sniper_martingale(api) -> None:
     """
-    Bot Sniper Martingale - Estratégia baseada em SMA com Martingale
-    Opera com base na Média Móvel Simples (SMA) e aplica martingale após perdas
+    Sniper Bot Original Martingale - Estratégia baseada em SMA com Martingale Original
+    Opera com base na Média Móvel Simples (SMA) de 3 períodos
     
     Args:
         api: Instância da API da Deriv
     """
-    nome_bot = "Bot_Sniper_Martingale"
-    config = BotSpecificConfig.SNIPER_CONFIG
+    # Parâmetros de Gestão (Lógica Original)
+    nome_bot = "Sniper_Bot_Original_Martingale"
+    stake_inicial = 0.35
+    martingale_fator = 1.05
+    stop_loss = float('inf')  # Ilimitado
+    stop_win = float('inf')   # Ilimitado
+    ativo = '1HZ100V'
     
     logger.info(f"🤖 Iniciando {nome_bot}...")
     print(f"🤖 Iniciando {nome_bot}...")
-    
-    # Definir parâmetros fixos
-    stake_inicial = config['stake_inicial']
-    stake_maximo = config['stake_maximo']
-    stop_loss = config['stop_loss']
-    stop_win = config['stop_win']
-    ativo = config['symbol']
-    periodo_sma = config.get('periodo_sma', 10)
     
     # Inicializar variáveis de estado
     stake_atual = stake_inicial
@@ -75,11 +69,10 @@ async def bot_sniper_martingale(api) -> None:
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
-    print(f"   🔄 Stake máximo: ${stake_maximo}")
-    print(f"   🛑 Stop Loss: ${stop_loss}")
-    print(f"   🎯 Stop Win: ${stop_win}")
-    print(f"   📈 Estratégia: SMA + Martingale")
-    print(f"   📊 Período SMA: {periodo_sma}")
+    print(f"   🔄 Fator Martingale: {martingale_fator}")
+    print(f"   🛑 Stop Loss: Infinito")
+    print(f"   🎯 Stop Win: Infinito")
+    print(f"   📈 Estratégia: SMA 3 períodos + Martingale Original")
     print(f"   🏪 Ativo: {ativo}")
     
     while True:
@@ -89,31 +82,30 @@ async def bot_sniper_martingale(api) -> None:
             if resultado_stop != 'continue':
                 break
             
-            # Obter tick atual e calcular SMA
-            tick_atual = await obter_ultimo_tick(api, ativo)
-            if tick_atual is None:
+            # Obter último preço de tick
+            ultimo_preco = await obter_ultimo_tick(api, ativo)
+            if ultimo_preco is None:
                 await asyncio.sleep(1)
                 continue
             
-            sma_atual = await calcular_sma(api, ativo, periodo_sma)
-            if sma_atual is None:
+            # Calcular SMA de 3 períodos
+            sma = await calcular_sma_3_periodos(api, ativo)
+            if sma is None:
                 await asyncio.sleep(1)
                 continue
             
-            # Lógica de decisão baseada na SMA
-            if tick_atual > sma_atual:
-                # Preço acima da SMA - tendência de alta
-                contract_type = "DIGITOVER"
-                barrier = 5
-                direcao = "ALTA"
+            # Lógica de Entrada baseada em SMA
+            if ultimo_preco > sma:
+                # Condição de Compra CALL: último preço MAIOR que SMA
+                contract_type = "CALL"
+                direcao = "CALL"
             else:
-                # Preço abaixo da SMA - tendência de baixa
-                contract_type = "DIGITUNDER"
-                barrier = 4
-                direcao = "BAIXA"
+                # Condição de Compra PUT: último preço MENOR que SMA
+                contract_type = "PUT"
+                direcao = "PUT"
             
-            print(f"📊 {nome_bot}: Tick: {tick_atual:.5f} | SMA: {sma_atual:.5f} | Tendência: {direcao}")
-            print(f"💰 {nome_bot}: Profit: ${total_profit:.2f} | Stake: ${stake_atual:.2f}")
+            print(f"📊 {nome_bot}: Último Preço: {ultimo_preco:.5f} | SMA(3): {sma:.5f} | Sinal: {direcao}")
+            print(f"💰 {nome_bot}: Profit Total: ${total_profit:.2f} | Stake Atual: ${stake_atual:.2f}")
             
             # Validar e ajustar stake antes da compra
             stake_atual = validar_e_ajustar_stake(stake_atual, nome_bot)
@@ -122,11 +114,10 @@ async def bot_sniper_martingale(api) -> None:
             parametros_da_compra = criar_parametros_compra(
                 stake=stake_atual,
                 contract_type=contract_type,
-                symbol=ativo,
-                barrier=barrier
+                symbol=ativo
             )
             
-            print(f"📈 {nome_bot}: Comprando {contract_type} {barrier} | Stake: ${stake_atual:.2f}")
+            print(f"📈 {nome_bot}: Comprando {contract_type} | Stake: ${stake_atual:.2f}")
             
             # Executar compra
             contract_id = await executar_compra(api, parametros_da_compra, nome_bot)
@@ -147,21 +138,22 @@ async def bot_sniper_martingale(api) -> None:
             # Salvar operação
             salvar_operacao(nome_bot, lucro)
             
-            # Tratamento do resultado
+            # Lógica Pós-Trade (Implementar Martingale Original)
             if lucro > 0:
-                # Vitória - Reset stake usando martingale
+                # Vitória: Redefina stake_atual para o stake_inicial
                 log_resultado_operacao(nome_bot, lucro, total_profit, stake_usado, True)
-                stake_atual = calcular_martingale(lucro, stake_atual, stake_inicial, stake_maximo, nome_bot)
+                stake_atual = stake_inicial
+                print(f"✅ {nome_bot}: VITÓRIA! Stake resetado para inicial: ${stake_atual:.2f}")
             else:
-                # Derrota - Aplicar martingale
+                # Derrota: Calcule o novo stake multiplicando pelo martingale_fator
                 log_resultado_operacao(nome_bot, lucro, total_profit, stake_usado, False)
-                stake_atual = calcular_martingale(lucro, stake_atual, stake_inicial, stake_maximo, nome_bot)
-                print(f"🔄 {nome_bot}: Martingale aplicado - Novo stake: ${stake_atual:.2f}")
+                stake_atual = stake_atual * martingale_fator
+                print(f"❌ {nome_bot}: DERROTA! Martingale aplicado - Novo stake: ${stake_atual:.2f} (Fator: {martingale_fator})")
+            
+            # Pausa entre operações
+            await asyncio.sleep(1)
             
         except Exception as e:
-            error_msg = f"❌ Erro no {nome_bot}: {e}"
-            logger.error(error_msg)
-            print(error_msg)
-        
-        # Pausa final - aguardar próxima análise
-        await asyncio.sleep(2)
+            print(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
+            logger.error(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
+            await asyncio.sleep(10)

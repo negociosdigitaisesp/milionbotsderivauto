@@ -73,23 +73,30 @@ class BotConfig:
 
 # ==================== CONFIGURAÇÕES ESPECÍFICAS POR BOT ====================
 class BotSpecificConfig:
-    """Configurações específicas para cada bot"""
+    """Configurações específicas para cada bot - Otimizado para VPS com operação infinita"""
+    
+    # Configurações para operação infinita em VPS
+    INFINITE_STOP = 999999999.0  # Stop loss/win ilimitado
+    MAX_MARTINGALE_LEVELS = 5    # Máximo 5 martingales
+    STAKE_INICIAL_VPS = 1.0      # Stake inicial fixo $1.00
     
     BK_BOT_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador (0.35 * 2^5 = 11.2, mas usando 17.92 como segurança)
-        'stop_loss': 50.0,
-        'stop_win': 20.0,
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'symbol': '1HZ10V',
         'contract_type': 'DIGITUNDER',
         'martingale_enabled': True
     }
     
     FACTOR50X_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador
-        'stop_loss': 8.5,
-        'stop_win': 4.0,
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'symbol': 'R_100',
         'contract_type': 'DIGITOVER',
         'trigger_digit': 1,
@@ -98,10 +105,11 @@ class BotSpecificConfig:
     }
     
     AI_BOT_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador
-        'stop_loss': 100.0,
-        'stop_win': 50.0,
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'symbol': 'R_100',
         'contract_type': 'DIGITOVER',
         'barrier': 0,
@@ -109,40 +117,44 @@ class BotSpecificConfig:
     }
     
     APALANCAMIENTO_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador
-        'stop_loss': 10.0,
-        'stop_win': 10.0,
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'limite_trades_para_troca': 100,
         'symbol': 'R_100',
         'martingale_enabled': True
     }
     
     SNIPER_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
         'martingale_fator': 2.0,  # Fator de multiplicação do martingale
-        'stop_loss': 100000000.0,
-        'stop_win': 100000000.0,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'symbol': '1HZ100V',
         'martingale_enabled': True
     }
     
     QUANTUM_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador
-        'stop_loss': 50.0,
-        'stop_win': 25.0,
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'symbol': 'R_100',
         'contract_type': 'DIGITDIFF',
         'martingale_enabled': True
     }
     
     WOLF_CONFIG = {
-        'stake_inicial': 0.35,
-        'stake_maximo': 17.92,  # Limite mais conservador
-        'stop_loss': 50.0,
-        'stop_win': 25.0,
+        'stake_inicial': STAKE_INICIAL_VPS,
+        'stake_maximo': STAKE_INICIAL_VPS * (2 ** MAX_MARTINGALE_LEVELS),  # $1 * 2^5 = $32
+        'max_martingale_levels': MAX_MARTINGALE_LEVELS,
+        'stop_loss': INFINITE_STOP,
+        'stop_win': INFINITE_STOP,
         'symbol': 'R_100',
         'martingale_enabled': True
     }
