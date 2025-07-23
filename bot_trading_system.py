@@ -13,6 +13,9 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 import random
 
+# Importar bot_scale do módulo trading_system
+from trading_system.bots.scale_bot import bot_scale
+
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
@@ -1286,11 +1289,11 @@ async def main():
                 asyncio.create_task(wolf_bot_2_0(api)),
                 asyncio.create_task(bot_sniper_martingale(api)),
                 asyncio.create_task(bot_quantum_fixed_stake(api)),
-                # TODO: Adicionar os outros 4 bots aqui quando forem criados
+                asyncio.create_task(bot_scale(api)),
+                # TODO: Adicionar os outros 3 bots aqui quando forem criados
                 # asyncio.create_task(bot_8_macd_divergence(api)),
                 # asyncio.create_task(bot_9_support_resistance(api)),
                 # asyncio.create_task(bot_10_volume_analysis(api)),
-                # asyncio.create_task(bot_11_pattern_recognition(api)),
             ]
             
             print(f"📈 {len(tasks)} bots configurados para execução paralela")

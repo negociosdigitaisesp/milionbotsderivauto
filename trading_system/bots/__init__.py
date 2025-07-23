@@ -11,6 +11,7 @@ from .aplan_bot import bot_apalancamiento
 from .sniper_bot import bot_sniper_martingale
 from .quantum_bot import bot_quantum_fixed_stake
 from .wolf_bot import wolf_bot_2_0
+from .scale_bot import bot_scale
 
 __all__ = [
     'bot_bk_1_0',
@@ -19,5 +20,6 @@ __all__ = [
     'bot_apalancamiento',
     'bot_sniper_martingale',
     'bot_quantum_fixed_stake',
-    'wolf_bot_2_0'
+    'wolf_bot_2_0',
+    'bot_scale'
 ]
