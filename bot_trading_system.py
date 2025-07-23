@@ -740,7 +740,7 @@ async def wolf_bot_2_0(api):
     """
     # Definir parâmetros fixos
     nome_bot = "Wolf_Bot_2.0"
-    stake_fixo = 1.0  # Aumentado de 0.6 para 1.0 para compatibilidade
+    stake_fixo = 1.0  # Corrigido para valor mínimo válido
     
     # Inicializar variável de estado
     ultimo_resultado = "vitoria"  # Primeira operação será conservadora
@@ -1254,50 +1254,64 @@ async def bot_quantum_fixed_stake(api):
 async def main():
     """
     Função principal que coordena a execução de todos os bots em paralelo
+    com sistema de reconexão automática em caso de falhas de conexão
     """
     print("🚀 Iniciando Sistema de Trading Automatizado...")
-    print("📊 Conectando à API da Deriv...")
     
-    try:
-        # Conectar à API da Deriv
-        api = DerivAPI(app_id=DERIV_APP_ID)
-        await api.authorize(DERIV_API_TOKEN)
-        print("✅ Conexão com Deriv API estabelecida com sucesso!")
-        
-        # Verificar conexão com Supabase
+    # Loop de reconexão - mantém o sistema funcionando mesmo com falhas de conexão
+    while True:
         try:
-            supabase.table('operacoes').select("*").limit(1).execute()
-            print("✅ Conexão com Supabase verificada!")
+            print("📊 Conectando à API da Deriv...")
+            
+            # Conectar à API da Deriv
+            api = DerivAPI(app_id=DERIV_APP_ID)
+            await api.authorize(DERIV_API_TOKEN)
+            print("✅ Conexão com Deriv API estabelecida com sucesso!")
+            
+            # Verificar conexão com Supabase
+            try:
+                supabase.table('operacoes').select("*").limit(1).execute()
+                print("✅ Conexão com Supabase verificada!")
+            except Exception as e:
+                print(f"⚠️  Aviso: Problema na conexão com Supabase: {e}")
+            
+            print("\n🤖 Iniciando execução dos bots em paralelo...")
+            
+            # Criar lista de tarefas para executar os bots em paralelo
+            tasks = [
+                asyncio.create_task(bot_bk_1_0(api)),
+                asyncio.create_task(bot_factor_50x(api)),
+                asyncio.create_task(bot_ai_2_0(api)),
+                asyncio.create_task(bot_apalancamiento(api)),
+                asyncio.create_task(wolf_bot_2_0(api)),
+                asyncio.create_task(bot_sniper_martingale(api)),
+                asyncio.create_task(bot_quantum_fixed_stake(api)),
+                # TODO: Adicionar os outros 4 bots aqui quando forem criados
+                # asyncio.create_task(bot_8_macd_divergence(api)),
+                # asyncio.create_task(bot_9_support_resistance(api)),
+                # asyncio.create_task(bot_10_volume_analysis(api)),
+                # asyncio.create_task(bot_11_pattern_recognition(api)),
+            ]
+            
+            print(f"📈 {len(tasks)} bots configurados para execução paralela")
+            
+            # Executar todas as tarefas em paralelo
+            await asyncio.gather(*tasks)
+            
         except Exception as e:
-            print(f"⚠️  Aviso: Problema na conexão com Supabase: {e}")
+            # Capturar qualquer erro de conexão ou execução
+            print(f"❌ Conexão com a Deriv perdida: {e}. Tentando reconectar em 15 segundos...")
+            
+            # Pausa de 15 segundos antes de tentar reconectar
+            await asyncio.sleep(15)
+            
+            # O loop while True fará com que o sistema tente reconectar automaticamente
+            continue
         
-        print("\n🤖 Iniciando execução dos bots em paralelo...")
-        
-        # Criar lista de tarefas para executar os bots em paralelo
-        tasks = [
-            asyncio.create_task(bot_bk_1_0(api)),
-            asyncio.create_task(bot_factor_50x(api)),
-            asyncio.create_task(bot_ai_2_0(api)),
-            asyncio.create_task(bot_apalancamiento(api)),
-            asyncio.create_task(wolf_bot_2_0(api)),
-            asyncio.create_task(bot_sniper_martingale(api)),
-            asyncio.create_task(bot_quantum_fixed_stake(api)),
-            # TODO: Adicionar os outros 4 bots aqui quando forem criados
-            # asyncio.create_task(bot_8_macd_divergence(api)),
-            # asyncio.create_task(bot_9_support_resistance(api)),
-            # asyncio.create_task(bot_10_volume_analysis(api)),
-            # asyncio.create_task(bot_11_pattern_recognition(api)),
-        ]
-        
-        print(f"📈 {len(tasks)} bots configurados para execução paralela")
-        
-        # Executar todas as tarefas em paralelo
-        await asyncio.gather(*tasks)
-        
-    except Exception as e:
-        print(f"❌ Erro na função principal: {e}")
-    finally:
-        print("🔚 Encerrando conexões...")
+        finally:
+            # Este bloco finally será executado apenas se o loop while True for quebrado
+            # (o que normalmente acontece apenas com interrupção manual)
+            print("🔚 Encerrando conexões...")
 
 # 6. PONTO DE ENTRADA DO SCRIPT
 if __name__ == "__main__":

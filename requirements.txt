@@ -1,4 +1,5 @@
-# Dependências para o Sistema de Trading Automatizado
+# Sistema de Trading Automatizado v2.0 - Dependências
+# ====================================================
 # Instale com: pip install -r requirements.txt
 
 # Build tools e setuptools para compatibilidade com Python 3.12
@@ -13,9 +14,39 @@ supabase==2.17.0
 # Carregamento de variáveis de ambiente
 python-dotenv==1.1.1
 
-# Bibliotecas para análise técnica (opcional, para indicadores)
+# Interface web interativa
+streamlit==1.29.0
+
+# Bibliotecas para análise técnica e cálculos
 numpy==1.24.3
 pandas==2.0.3
+ta==0.10.2
 
-# Bibliotecas para logging e monitoramento (opcional)
+# Agendamento de tarefas
+schedule==1.2.0
+
+# Bibliotecas para logging e monitoramento
 colorama==0.4.6
+colorlog==6.8.2
+
+# Processamento assíncrono e WebSocket
+asyncio-mqtt==0.16.1
+websockets==12.0
+
+# Utilitários para data/hora
+python-dateutil==2.8.2
+
+# Requisições HTTP (backup)
+requests==2.31.0
+
+# Utilitários de sistema para monitoramento
+psutil==5.9.8
+
+# Timezone handling
+pytz==2024.1
+
+# Dependências opcionais para análise avançada
+# (descomente se necessário)
+# matplotlib==3.7.2
+# plotly==5.15.0
+# ta-lib==0.4.28

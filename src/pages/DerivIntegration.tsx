@@ -1,1 +1,0 @@
-// Este arquivo foi removido - página de Integração Deriv descontinuada

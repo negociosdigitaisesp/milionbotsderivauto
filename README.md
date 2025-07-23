@@ -1,101 +1,99 @@
-# Bot Strategy Hub
+# Sistema de Trading Automatizado
 
-A web application for managing and optimizing bot strategies across different platforms.
+Sistema de trading automatizado para a plataforma Deriv com múltiplos bots operando em paralelo.
 
-## Features
+## 📋 Arquivos Essenciais
 
-- User authentication with Supabase
-- Create and manage bot strategies 
-- Analytics dashboard for bot performance
-- Library of bot templates and strategies
-- Customizable bot configurations
+### Arquivo Principal
+- `bot_trading_system.py` - Sistema principal de trading com 7 bots
 
-## Setup Instructions
+### Configuração
+- `.env` - Variáveis de ambiente (criar baseado no .env.example)
+- `.env.example` - Exemplo de configuração
+- `requirements.txt` - Dependências Python
 
-### Prerequisites
+### Sistema Modular
+- `trading_system/` - Estrutura modular dos bots
+  - `config/settings.py` - Configurações centralizadas
+  - `utils/helpers.py` - Funções auxiliares
+  - `bots/` - Bots individuais organizados por pasta
 
-- Node.js 16+ and npm
-- A Supabase account (free tier is sufficient)
+### Scripts de Teste
+- `test_environment.py` - Teste completo do ambiente
+- `test_stake_validation.py` - Validação de stake
 
-### Installation
+### Instalação
+- `install_vps.sh` - Script de instalação automática para VPS
+- `VPS_QUICK_INSTALL.md` - Guia de instalação
 
-1. Clone the repository:
+## 🚀 Instalação Rápida
+
+### 1. Instalar Dependências
 ```bash
-git clone https://github.com/your-username/bot-strategy-hub.git
-cd bot-strategy-hub
+pip install -r requirements.txt
 ```
 
-2. Install dependencies:
+### 2. Configurar Variáveis de Ambiente
 ```bash
-npm install
+cp .env.example .env
+# Editar .env com suas credenciais
 ```
 
-3. Create a `.env.local` file in the project root with your Supabase and Deriv credentials:
-```
-VITE_SUPABASE_URL=https://your-project-url.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_SUPABASE_DEBUG=true  # Set to false in production
-VITE_DERIV_APP_ID=your-deriv-app-id  # Get this from Deriv API dashboard
-```
-
-4. Set up your Supabase project:
-   - Create a new project at [https://app.supabase.co](https://app.supabase.co)
-   - Run the SQL from `full-database-setup.sql` in the SQL Editor
-   - Follow the configuration steps in `src/docs/supabase-setup.md`
-
-### Running the Application
-
-Development mode:
+### 3. Testar Ambiente
 ```bash
-npm run dev
+python test_environment.py
 ```
 
-Production build:
+### 4. Executar Sistema
 ```bash
-npm run build
-npm run serve
+python bot_trading_system.py
 ```
 
-## Authentication System
+## 🤖 Bots Incluídos
 
-The authentication system uses Supabase Auth with email confirmation. Key components:
+1. **BK_BOT_1.0** - Análise de dígitos com martingale adaptativo
+2. **Factor50X** - Estratégia conservadora com stake fixo
+3. **BotAI_2.0** - Compra contínua com martingale
+4. **Bot_Apalancamiento** - Alternância entre DIGITUNDER/DIGITOVER
+5. **Wolf_Bot_2.0** - Estratégia de mão fixa
+6. **Sniper_Bot_Martingale** - Indicadores SMA com martingale
+7. **QuantumBot_FixedStake** - Estratégia quantum com stake fixo
 
-- `src/contexts/AuthContext.tsx` - Manages authentication state
-- `src/lib/supabaseClient.ts` - Configures the Supabase client
-- `src/pages/AuthCallback.tsx` - Handles login redirects and email confirmation
+## 📊 Configurações Necessárias
 
-## Troubleshooting
+### Deriv API
+- `DERIV_APP_ID` - ID da aplicação Deriv
+- `DERIV_API_TOKEN` - Token de acesso da API
 
-### Common Issues
+### Supabase
+- `SUPABASE_URL` - URL do projeto Supabase
+- `SUPABASE_KEY` - Chave de acesso do Supabase
 
-**"Auth session or user missing" Error**
-- Check that your Supabase URL and anon key are correct in `.env.local`
-- Ensure email confirmation is properly configured in Supabase dashboard
-- Clear browser cache and local storage
-- Enable debug mode with `VITE_SUPABASE_DEBUG=true`
+## 🔧 Características
 
-**Email Confirmation Not Working**
-- Verify the redirect URLs in Supabase are correctly set up
-- Check your email templates in the Supabase dashboard
-- Make sure your site URL is correctly configured
+- ✅ Execução paralela de múltiplos bots
+- ✅ Sistema de reconexão automática
+- ✅ Logging centralizado
+- ✅ Tratamento robusto de erros
+- ✅ Stake fixo de $1.00 para todos os bots
+- ✅ Salvamento automático no Supabase
 
-## Development Notes
+## 📈 Monitoramento
 
-- The application uses React with TypeScript
-- Styling is done with Tailwind CSS
-- Authentication is handled by Supabase
-- State management uses React Context API
+O sistema salva automaticamente todas as operações na tabela `operacoes` do Supabase com:
+- Nome do bot
+- Lucro/prejuízo
+- Timestamp da operação
 
-## License
+## ⚠️ Importante
 
-MIT
+- Todos os bots operam com stake fixo de $1.00
+- Sistema otimizado para operação contínua
+- Requer conexão estável com internet
+- Configuração correta das APIs é essencial
 
-## Deployment to Netlify
+## 📞 Suporte
 
-When deploying to Netlify, make sure to configure the following environment variables in Netlify's dashboard:
-
-1. `VITE_SUPABASE_URL` - Your Supabase project URL (e.g., https://your-project-id.supabase.co)
-2. `VITE_SUPABASE_ANON_KEY` - Your Supabase anon/public key
-3. `VITE_DERIV_APP_ID` - Your Deriv API App ID (get this from Deriv API dashboard)
-
-Additionally, ensure you have Netlify redirects correctly set up in the netlify.toml file for proper SPA routing and authentication callbacks.
+Para dúvidas ou problemas, consulte:
+- `VPS_QUICK_INSTALL.md` - Guia detalhado de instalação
+- `SISTEMA_COMPLETO_RESUMO.md` - Resumo completo do sistema
