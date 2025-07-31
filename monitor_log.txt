@@ -1,0 +1,74 @@
+2025-07-28 21:20:10,030 - INFO - 🎯 MONITOR DE SISTEMA INICIADO
+2025-07-28 21:20:10,030 - INFO - 📋 Configurações:
+2025-07-28 21:20:10,030 - INFO -    - Threshold de erros: 5 em 60s
+2025-07-28 21:20:10,030 - INFO -    - Cooldown de restart: 30s
+2025-07-28 21:20:10,030 - INFO -    - Máximo de restarts: 10
+2025-07-28 21:20:10,030 - INFO -    - Script monitorado: bot_trading_system_final.py
+2025-07-28 21:20:10,038 - INFO - ============================================================
+2025-07-28 21:20:10,499 - INFO - 🔪 Matando processo: PID 3892
+2025-07-28 21:20:10,650 - INFO - 🔪 Matando processo: PID 9352
+2025-07-28 21:20:12,742 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:20:12,753 - INFO - ✅ Sistema iniciado - PID: 8700 (Restart #1)
+2025-07-28 21:20:18,760 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:20:18,979 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:20:21,413 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:20:21,413 - INFO - ✅ Sistema iniciado - PID: 7252 (Restart #2)
+2025-07-28 21:20:22,703 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:20:22,932 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:20:25,374 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:20:25,378 - INFO - ✅ Sistema iniciado - PID: 2568 (Restart #3)
+2025-07-28 21:20:26,611 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:20:26,836 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:20:29,256 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:20:29,258 - INFO - ✅ Sistema iniciado - PID: 13768 (Restart #4)
+2025-07-28 21:20:30,504 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:20:30,717 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:20:33,502 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:20:33,518 - INFO - ✅ Sistema iniciado - PID: 13976 (Restart #5)
+2025-07-28 21:23:32,301 - INFO - 🎯 MONITOR DE SISTEMA INICIADO
+2025-07-28 21:23:32,301 - INFO - 📋 Configurações:
+2025-07-28 21:23:32,301 - INFO -    - Threshold de erros: 8 em 120s
+2025-07-28 21:23:32,301 - INFO -    - Cooldown de restart: 45s
+2025-07-28 21:23:32,301 - INFO -    - Máximo de restarts: 15
+2025-07-28 21:23:32,301 - INFO -    - Script monitorado: bot_trading_system_final.py
+2025-07-28 21:23:32,301 - INFO - ============================================================
+2025-07-28 21:23:34,838 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:23:34,847 - INFO - ✅ Sistema iniciado - PID: 3044 (Restart #1)
+2025-07-28 21:23:36,097 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:23:36,317 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:23:38,718 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:23:38,718 - INFO - ✅ Sistema iniciado - PID: 4516 (Restart #2)
+2025-07-28 21:23:40,192 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:23:40,407 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:23:42,870 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:23:42,874 - INFO - ✅ Sistema iniciado - PID: 2564 (Restart #3)
+2025-07-28 21:23:44,108 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:23:44,326 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:23:46,764 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:23:46,764 - INFO - ✅ Sistema iniciado - PID: 1352 (Restart #4)
+2025-07-28 21:23:47,897 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:23:48,013 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:23:50,370 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:23:50,371 - INFO - ✅ Sistema iniciado - PID: 2928 (Restart #5)
+2025-07-28 21:23:51,554 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:23:51,670 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:23:54,086 - INFO - 🚀 Iniciando sistema: bot_trading_system_final.py
+2025-07-28 21:23:54,092 - INFO - ✅ Sistema iniciado - PID: 13828 (Restart #6)
+2025-07-28 21:23:55,325 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:23:55,647 - INFO - 💀 Processo morreu - reiniciando...
+2025-07-28 21:25:13,545 - INFO - 🎯 MONITOR DE SISTEMA INICIADO
+2025-07-28 21:25:13,545 - INFO - 📋 Configurações:
+2025-07-28 21:25:13,545 - INFO -    - Threshold de erros: 8 em 120s
+2025-07-28 21:25:13,545 - INFO -    - Cooldown de restart: 45s
+2025-07-28 21:25:13,545 - INFO -    - Máximo de restarts: 15
+2025-07-28 21:25:13,545 - INFO -    - Script monitorado: bot_trading_system_stable.py
+2025-07-28 21:25:13,545 - INFO - ============================================================
+2025-07-28 21:25:13,987 - INFO - 🔪 Matando processo: PID 5456
+2025-07-28 21:25:16,162 - INFO - 🚀 Iniciando sistema: bot_trading_system_stable.py
+2025-07-28 21:25:16,171 - INFO - ✅ Sistema iniciado - PID: 1640 (Restart #1)
+2025-07-28 21:25:16,494 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:25:19,964 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:25:23,518 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:25:26,962 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:25:30,623 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):
+2025-07-28 21:25:34,243 - INFO - ⚠️ ERRO DETECTADO: Traceback (most recent call last):

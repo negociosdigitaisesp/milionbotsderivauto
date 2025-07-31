@@ -43,6 +43,8 @@ async def bot_bk_1_0(api) -> None:
     total_profit = 0
     loss_seguidas = 0
     pausado_por_risco = False
+    retry_count = 0
+    max_retries = 5
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
@@ -59,8 +61,8 @@ async def bot_bk_1_0(api) -> None:
             if resultado_stop != 'continue':
                 break
             
-            # Obter último tick do ativo
-            ultimo_preco = await obter_ultimo_tick(api, ativo, nome_bot)
+            # Obter último tick do ativo usando safe_api_call
+            ultimo_preco = await safe_api_call(obter_ultimo_tick, api, ativo, nome_bot)
             if ultimo_preco is None:
                 await asyncio.sleep(2)
                 continue
@@ -115,14 +117,14 @@ async def bot_bk_1_0(api) -> None:
             
             print(f"📈 {nome_bot}: Comprando DIGITUNDER {prediction} | Stake: ${stake_atual:.2f}")
             
-            # Executar compra
-            contract_id = await executar_compra(api, parametros_da_compra, nome_bot)
+            # Executar compra usando safe_api_call
+            contract_id = await safe_api_call(executar_compra, api, parametros_da_compra, nome_bot)
             if contract_id is None:
                 await asyncio.sleep(2)
                 continue
             
-            # Aguardar resultado
-            lucro = await aguardar_resultado_contrato(api, contract_id, nome_bot)
+            # Aguardar resultado usando safe_api_call
+            lucro = await safe_api_call(aguardar_resultado_contrato, api, contract_id, nome_bot)
             if lucro is None:
                 await asyncio.sleep(2)
                 continue
@@ -148,10 +150,19 @@ async def bot_bk_1_0(api) -> None:
                 stake_atual = perda  # Martingale simples: stake = valor da perda
                 print(f"❌ {nome_bot}: Derrota! Perdas seguidas: {loss_seguidas} | Próximo stake com martingale simples: ${stake_atual:.2f}")
             
+            # Reset contador de tentativas após operação bem-sucedida
+            retry_count = 0
+            
             # Pausa entre operações
             await asyncio.sleep(2)
             
         except Exception as e:
-            print(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
-            logger.error(f"Erro de conexão no {nome_bot}: {e}")
-            await asyncio.sleep(10)
+            if is_websocket_error(e):
+                retry_count = await handle_websocket_error(e, nome_bot, retry_count, max_retries)
+                if retry_count >= max_retries:
+                    logger.error(f"❌ {nome_bot}: Máximo de tentativas de reconexão atingido. Encerrando...")
+                    break
+            else:
+                print(f"❌ Erro no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
+                logger.error(f"Erro no {nome_bot}: {e}")
+                await asyncio.sleep(10)
