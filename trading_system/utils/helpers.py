@@ -21,6 +21,103 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def is_websocket_error(error):
+    """
+    Verifica se o erro é relacionado a problemas de conexão WebSocket
+    
+    Args:
+        error: Exception ou string do erro
+    
+    Returns:
+        bool: True se for erro de WebSocket, False caso contrário
+    """
+    error_str = str(error).lower()
+    websocket_keywords = [
+        'no close frame received',
+        'no close frame sent',
+        'connection closed',
+        'websocket',
+        'connection lost',
+        'connection reset',
+        'connection aborted',
+        'network is unreachable',
+        'connection timed out',
+        'connection refused',
+        'connection error',
+        'socket error',
+        'timeout',
+        'disconnected'
+    ]
+    
+    return any(keyword in error_str for keyword in websocket_keywords)
+
+async def handle_websocket_error(bot_name, error, api=None, retry_count=0, max_retries=3):
+    """
+    Trata erros de WebSocket de forma robusta com reconexão automática
+    
+    Args:
+        bot_name (str): Nome do bot para logging
+        error: Exceção capturada
+        api: Instância da API Deriv (opcional)
+        retry_count (int): Número atual de tentativas
+        max_retries (int): Máximo de tentativas antes de desistir
+    
+    Returns:
+        bool: True se deve continuar tentando, False se deve parar
+    """
+    if is_websocket_error(error):
+        print(f"🔌 {bot_name}: Erro de conexão WebSocket detectado: {error}")
+        
+        # Tentar fechar conexão existente se houver
+        if api:
+            try:
+                await api.disconnect()
+                print(f"🔌 {bot_name}: Conexão anterior fechada")
+            except Exception:
+                pass  # Ignorar erros ao fechar
+        
+        # Verificar se deve continuar tentando
+        if retry_count >= max_retries:
+            print(f"❌ {bot_name}: Máximo de tentativas de reconexão atingido ({max_retries})")
+            print(f"⏳ {bot_name}: Aguardando 60 segundos antes de resetar contador...")
+            await asyncio.sleep(60)
+            return True  # Resetar contador e continuar
+        
+        # Tempo de espera progressivo
+        wait_time = min(10 + (retry_count * 5), 30)  # 10s, 15s, 20s, 25s, 30s
+        print(f"🔄 {bot_name}: Tentativa {retry_count + 1}/{max_retries} - Aguardando {wait_time}s...")
+        await asyncio.sleep(wait_time)
+        return True
+    
+    else:
+        # Erro não relacionado a WebSocket
+        print(f"❌ {bot_name}: Erro não relacionado à conexão: {error}")
+        await asyncio.sleep(5)  # Pausa menor para outros tipos de erro
+        return True
+
+async def safe_api_call(api_func, bot_name, operation_name, *args, **kwargs):
+    """
+    Executa uma chamada à API de forma segura com tratamento de erros WebSocket
+    
+    Args:
+        api_func: Função da API a ser chamada
+        bot_name (str): Nome do bot para logging
+        operation_name (str): Nome da operação para logging
+        *args, **kwargs: Argumentos para a função da API
+    
+    Returns:
+        tuple: (success: bool, result: any)
+    """
+    try:
+        result = await api_func(*args, **kwargs)
+        return True, result
+    except Exception as e:
+        if is_websocket_error(e):
+            print(f"🔌 {bot_name}: Erro WebSocket em {operation_name}: {e}")
+        else:
+            print(f"❌ {bot_name}: Erro em {operation_name}: {e}")
+        return False, None
+
 def salvar_operacao(nome_bot: str, lucro: float) -> bool:
     """
     Salva o resultado de uma operação no banco de dados Supabase

@@ -14,7 +14,10 @@ from trading_system.utils.helpers import (
     extrair_ultimo_digito, 
     log_resultado_operacao, 
     criar_parametros_compra, 
-    verificar_stops
+    verificar_stops,
+    handle_websocket_error,
+    safe_api_call,
+    is_websocket_error
 )
 
 # Configurar logging

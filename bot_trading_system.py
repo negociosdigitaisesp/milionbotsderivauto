@@ -1257,19 +1257,29 @@ async def bot_quantum_fixed_stake(api):
 async def main():
     """
     Função principal que coordena a execução de todos os bots em paralelo
-    com sistema de reconexão automática em caso de falhas de conexão
+    com sistema de reconexão automática robusto para lidar com erros WebSocket
     """
     print("🚀 Iniciando Sistema de Trading Automatizado...")
     
+    # Contador de tentativas de reconexão
+    tentativas_reconexao = 0
+    max_tentativas_reconexao = 5
+    
     # Loop de reconexão - mantém o sistema funcionando mesmo com falhas de conexão
     while True:
+        api = None
+        tasks = []
+        
         try:
-            print("📊 Conectando à API da Deriv...")
+            print(f"📊 Conectando à API da Deriv... (Tentativa {tentativas_reconexao + 1})")
             
             # Conectar à API da Deriv
             api = DerivAPI(app_id=DERIV_APP_ID)
             await api.authorize(DERIV_API_TOKEN)
             print("✅ Conexão com Deriv API estabelecida com sucesso!")
+            
+            # Reset contador de tentativas após conexão bem-sucedida
+            tentativas_reconexao = 0
             
             # Verificar conexão com Supabase
             try:
@@ -1298,22 +1308,92 @@ async def main():
             
             print(f"📈 {len(tasks)} bots configurados para execução paralela")
             
-            # Executar todas as tarefas em paralelo
-            await asyncio.gather(*tasks)
+            # Executar todas as tarefas em paralelo com timeout
+            try:
+                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=None)
+            except asyncio.TimeoutError:
+                print("⏰ Timeout na execução dos bots")
+            except Exception as e:
+                print(f"❌ Erro durante execução dos bots: {e}")
+                raise
+            
+        except KeyboardInterrupt:
+            print("\n⏹️  Interrupção manual detectada...")
+            break
             
         except Exception as e:
-            # Capturar qualquer erro de conexão ou execução
-            print(f"❌ Conexão com a Deriv perdida: {e}. Tentando reconectar em 15 segundos...")
+            # Incrementar contador de tentativas
+            tentativas_reconexao += 1
             
-            # Pausa de 15 segundos antes de tentar reconectar
-            await asyncio.sleep(15)
+            # Verificar se é erro de WebSocket
+            error_str = str(e).lower()
+            is_websocket_error = any(keyword in error_str for keyword in [
+                'no close frame received',
+                'connection closed',
+                'websocket',
+                'connection lost',
+                'connection reset',
+                'connection aborted',
+                'network is unreachable',
+                'connection timed out'
+            ])
+            
+            if is_websocket_error:
+                print(f"🔌 Erro de conexão WebSocket detectado: {e}")
+                print(f"🔄 Tentativa de reconexão {tentativas_reconexao}/{max_tentativas_reconexao}")
+            else:
+                print(f"❌ Erro não relacionado à conexão: {e}")
+            
+            # Cancelar todas as tarefas pendentes
+            if tasks:
+                print("🛑 Cancelando tarefas pendentes...")
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                
+                # Aguardar cancelamento das tarefas
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                except Exception:
+                    pass  # Ignorar erros de cancelamento
+            
+            # Fechar conexão API se existir
+            if api:
+                try:
+                    await api.disconnect()
+                    print("🔌 Conexão API fechada")
+                except Exception:
+                    pass  # Ignorar erros ao fechar conexão
+            
+            # Verificar se deve continuar tentando reconectar
+            if tentativas_reconexao >= max_tentativas_reconexao:
+                print(f"❌ Máximo de tentativas de reconexão atingido ({max_tentativas_reconexao})")
+                print("🔄 Resetando contador e tentando novamente...")
+                tentativas_reconexao = 0
+                tempo_espera = 60  # Esperar 1 minuto antes de resetar
+            else:
+                # Tempo de espera progressivo: 15s, 30s, 45s, 60s, 75s
+                tempo_espera = min(15 * tentativas_reconexao, 75)
+            
+            print(f"⏳ Aguardando {tempo_espera} segundos antes de tentar reconectar...")
+            await asyncio.sleep(tempo_espera)
             
             # O loop while True fará com que o sistema tente reconectar automaticamente
             continue
         
         finally:
-            # Este bloco finally será executado apenas se o loop while True for quebrado
-            # (o que normalmente acontece apenas com interrupção manual)
+            # Limpeza final
+            if tasks:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+            
+            if api:
+                try:
+                    await api.disconnect()
+                except Exception:
+                    pass
+            
             print("🔚 Encerrando conexões...")
 
 # 6. PONTO DE ENTRADA DO SCRIPT

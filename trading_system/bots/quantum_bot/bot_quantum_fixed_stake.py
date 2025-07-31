@@ -14,7 +14,7 @@ from typing import Optional
 from ...utils.helpers import (
     salvar_operacao, aguardar_resultado_contrato, executar_compra,
     verificar_stops, log_resultado_operacao, criar_parametros_compra,
-    validar_e_ajustar_stake
+    validar_e_ajustar_stake, handle_websocket_error, safe_api_call, is_websocket_error
 )
 import logging
 
@@ -29,7 +29,7 @@ async def bot_quantum_fixed_stake(api) -> None:
         api: Instância da API da Deriv
     """
     # Parâmetros de Gestão (Lógica Original Complexa)
-    nome_bot = "QuantumBot_Original"
+    nome_bot = "QuantumBot_FixedStake"
     stake_inicial = 0.35
     niveis_soros = 12
     divisor_martingale = 5  # Quantas partes dividir o martingale
@@ -47,6 +47,8 @@ async def bot_quantum_fixed_stake(api) -> None:
     nivel_soros_atual = 0
     valor_recuperacao_mg = 0.0  # Para o martingale dividido
     contador_divisao_mg = 0
+    retry_count = 0
+    max_retries = 3
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
@@ -85,16 +87,34 @@ async def bot_quantum_fixed_stake(api) -> None:
             
             print(f"📈 {nome_bot}: Comprando DIGITDIFF {barrier_aleatorio} | Stake: ${stake_atual:.2f}")
             
-            # Executar compra
-            contract_id = await executar_compra(api, parametros_da_compra, nome_bot)
-            if contract_id is None:
-                await asyncio.sleep(1)
-                continue
+            # Executar compra com tratamento robusto de erro
+            success, contract_id = await safe_api_call(
+                executar_compra, nome_bot, "executar compra", api, parametros_da_compra, nome_bot
+            )
             
-            # Aguardar resultado
-            lucro = await aguardar_resultado_contrato(api, contract_id, nome_bot)
-            if lucro is None:
-                await asyncio.sleep(1)
+            if not success or contract_id is None:
+                print(f"❌ {nome_bot}: Erro ao executar compra. Tentando novamente...")
+                retry_count += 1
+                should_continue = await handle_websocket_error(
+                    nome_bot, "Falha ao executar compra", api, retry_count, max_retries
+                )
+                if should_continue:
+                    if retry_count > max_retries:
+                        retry_count = 0  # Reset contador
+                    continue
+                else:
+                    break
+            
+            # Reset contador de retry após sucesso
+            retry_count = 0
+            
+            # Aguardar resultado com tratamento robusto de erro
+            success, lucro = await safe_api_call(
+                aguardar_resultado_contrato, nome_bot, "aguardar resultado", api, contract_id, nome_bot
+            )
+            
+            if not success or lucro is None:
+                print(f"❌ {nome_bot}: Erro ao aguardar resultado. Continuando...")
                 continue
             
             # Atualizar total_profit
@@ -163,6 +183,16 @@ async def bot_quantum_fixed_stake(api) -> None:
             await asyncio.sleep(1)
             
         except Exception as e:
-            print(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
-            logger.error(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
-            await asyncio.sleep(10)
+            # Usar o novo sistema de tratamento de erros
+            retry_count += 1
+            should_continue = await handle_websocket_error(
+                nome_bot, e, api, retry_count, max_retries
+            )
+            
+            if should_continue:
+                if retry_count > max_retries:
+                    retry_count = 0  # Reset contador após máximo de tentativas
+                continue
+            else:
+                print(f"❌ {nome_bot}: Parando execução devido a erros persistentes")
+                break

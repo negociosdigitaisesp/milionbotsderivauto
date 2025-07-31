@@ -12,7 +12,7 @@ from ...utils.helpers import (
     salvar_operacao, aguardar_resultado_contrato, executar_compra,
     verificar_stops, obter_ultimo_tick, extrair_ultimo_digito,
     log_resultado_operacao, criar_parametros_compra,
-    validar_e_ajustar_stake
+    validar_e_ajustar_stake, handle_websocket_error, safe_api_call, is_websocket_error
 )
 from ...config.settings import BotSpecificConfig
 import logging

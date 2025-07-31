@@ -12,7 +12,7 @@ from ...utils.helpers import (
     salvar_operacao, aguardar_resultado_contrato, executar_compra,
     verificar_stops, obter_ultimo_tick, extrair_ultimo_digito,
     log_resultado_operacao, criar_parametros_compra, calcular_martingale,
-    validar_e_ajustar_stake
+    validar_e_ajustar_stake, handle_websocket_error, safe_api_call, is_websocket_error
 )
 from ...config.settings import BotSpecificConfig
 import logging
@@ -28,7 +28,7 @@ async def wolf_bot_2_0(api) -> None:
         api: Instância da API da Deriv
     """
     # Parâmetros de Gestão (conforme XML original)
-    nome_bot = "Wolf_Bot_2.0_Original"
+    nome_bot = "Wolf_Bot_2.0"
     stake_inicial = 0.6
     martingale_fator = 1.0  # Martingale simples, stake não aumenta
     stop_loss = float('inf')  # Ilimitado
@@ -42,6 +42,8 @@ async def wolf_bot_2_0(api) -> None:
     stake_atual = stake_inicial
     total_profit = 0
     ultimo_resultado = "vitoria"  # Inicializar com "vitoria"
+    retry_count = 0
+    max_retries = 3
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
@@ -59,11 +61,26 @@ async def wolf_bot_2_0(api) -> None:
             if resultado_stop != 'continue':
                 break
             
-            # Obter último dígito do R_100
-            ultimo_tick = await obter_ultimo_tick(api, ativo, nome_bot)
-            if ultimo_tick is None:
-                await asyncio.sleep(1)
-                continue
+            # Obter último dígito do R_100 com tratamento robusto de erro
+            success, ultimo_tick = await safe_api_call(
+                obter_ultimo_tick, nome_bot, "obter último tick", api, ativo, nome_bot
+            )
+            
+            if not success or ultimo_tick is None:
+                print(f"❌ {nome_bot}: Erro ao obter último tick. Tentando novamente...")
+                retry_count += 1
+                should_continue = await handle_websocket_error(
+                    nome_bot, "Falha ao obter tick", api, retry_count, max_retries
+                )
+                if should_continue:
+                    if retry_count > max_retries:
+                        retry_count = 0  # Reset contador
+                    continue
+                else:
+                    break
+            
+            # Reset contador de retry após sucesso
+            retry_count = 0
             
             ultimo_digito = extrair_ultimo_digito(ultimo_tick)
             
@@ -115,16 +132,34 @@ async def wolf_bot_2_0(api) -> None:
             
             print(f"📈 {nome_bot}: Comprando {contract_type} {barrier} | Stake: ${stake_atual:.2f}")
             
-            # Executar compra
-            contract_id = await executar_compra(api, parametros_da_compra, nome_bot)
-            if contract_id is None:
-                await asyncio.sleep(1)
-                continue
+            # Executar compra com tratamento robusto de erro
+            success, contract_id = await safe_api_call(
+                executar_compra, nome_bot, "executar compra", api, parametros_da_compra, nome_bot
+            )
             
-            # Aguardar resultado
-            lucro = await aguardar_resultado_contrato(api, contract_id, nome_bot)
-            if lucro is None:
-                await asyncio.sleep(1)
+            if not success or contract_id is None:
+                print(f"❌ {nome_bot}: Erro ao executar compra. Tentando novamente...")
+                retry_count += 1
+                should_continue = await handle_websocket_error(
+                    nome_bot, "Falha ao executar compra", api, retry_count, max_retries
+                )
+                if should_continue:
+                    if retry_count > max_retries:
+                        retry_count = 0  # Reset contador
+                    continue
+                else:
+                    break
+            
+            # Reset contador de retry após sucesso
+            retry_count = 0
+            
+            # Aguardar resultado com tratamento robusto de erro
+            success, lucro = await safe_api_call(
+                aguardar_resultado_contrato, nome_bot, "aguardar resultado", api, contract_id, nome_bot
+            )
+            
+            if not success or lucro is None:
+                print(f"❌ {nome_bot}: Erro ao aguardar resultado. Continuando...")
                 continue
             
             # Atualizar total_profit
@@ -153,6 +188,16 @@ async def wolf_bot_2_0(api) -> None:
             await asyncio.sleep(1)
             
         except Exception as e:
-            print(f"❌ Erro de conexão no {nome_bot}: {e}. Tentando novamente em 10 segundos...")
-            logger.error(f"Erro de conexão no {nome_bot}: {e}")
-            await asyncio.sleep(10)
+            # Usar o novo sistema de tratamento de erros
+            retry_count += 1
+            should_continue = await handle_websocket_error(
+                nome_bot, e, api, retry_count, max_retries
+            )
+            
+            if should_continue:
+                if retry_count > max_retries:
+                    retry_count = 0  # Reset contador após máximo de tentativas
+                continue
+            else:
+                print(f"❌ {nome_bot}: Parando execução devido a erros persistentes")
+                break
