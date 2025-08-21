@@ -59,6 +59,7 @@ async def bot_sniper_martingale(api) -> None:
     # Parâmetros de Gestão (Lógica Original)
     nome_bot = "Sniper_Bot_Martingale"
     stake_inicial = 0.35
+    stake_maximo = 15.0  # Limite máximo para evitar erro
     martingale_fator = 1.05
     stop_loss = float('inf')  # Ilimitado
     stop_win = float('inf')   # Ilimitado
@@ -69,12 +70,14 @@ async def bot_sniper_martingale(api) -> None:
     
     # Inicializar variáveis de estado
     stake_atual = stake_inicial
+    nivel_martingale = 0  # Controle do nível de martingale
     total_profit = 0
     retry_count = 0
     max_retries = 3
     
     print(f"📊 {nome_bot} configurado:")
     print(f"   💰 Stake inicial: ${stake_inicial}")
+    print(f"   💎 Stake máximo: ${stake_maximo}")
     print(f"   🔄 Fator Martingale: {martingale_fator}")
     print(f"   🛑 Stop Loss: Infinito")
     print(f"   🎯 Stop Win: Infinito")
@@ -130,7 +133,7 @@ async def bot_sniper_martingale(api) -> None:
             print(f"💰 {nome_bot}: Profit Total: ${total_profit:.2f} | Stake Atual: ${stake_atual:.2f}")
             
             # Validar e ajustar stake antes da compra
-            stake_atual = validar_e_ajustar_stake(stake_atual, nome_bot)
+            stake_atual = validar_e_ajustar_stake(stake_atual, nome_bot, limite_plataforma=20.0)
             
             # Construir parâmetros da compra
             parametros_da_compra = criar_parametros_compra(
@@ -178,17 +181,35 @@ async def bot_sniper_martingale(api) -> None:
             # Salvar operação
             salvar_operacao(nome_bot, lucro)
             
-            # Lógica Pós-Trade (Implementar Martingale Original)
+            # Lógica Pós-Trade (Martingale Controlado)
             if lucro > 0:
-                # Vitória: Redefina stake_atual para o stake_inicial
+                # Vitória: Reset para stake inicial
                 log_resultado_operacao(nome_bot, lucro, total_profit, stake_usado, True)
                 stake_atual = stake_inicial
-                print(f"✅ {nome_bot}: VITÓRIA! Stake resetado para inicial: ${stake_atual:.2f}")
+                nivel_martingale = 0
+                print(f"✅ {nome_bot}: VITÓRIA! Stake resetado para inicial: ${stake_atual:.2f} (Nível 0)")
             else:
-                # Derrota: Calcule o novo stake multiplicando pelo martingale_fator
+                # Derrota: Usar função calcular_martingale com controle
                 log_resultado_operacao(nome_bot, lucro, total_profit, stake_usado, False)
-                stake_atual = stake_atual * martingale_fator
-                print(f"❌ {nome_bot}: DERROTA! Martingale aplicado - Novo stake: ${stake_atual:.2f} (Fator: {martingale_fator})")
+                
+                # Calcular próximo stake com controle de limite
+                if nivel_martingale >= 5:
+                    # Limite de 5 martingales atingido - Reset
+                    stake_atual = stake_inicial
+                    nivel_martingale = 0
+                    print(f"🔄 {nome_bot}: Limite de 5 martingales atingido! Reset para ${stake_atual:.2f}")
+                else:
+                    # Aplicar martingale controlado
+                    novo_stake = stake_atual * martingale_fator
+                    nivel_martingale += 1
+                    
+                    # Verificar limite máximo
+                    if novo_stake > stake_maximo:
+                        stake_atual = stake_maximo
+                        print(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f} (Nível {nivel_martingale})")
+                    else:
+                        stake_atual = novo_stake
+                        print(f"🔄 {nome_bot}: Martingale Nível {nivel_martingale} - Novo stake: ${stake_atual:.2f}")
             
             # Pausa entre operações
             await asyncio.sleep(1)

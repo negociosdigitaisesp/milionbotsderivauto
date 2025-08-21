@@ -98,7 +98,7 @@ async def wait_for_rate_limit(endpoint):
             wait_time = config['window_seconds'] - (now - oldest_call).total_seconds()
             
             if wait_time > 0:
-                print(f"⏳ Rate limit atingido para {endpoint}. Aguardando {wait_time:.1f}s...")
+                print(f"Rate limit atingido para {endpoint}. Aguardando {wait_time:.1f}s...")
                 await asyncio.sleep(wait_time + 1)  # +1 segundo de margem
                 
                 # Limpar novamente após a espera
@@ -129,7 +129,7 @@ async def safe_api_call(api, method_name, params, max_retries=3):
             if 'error' in result and 'rate limit' in result['error']['message'].lower():
                 if attempt < max_retries - 1:
                     wait_time = (attempt + 1) * 5  # Espera progressiva: 5s, 10s, 15s
-                    print(f"⚠️ Rate limit detectado. Tentativa {attempt + 1}/{max_retries}. Aguardando {wait_time}s...")
+                    print(f"Rate limit detectado. Tentativa {attempt + 1}/{max_retries}. Aguardando {wait_time}s...")
                     await asyncio.sleep(wait_time)
                     continue
                 else:
@@ -140,7 +140,7 @@ async def safe_api_call(api, method_name, params, max_retries=3):
         except Exception as e:
             if attempt < max_retries - 1:
                 wait_time = (attempt + 1) * 2  # Espera progressiva: 2s, 4s, 6s
-                print(f"⚠️ Erro na API (tentativa {attempt + 1}/{max_retries}): {str(e)}")
+                print(f"Erro na API (tentativa {attempt + 1}/{max_retries}): {str(e)}")
                 print(f"   Aguardando {wait_time}s antes de tentar novamente...")
                 await asyncio.sleep(wait_time)
             else:
@@ -157,7 +157,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # Verificar se todas as variáveis de ambiente foram carregadas
 if not all([DERIV_APP_ID, DERIV_API_TOKEN, SUPABASE_URL, SUPABASE_KEY]):
-    raise ValueError("❌ Erro: Variáveis de ambiente não encontradas. Verifique o arquivo .env")
+    raise ValueError("Erro: Variaveis de ambiente nao encontradas. Verifique o arquivo .env")
 
 # Inicializar cliente do Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -181,18 +181,18 @@ def salvar_operacao(nome_bot: str, lucro: float):
         }
         
         result = supabase.table('operacoes').insert(data).execute()
-        print(f"✅ Operação salva com sucesso - Bot: {nome_bot}, Lucro: {lucro}")
+        print(f"Operacao salva com sucesso - Bot: {nome_bot}, Lucro: {lucro}")
         
     except Exception as e:
-        print(f"❌ Erro ao salvar operação no Supabase: {e}")
+        print(f"Erro ao salvar operacao no Supabase: {e}")
         print(f"   Bot: {nome_bot}, Lucro: {lucro}")
 
 # Configuração de tempo de execução
 tempo_de_execucao_segundos = 3600  # 1 hora por ciclo
 
-print(f"🎯 SISTEMA DE TRADING AUTOMATIZADO - DERIV")
-print(f"⏰ Tempo de execução configurado: {tempo_de_execucao_segundos} segundos")
-print(f"🔄 Rate limiting ativo para proteção da API")
+print(f"SISTEMA DE TRADING AUTOMATIZADO - DERIV")
+print(f"Tempo de execucao configurado: {tempo_de_execucao_segundos} segundos")
+print(f"Rate limiting ativo para protecao da API")
 print("=" * 60)
 
 
@@ -204,7 +204,7 @@ async def bot_gold(api_manager):
     Martingale: Fator 2.0 agressivo
     """
     nome_bot = "GoldBot"
-    print(f"🤖 Iniciando {nome_bot}...")
+    print(f"Iniciando {nome_bot}...")
     
     # Parâmetros de gestão
     stake_inicial = 2.0
@@ -216,13 +216,13 @@ async def bot_gold(api_manager):
     stake_atual = stake_inicial
     total_profit = 0
     
-    print(f"📊 {nome_bot} configurado:")
-    print(f"   💰 Stake inicial: ${stake_inicial}")
-    print(f"   🔄 Martingale fator: {martingale_fator}")
-    print(f"   🛑 Stop Loss: Ilimitado")
-    print(f"   🎯 Stop Win: Ilimitado")
-    print(f"   📈 Estratégia: DIGITDIFF com predição dinâmica")
-    print(f"   🏪 Ativo: R_100")
+    print(f"{nome_bot} configurado:")
+    print(f"   Stake inicial: ${stake_inicial}")
+    print(f"   Martingale fator: {martingale_fator}")
+    print(f"   Stop Loss: Ilimitado")
+    print(f"   Stop Win: Ilimitado")
+    print(f"   Estrategia: DIGITDIFF com predicao dinamica")
+    print(f"   Ativo: R_100")
     
     while True:
         try:
@@ -234,7 +234,7 @@ async def bot_gold(api_manager):
             })
             
             if 'error' in tick_response:
-                print(f"❌ {nome_bot}: Erro ao obter tick: {tick_response['error']['message']}")
+                print(f"{nome_bot}: Erro ao obter tick: {tick_response['error']['message']}")
                 await asyncio.sleep(1)
                 continue
             
@@ -242,8 +242,8 @@ async def bot_gold(api_manager):
             ultimo_tick = tick_response['history']['prices'][-1]
             predicao = int(str(ultimo_tick).split('.')[-1][-1])
             
-            print(f"🔍 {nome_bot}: Último dígito R_100: {predicao} | Profit: ${total_profit:.2f} | Stake: ${stake_atual:.2f}")
-            print(f"🎯 {nome_bot}: Predição definida: {predicao} | Preparando DIGITDIFF")
+            print(f"{nome_bot}: Ultimo digito R_100: {predicao} | Profit: ${total_profit:.2f} | Stake: ${stake_atual:.2f}")
+            print(f"{nome_bot}: Predicao definida: {predicao} | Preparando DIGITDIFF")
             
             # Construir parâmetros da compra DIGITDIFF
             parametros_da_compra = {
@@ -262,20 +262,20 @@ async def bot_gold(api_manager):
                 }
             }
             
-            print(f"📈 {nome_bot}: Comprando DIGITDIFF {predicao} | Stake: ${stake_atual:.2f}")
+            print(f"{nome_bot}: Comprando DIGITDIFF {predicao} | Stake: ${stake_atual:.2f}")
             
             # Fazer a compra com subscribe
             recibo_compra = await api_manager.buy(parametros_da_compra)
             
             if 'error' in recibo_compra:
-                print(f"❌ {nome_bot}: Erro na compra: {recibo_compra['error']['message']}")
+                print(f"{nome_bot}: Erro na compra: {recibo_compra['error']['message']}")
                 await asyncio.sleep(1)
                 continue
             
-            print(f"📋 {nome_bot}: Contrato DIGITDIFF criado com sucesso!")
+            print(f"{nome_bot}: Contrato DIGITDIFF criado com sucesso!")
             
             # Aguardar o resultado final
-            print(f"⏳ {nome_bot}: Aguardando resultado do contrato...")
+            print(f"{nome_bot}: Aguardando resultado do contrato...")
             
             # Obter contract_id e aguardar resultado
             if 'buy' in recibo_compra and 'contract_id' in recibo_compra['buy']:

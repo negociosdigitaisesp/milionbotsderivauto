@@ -24,10 +24,22 @@ from typing import List, Optional
 try:
     from trading_system.bots.scale_bot import bot_scale
 except ImportError:
-    print("⚠️ Aviso: Módulo bot_scale não encontrado. Função bot_scale será definida localmente.")
+    print("Aviso: Modulo bot_scale nao encontrado. Funcao bot_scale sera definida localmente.")
     
 # Importar bot_gold do arquivo bot_trading_system_fixed
 from bot_trading_system_fixed import bot_gold
+
+# Importar bot doublecuentas
+try:
+    from trading_system.bots.double_cuentas_bot.bot_double_cuentas import bot_double_cuentas
+except ImportError:
+    print("Aviso: Modulo bot_double_cuentas nao encontrado. Sera definido localmente.")
+
+# Importar bot aura_under8
+try:
+    from trading_system.bots.aura_bot.bot_aura_under8 import bot_aura_under8
+except ImportError:
+    print("Aviso: Modulo bot_aura_under8 nao encontrado. Sera definido localmente.")
 
 # CLASSE APIMANAGER - GERENCIAMENTO ROBUSTO DE API
 class ApiManager:
@@ -77,7 +89,7 @@ async def bot_scale(api_manager):
         stake_fixo = 1.0
         total_profit = 0
         
-        print(f"🤖 Iniciando {nome_bot} (versão local)...")
+        print(f"Iniciando {nome_bot} (versao local)...")
         
         while True:
             try:
@@ -2636,8 +2648,10 @@ async def main():
                 bot_tip,
                 bot_xtreme,
                 bot_gold,  # Adicionando o GoldBot à lista
+                bot_double_cuentas,  # Adicionando o DoubleCuentas à lista
                 bot_turbo_ganancia,  # Adicionando o TurboGanancia à lista
-                bot_vip_boster  # Adicionando o VipBoster à lista
+                bot_vip_boster,  # Adicionando o VipBoster à lista
+                bot_aura_under8  # Adicionando o AuraBot_Under8 à lista
             ]
             
             # Criar tarefas passando api_manager para cada bot
@@ -2868,8 +2882,8 @@ if __name__ == "__main__":
     
     else:
         # MODO SUPERVISOR: Gerenciar auto-reinício
-        print("🎯 SISTEMA DE TRADING AUTOMATIZADO - DERIV BOTS")
-        print("🔧 MODO SUPERVISOR COM AUTO-REINÍCIO")
+        print("SISTEMA DE TRADING AUTOMATIZADO - DERIV BOTS")
+        print("MODO SUPERVISOR COM AUTO-REINICIO")
         print("=" * 60)
         
         try:
