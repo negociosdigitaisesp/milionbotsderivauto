@@ -153,7 +153,7 @@ def salvar_operacao(nome_bot: str, lucro: float) -> bool:
         print(f"{error_msg}\n   Bot: {nome_bot}, Lucro: {lucro}")
         return False
 
-async def aguardar_resultado_contrato(api, contract_id: str, nome_bot: str, max_tentativas: int = 30) -> Optional[float]:
+async def aguardar_resultado_contrato(api_manager, contract_id: str, nome_bot: str, max_tentativas: int = 30) -> Optional[float]:
     """
     Aguarda o resultado de um contrato usando proposal_open_contract
     
@@ -178,7 +178,7 @@ async def aguardar_resultado_contrato(api, contract_id: str, nome_bot: str, max_
         
         try:
             # Verificar status atual do contrato
-            contract_status = await api.proposal_open_contract({
+            contract_status = await api_manager.proposal_open_contract({
                 "proposal_open_contract": 1,
                 "contract_id": contract_id
             })
@@ -207,7 +207,7 @@ async def aguardar_resultado_contrato(api, contract_id: str, nome_bot: str, max_
     
     return None
 
-async def executar_compra(api, parametros_da_compra: Dict[str, Any], nome_bot: str) -> Optional[str]:
+async def executar_compra(api_manager, parametros_da_compra: Dict[str, Any], nome_bot: str) -> Optional[str]:
     """
     Executa uma compra na API da Deriv e retorna o contract_id
     
@@ -235,7 +235,7 @@ async def executar_compra(api, parametros_da_compra: Dict[str, Any], nome_bot: s
         print(f"🛒 {nome_bot}: Executando compra com stake ${stake_validado:.2f}...")
         
         # Fazer a compra
-        recibo_compra = await api.buy(parametros_da_compra)
+        recibo_compra = await api_manager.buy(parametros_da_compra)
         
         if 'error' in recibo_compra:
             error_msg = f"❌ {nome_bot}: Erro na compra: {recibo_compra['error']['message']}"
@@ -252,7 +252,7 @@ async def executar_compra(api, parametros_da_compra: Dict[str, Any], nome_bot: s
                 parametros_da_compra['parameters']['amount'] = stake_emergencia
                 
                 # Tentar novamente com stake de emergência
-                recibo_compra = await api.buy(parametros_da_compra)
+                recibo_compra = await api_manager.buy(parametros_da_compra)
                 
                 if 'error' in recibo_compra:
                     error_msg = f"❌ {nome_bot}: Erro na compra de emergência: {recibo_compra['error']['message']}"
@@ -320,7 +320,7 @@ def verificar_stops(total_profit: float, stop_loss: float, stop_win: float, nome
     
     return 'continue'
 
-async def obter_ultimo_tick(api, symbol: str, nome_bot: str) -> Optional[float]:
+async def obter_ultimo_tick(api_manager, symbol: str, nome_bot: str) -> Optional[float]:
     """
     Obtém o último tick de um símbolo
     
@@ -333,7 +333,7 @@ async def obter_ultimo_tick(api, symbol: str, nome_bot: str) -> Optional[float]:
         Optional[float]: Último preço ou None se erro
     """
     try:
-        tick_response = await api.ticks_history({
+        tick_response = await api_manager.ticks_history({
             "ticks_history": symbol,
             "count": 1,
             "end": "latest"
@@ -400,12 +400,15 @@ def criar_parametros_compra(stake: float, contract_type: str, symbol: str, barri
     Returns:
         Dict[str, Any]: Parâmetros formatados para a API
     """
+    # CORREÇÃO: Formatar stake para exatamente 2 casas decimais
+    stake_formatado = formatar_valor_monetario(stake)
+    
     return {
         'buy': '1',
         'subscribe': 1,
-        'price': stake,
+        'price': stake_formatado,
         'parameters': {
-            'amount': stake,
+            'amount': stake_formatado,
             'basis': 'stake',
             'contract_type': contract_type,
             'currency': currency,
@@ -434,7 +437,7 @@ def calcular_martingale(lucro: float, stake_atual: float, stake_inicial: float, 
     """
     if lucro > 0:
         # Vitória - Reset para stake inicial
-        novo_stake = stake_inicial
+        novo_stake = formatar_valor_monetario(stake_inicial)
         novo_nivel = 0
         logger.info(f"✅ {nome_bot}: Vitória! Reset stake para ${novo_stake:.2f} (Nível 0)")
         print(f"✅ {nome_bot}: Vitória! Reset stake para ${novo_stake:.2f} (Nível 0)")
@@ -442,18 +445,18 @@ def calcular_martingale(lucro: float, stake_atual: float, stake_inicial: float, 
         # Derrota - Verificar se pode aplicar martingale
         if nivel_martingale >= max_martingale_levels:
             # Atingiu o limite máximo de martingales - Reset para stake inicial
-            novo_stake = stake_inicial
+            novo_stake = formatar_valor_monetario(stake_inicial)
             novo_nivel = 0
             logger.warning(f"🔄 {nome_bot}: Limite de {max_martingale_levels} martingales atingido! Reset para ${novo_stake:.2f}")
             print(f"🔄 {nome_bot}: Limite de {max_martingale_levels} martingales atingido! Reset para ${novo_stake:.2f}")
         else:
             # Aplicar martingale - Dobrar o stake
-            novo_stake = stake_atual * 2
+            novo_stake = formatar_valor_monetario(stake_atual * 2)
             novo_nivel = nivel_martingale + 1
             
             # Verificar se não excede o limite máximo
             if novo_stake > stake_maximo:
-                novo_stake = stake_maximo
+                novo_stake = formatar_valor_monetario(stake_maximo)
                 logger.warning(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f} (Nível {novo_nivel})")
                 print(f"⚠️ {nome_bot}: Stake limitado ao máximo de ${stake_maximo:.2f} (Nível {novo_nivel})")
             else:
@@ -474,11 +477,14 @@ def validar_e_ajustar_stake(stake: float, nome_bot: str, limite_plataforma: floa
     Returns:
         float: Stake ajustado dentro dos limites seguros
     """
+    # CORREÇÃO: Arredondar para 2 casas decimais primeiro
+    stake = round(stake, 2)
+    
     # Definir limite seguro (muito conservador)
     limite_seguro = min(limite_plataforma * 0.8, 15.0)  # 80% do limite ou 15 USD
     
     if stake > limite_seguro:
-        stake_ajustado = limite_seguro
+        stake_ajustado = round(limite_seguro, 2)
         logger.warning(f"⚠️ {nome_bot}: Stake ajustado de ${stake:.2f} para ${stake_ajustado:.2f} (limite seguro)")
         print(f"⚠️ {nome_bot}: Stake ajustado de ${stake:.2f} para ${stake_ajustado:.2f} (limite seguro)")
         return stake_ajustado
@@ -486,9 +492,21 @@ def validar_e_ajustar_stake(stake: float, nome_bot: str, limite_plataforma: floa
     # Verificar stake mínimo
     stake_minimo = 1.0
     if stake < stake_minimo:
-        stake_ajustado = stake_minimo
+        stake_ajustado = round(stake_minimo, 2)
         logger.warning(f"⚠️ {nome_bot}: Stake ajustado de ${stake:.2f} para ${stake_ajustado:.2f} (mínimo)")
         print(f"⚠️ {nome_bot}: Stake ajustado de ${stake:.2f} para ${stake_ajustado:.2f} (mínimo)")
         return stake_ajustado
     
-    return stake
+    return round(stake, 2)
+
+def formatar_valor_monetario(valor: float) -> float:
+    """
+    Formata valor monetário para exatamente 2 casas decimais
+    
+    Args:
+        valor (float): Valor a ser formatado
+        
+    Returns:
+        float: Valor arredondado para 2 casas decimais
+    """
+    return round(float(valor), 2)

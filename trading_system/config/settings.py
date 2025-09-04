@@ -158,6 +158,18 @@ class BotSpecificConfig:
         'symbol': 'R_100',
         'martingale_enabled': True
     }
+    
+    ACCUMULATOR_SCALPING_CONFIG = {
+        'stake_inicial': 50.0,  # Conforme XML
+        'khizzbot': 50.0,  # Fator multiplicador do XML
+        'growth_rate': 0.02,  # 2% Growth Rate
+        'take_profit_inicial': 0.10,  # 10% do stake inicial
+        'symbol': 'R_75',  # Volatility 75 Index
+        'contract_type': 'ACCU',  # Accumulator
+        'operacao_continua': True,  # 24/7
+        'condicao_entrada': 'Red,Red,Red,Blue',  # Padrão de ticks
+        'supabase_table': 'scalping_accumulator_bot_logs'  # Nova tabela
+    }
 
 # Validar configurações na importação
 validate_environment_variables()

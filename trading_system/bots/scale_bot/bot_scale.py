@@ -23,7 +23,7 @@ from trading_system.utils.helpers import (
 # Configurar logging
 logger = logging.getLogger(__name__)
 
-async def bot_scale(api) -> None:
+async def bot_scale(api_manager) -> None:
     """
     ScaleBot: Estratégia baseada em predição adaptativa com martingale agressivo
     
@@ -35,7 +35,7 @@ async def bot_scale(api) -> None:
     - Aplica martingale agressivo (fator 2.0) em caso de derrota
     
     Args:
-        api: Instância da API da Deriv
+        api_manager: Instância do ApiManager da Deriv
     """
     # Definir parâmetros fixos
     nome_bot = "ScaleBot"
@@ -63,7 +63,7 @@ async def bot_scale(api) -> None:
         try:
             # 1. Obter dígito de predição
             print(f"🔍 {nome_bot}: Obtendo dígito de predição...")
-            ultimo_tick_predicao = await obter_ultimo_tick(api, ativo, nome_bot)
+            ultimo_tick_predicao = await obter_ultimo_tick(api_manager, ativo, nome_bot)
             if ultimo_tick_predicao is None:
                 print(f"❌ {nome_bot}: Erro ao obter tick de predição. Tentando novamente...")
                 await asyncio.sleep(5)
@@ -78,7 +78,7 @@ async def bot_scale(api) -> None:
             
             # 3. Obter dígito atual
             print(f"🔍 {nome_bot}: Obtendo dígito atual...")
-            ultimo_tick_atual = await obter_ultimo_tick(api, ativo, nome_bot)
+            ultimo_tick_atual = await obter_ultimo_tick(api_manager, ativo, nome_bot)
             if ultimo_tick_atual is None:
                 print(f"❌ {nome_bot}: Erro ao obter tick atual. Tentando novamente...")
                 await asyncio.sleep(5)
@@ -122,7 +122,7 @@ async def bot_scale(api) -> None:
             
             # 6. Executar compra
             print(f"🚀 {nome_bot}: Executando {contract_type} (1 tick) | Stake: ${stake_atual:.2f}")
-            contract_id = await executar_compra(api, parametros_compra, nome_bot)
+            contract_id = await executar_compra(api_manager, parametros_compra, nome_bot)
             
             if contract_id is None:
                 print(f"❌ {nome_bot}: Falha na execução da compra. Tentando novamente...")
@@ -132,7 +132,7 @@ async def bot_scale(api) -> None:
             print(f"✅ {nome_bot}: Compra executada! Contract ID: {contract_id}")
             
             # 7. Aguardar resultado
-            lucro = await aguardar_resultado_contrato(api, contract_id, nome_bot)
+            lucro = await aguardar_resultado_contrato(api_manager, contract_id, nome_bot)
             
             if lucro is None:
                 print(f"❌ {nome_bot}: Timeout ao aguardar resultado. Continuando...")

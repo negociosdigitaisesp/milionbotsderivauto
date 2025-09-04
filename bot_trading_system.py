@@ -41,6 +41,12 @@ try:
 except ImportError:
     print("Aviso: Modulo bot_aura_under8 nao encontrado. Sera definido localmente.")
 
+# Importar bot accumulator_scalping
+try:
+    from trading_system.bots.accumulator_bot.bot_accumulator_scalping import bot_accumulator_scalping
+except ImportError:
+    print("Aviso: Modulo bot_accumulator_scalping nao encontrado. Sera definido localmente.")
+
 # CLASSE APIMANAGER - GERENCIAMENTO ROBUSTO DE API
 class ApiManager:
     """
@@ -2638,6 +2644,7 @@ async def main():
             bot_functions = [
                 bot_bk_1_0,
                 bot_factor_50x,
+                bot_accumulator_scalping,  # Movido para posição 3 para inicialização mais rápida
                 bot_ai_2_0,
                 bot_apalancamiento,
                 wolf_bot_2_0,
@@ -2654,15 +2661,25 @@ async def main():
                 bot_aura_under8  # Adicionando o AuraBot_Under8 à lista
             ]
             
+            # Função auxiliar para criar bot com delay inicial (fora do loop para evitar closure)
+            async def delayed_bot(func, delay, manager, bot_name):
+                print(f"⏰ Bot {bot_name} aguardando {delay}s para iniciar...")
+                await asyncio.sleep(delay)
+                print(f"🚀 Iniciando {bot_name}...")
+                try:
+                    await func(manager)
+                except Exception as e:
+                    print(f"❌ Erro no {bot_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
             # Criar tarefas passando api_manager para cada bot
             for i, bot_func in enumerate(bot_functions):
-                # Função auxiliar para criar bot com delay inicial
-                async def delayed_bot(func, delay, manager):
-                    await asyncio.sleep(delay)
-                    await func(manager)
+                # Obter nome do bot
+                bot_name = bot_func.__name__
                 
                 # Adicionar tarefa com delay de 2 segundos entre cada bot
-                tasks.append(asyncio.create_task(delayed_bot(bot_func, i * 2, api_manager)))
+                tasks.append(asyncio.create_task(delayed_bot(bot_func, i * 2, api_manager, bot_name)))
             
             # Obter a tarefa atual que está rodando o gather
             main_task = asyncio.current_task()
