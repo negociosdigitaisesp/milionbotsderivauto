@@ -151,7 +151,7 @@ def analisar_padroes(historico):
         return False, reason
     
     # Todas as verificacoes aprovadas
-    reason = "Tunder Bot: Padrao Encontrado - Ligar o Bot"
+    reason = "Tunder Bot: Patron Encontrado, Activar Bot Ahora!"
     print(f"OK - {reason} - Todas as condicoes foram atendidas!")
     return True, reason
 
@@ -244,7 +244,7 @@ def enviar_sinal_para_supabase(supabase, is_safe_to_operate, reason, pattern_fou
             'wins_in_last_5_ops': wins_5,        # VALOR REAL
             'historical_accuracy': accuracy,      # VALOR REAL
             'created_at': datetime.now().isoformat(),
-            'last_pattern_found': 'V-D-V' if 'Padrao Encontrado' in reason else 'Aguardando',
+            'last_pattern_found': 'V-D-V' if 'Patron Encontrado' in reason else 'Aguardando',
             'auto_disable_after_ops': 3
         }
         
@@ -316,7 +316,7 @@ def analisar_e_enviar_sinal(supabase):
     is_safe_to_operate, reason = analisar_padroes(historico)
     
     # Passo 4: Se encontrou novo padrao, marcar timestamp
-    if is_safe_to_operate and "Padrao Encontrado" in reason:
+    if is_safe_to_operate and "Patron Encontrado" in reason:
         pattern_found_at = datetime.now().isoformat()
         operations_after_pattern = 0
         print(f"* Novo padrao Tunder Bot encontrado! Timestamp: {pattern_found_at}")
