@@ -25,10 +25,10 @@ def test_premium_recovery_filters():
                     for i in range(2, min(9, len(historico))):
                         if historico[i] == 'V':
                             wins_antes_total += 1
-                    if wins_antes_total >= 7:
-                        print(f"    X Rejeitado: {wins_antes_total} WINs totais antes da primeira LOSS (>=7)")
+                    if wins_antes_total > 6:
+                        print(f"    X Rejeitado: {wins_antes_total} WINs totais antes da primeira LOSS (>6)")
                         return None
-                    print(f"    ✓ Filtro 1: {wins_antes_total} WINs totais antes da primeira LOSS (<7)")
+                    print(f"    ✓ Filtro 1: {wins_antes_total} WINs totais antes da primeira LOSS (<=6)")
                 
                 # Filtro 2: Rejeitar se densidade de LOSSes > 15% nas últimas 20 operações
                 if len(historico) >= 20:
