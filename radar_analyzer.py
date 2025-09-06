@@ -1159,19 +1159,16 @@ def analisar_estrategias_portfolio(historico):
                     print(f"    X Rejeitado: {wins_consecutivos} WINs (precisa 4-6)")
                     return None
                 
-                # Filtro 2: Permitir máximo 1 LOSS não consecutiva nas últimas 8 operações (excluindo atual)
+                # Filtro 2: Rejeitar se LOSS nas últimas 8 operações (excluindo atual)
                 if len(historico) >= 9:
                     ultimas_8_antes = historico[1:9]
                     losses_count = ultimas_8_antes.count('D')
                     
-                    if losses_count > 1:
-                        print(f"    X Rejeitado: {losses_count} LOSSes nas últimas 8 operações (máximo 1)")
+                    if losses_count > 0:
+                        print(f"    X Rejeitado: {losses_count} LOSS nas últimas 8 operações (deve ser 0)")
                         return None
                     
-                    # Se há 1 LOSS, verificar se não é consecutiva com a atual
-                    if losses_count == 1 and ultimas_8_antes[0] == 'D':
-                        print("    X Rejeitado: LOSS consecutiva detectada")
-                        return None
+                    print(f"    ✓ Filtro 2: Nenhuma LOSS nas últimas 8 operações")
                 
                 # Filtro 3: Win rate nas últimas 12 operações >= 85% (incluindo a atual)
                 if len(historico) >= 12:
@@ -1223,19 +1220,19 @@ def analisar_estrategias_portfolio(historico):
                     print(f"    - Sequência analisada: {ultimas_8}")
                     print(f"    - Alternações detectadas: {alternacoes}")
                     
-                    # Filtro 2: Aceitar apenas se 3+ alternações em 8 operações (ajustado para ser mais realista)
-                    if alternacoes < 3:
-                        print(f"    X Rejeitado: {alternacoes} alternações < 3")
+                    # Filtro 2: Aceitar apenas se 4+ alternações em 8 operações
+                    if alternacoes < 4:
+                        print(f"    X Rejeitado: {alternacoes} alternações < 4")
                         return None
                     
-                    # Filtro 3: Máximo 1 LOSS adicional nas últimas 10 operações (excluindo a atual)
-                    if len(historico) >= 11:
-                        ultimas_10_antes = historico[1:11]  # Excluir a LOSS atual
-                        losses_10_antes = ultimas_10_antes.count('D')
-                        if losses_10_antes > 1:
-                            print(f"    X Rejeitado: {losses_10_antes} LOSSes adicionais > 1 nas últimas 10")
+                    # Filtro 3: Máximo 2 LOSSes nas últimas 10 operações (incluindo a atual)
+                    if len(historico) >= 10:
+                        ultimas_10 = historico[:10]  # Incluir a LOSS atual
+                        losses_10 = ultimas_10.count('D')
+                        if losses_10 > 2:
+                            print(f"    X Rejeitado: {losses_10} LOSSes > 2 nas últimas 10")
                             return None
-                        print(f"    ✓ Filtro 3: {losses_10_antes} LOSS adicional nas últimas 10 operações")
+                        print(f"    ✓ Filtro 3: {losses_10} LOSSes <= 2 nas últimas 10 operações")
                     else:
                         # Para histórico menor, verificar se não há LOSSes consecutivas
                         if len(historico) >= 2 and historico[1] == 'D':
@@ -1253,35 +1250,35 @@ def analisar_estrategias_portfolio(historico):
     @strategy_exception_handler('PATTERN_REVERSAL')
     def estrategia_pattern_reversal(historico):
         try:
-            # Detectar padrão específico: LOSS atual seguindo padrão WIN-WIN-LOSS-WIN-WIN
+            # Detectar padrão específico: ['V', 'V', 'D', 'V', 'V', 'D'] nas últimas 6 posições
             if len(historico) >= 6:
-                # Padrão esperado: LOSS(atual)-WIN-WIN-LOSS-WIN-WIN (do mais recente para mais antigo)
-                padrao_esperado = ['D', 'V', 'V', 'D', 'V', 'V']
+                # Padrão esperado: ['V', 'V', 'D', 'V', 'V', 'D'] (do mais recente para mais antigo)
+                padrao_esperado = ['V', 'V', 'D', 'V', 'V', 'D']
                 padrao_atual = historico[:6]
                 
                 print(f"    - Sequência atual: {padrao_atual}")
                 print(f"    - Padrão esperado: {padrao_esperado}")
                 
                 if padrao_atual == padrao_esperado:
-                    print("  - PATTERN_REVERSAL: Padrão D-V-V-D-V-V detectado")
+                    print("  - PATTERN_REVERSAL: Padrão V-V-D-V-V-D detectado")
                     
-                    # Filtro 1: Contexto temporal - máximo 3 LOSSes nas últimas 12 operações
-                    if len(historico) >= 12:
-                        ultimas_12 = historico[:12]
-                        losses_12 = ultimas_12.count('D')
-                        if losses_12 > 3:
-                            print(f"    X Rejeitado: {losses_12} LOSSes > 3 nas últimas 12 operações")
-                            return None
-                        print(f"    ✓ Filtro 1: {losses_12} LOSSes <= 3 nas últimas 12 operações")
-                    
-                    # Filtro 2: Win rate nas últimas 10 operações >= 65% (ajustado)
+                    # Filtro 1: Máximo 2 LOSSes nas últimas 10 operações
                     if len(historico) >= 10:
                         ultimas_10 = historico[:10]
-                        win_rate = (ultimas_10.count('V') / 10) * 100
-                        if win_rate < 65:
-                            print(f"    X Rejeitado: Win rate {win_rate:.1f}% < 65%")
+                        losses_10 = ultimas_10.count('D')
+                        if losses_10 > 2:
+                            print(f"    X Rejeitado: {losses_10} LOSSes > 2 nas últimas 10 operações")
                             return None
-                        print(f"    ✓ Filtro 2: Win rate {win_rate:.1f}% >= 65%")
+                        print(f"    ✓ Filtro 1: {losses_10} LOSSes <= 2 nas últimas 10 operações")
+                    
+                    # Filtro 2: Win rate nas últimas 8 operações >= 70%
+                    if len(historico) >= 8:
+                        ultimas_8 = historico[:8]
+                        win_rate = (ultimas_8.count('V') / 8) * 100
+                        if win_rate < 70:
+                            print(f"    X Rejeitado: Win rate {win_rate:.1f}% < 70%")
+                            return None
+                        print(f"    ✓ Filtro 2: Win rate {win_rate:.1f}% >= 70%")
                     
                     # Filtro 3: Validação de contexto - não mais de 2 LOSSes consecutivas no histórico
                     consecutivas = 0
@@ -1345,51 +1342,51 @@ def analisar_estrategias_portfolio(historico):
                 logger.debug(f"[CYCLE_TRANSITION_F1_PASS] Filtro 1 passou: posição {posicao_ciclo} válida")
                 print(f"    OK Filtro 1: Posição {posicao_ciclo} no início do ciclo")
                 
-                # Filtro 2: Últimas 4-6 operações antes da LOSS devem ser majoritariamente WINs
+                # Filtro 2: Últimas 3 operações antes da LOSS devem ser ['V', 'V', 'V']
                 filtro2_start = time.time()
-                if len(historico) >= 7:
-                    start_idx, end_idx = 1, 7
+                if len(historico) >= 4:
+                    start_idx, end_idx = 1, 4
                     if not validar_bounds_array(historico, start_idx, end_idx, "CYCLE_TRANSITION_F2"):
                         return None
                         
-                    ultimas_6_antes = historico[start_idx:end_idx]
-                    wins_count = ultimas_6_antes.count('V')
+                    ultimas_3_antes = historico[start_idx:end_idx]
+                    padrao_esperado = ['V', 'V', 'V']
                     
-                    logger.debug(f"[CYCLE_TRANSITION_F2] Últimas 6 antes da LOSS [{start_idx}:{end_idx}]: {' '.join(ultimas_6_antes)}")
-                    logger.debug(f"[CYCLE_TRANSITION_F2] WINs: {wins_count}/6, critério: >=5")
+                    logger.debug(f"[CYCLE_TRANSITION_F2] Últimas 3 antes da LOSS [{start_idx}:{end_idx}]: {' '.join(ultimas_3_antes)}")
+                    logger.debug(f"[CYCLE_TRANSITION_F2] Padrão esperado: {' '.join(padrao_esperado)}")
                     
-                    if wins_count < 5:  # Pelo menos 5 WINs em 6 operações
+                    if ultimas_3_antes != padrao_esperado:
                         filtro2_time = time.time() - filtro2_start
-                        logger.debug(f"[CYCLE_TRANSITION_F2_REJECT] Filtro 2 rejeitado em {filtro2_time:.3f}s: {wins_count} < 5")
-                        print(f"    X Rejeitado: Apenas {wins_count}/6 WINs antes da LOSS (mínimo 5)")
+                        logger.debug(f"[CYCLE_TRANSITION_F2_REJECT] Filtro 2 rejeitado em {filtro2_time:.3f}s: padrão não confere")
+                        print(f"    X Rejeitado: Últimas 3 operações {ultimas_3_antes} != ['V','V','V']")
                         return None
                     
                     filtro2_time = time.time() - filtro2_start
-                    logger.debug(f"[CYCLE_TRANSITION_F2_PASS] Filtro 2 passou em {filtro2_time:.3f}s: {wins_count}/6 WINs")
-                    print(f"    OK Filtro 2: {wins_count}/6 WINs antes da LOSS")
+                    logger.debug(f"[CYCLE_TRANSITION_F2_PASS] Filtro 2 passou em {filtro2_time:.3f}s: padrão ['V','V','V'] confirmado")
+                    print(f"    ✓ Filtro 2: Últimas 3 operações são ['V','V','V']")
                 
-                # Filtro 3: Máximo 1 LOSS nas últimas 12 operações (excluindo atual)
+                # Filtro 3: Nenhuma LOSS nas últimas 8 operações (excluindo atual)
                 filtro3_start = time.time()
-                if len(historico) >= 13:
-                    start_idx, end_idx = 1, 13
+                if len(historico) >= 9:
+                    start_idx, end_idx = 1, 9
                     if not validar_bounds_array(historico, start_idx, end_idx, "CYCLE_TRANSITION_F3"):
                         return None
                         
-                    ultimas_12_antes = historico[start_idx:end_idx]
-                    losses_count = ultimas_12_antes.count('D')
+                    ultimas_8_antes = historico[start_idx:end_idx]
+                    losses_count = ultimas_8_antes.count('D')
                     
-                    logger.debug(f"[CYCLE_TRANSITION_F3] Últimas 12 antes da LOSS [{start_idx}:{end_idx}]: {' '.join(ultimas_12_antes)}")
-                    logger.debug(f"[CYCLE_TRANSITION_F3] LOSSes: {losses_count}/12, critério: <=1")
+                    logger.debug(f"[CYCLE_TRANSITION_F3] Últimas 8 antes da LOSS [{start_idx}:{end_idx}]: {' '.join(ultimas_8_antes)}")
+                    logger.debug(f"[CYCLE_TRANSITION_F3] LOSSes: {losses_count}/8, critério: =0")
                     
-                    if losses_count > 1:
+                    if losses_count > 0:
                         filtro3_time = time.time() - filtro3_start
-                        logger.debug(f"[CYCLE_TRANSITION_F3_REJECT] Filtro 3 rejeitado em {filtro3_time:.3f}s: {losses_count} > 1")
-                        print(f"    X Rejeitado: {losses_count} LOSSes nas últimas 12 (máximo 1)")
+                        logger.debug(f"[CYCLE_TRANSITION_F3_REJECT] Filtro 3 rejeitado em {filtro3_time:.3f}s: {losses_count} > 0")
+                        print(f"    X Rejeitado: {losses_count} LOSS nas últimas 8 operações (deve ser 0)")
                         return None
                     
                     filtro3_time = time.time() - filtro3_start
-                    logger.debug(f"[CYCLE_TRANSITION_F3_PASS] Filtro 3 passou em {filtro3_time:.3f}s: {losses_count} LOSS")
-                    print(f"    OK Filtro 3: {losses_count} LOSS nas últimas 12 operações")
+                    logger.debug(f"[CYCLE_TRANSITION_F3_PASS] Filtro 3 passou em {filtro3_time:.3f}s: nenhuma LOSS")
+                    print(f"    ✓ Filtro 3: Nenhuma LOSS nas últimas 8 operações")
                 
                 # Filtro 4: Verificar estabilidade do ciclo anterior (últimas 20 operações)
                 filtro4_start = time.time()
@@ -1456,34 +1453,34 @@ def analisar_estrategias_portfolio(historico):
             print("  - FIBONACCI_RECOVERY: LOSS isolada detectada")
             logger.debug("[FIBONACCI_RECOVERY_DETECTED] LOSS isolada confirmada")
             
-            # Filtro 1: Win rate geral ≥80% nas últimas 15 operações (incluindo atual)
+            # Filtro 1: Win rate nas últimas 10 operações ≥ 80%
             filtro1_start = time.time()
-            if len(historico) >= 15:
-                if not validar_bounds_array(historico, 0, 15, "FIBONACCI_RECOVERY_F1"):
+            if len(historico) >= 10:
+                if not validar_bounds_array(historico, 0, 10, "FIBONACCI_RECOVERY_F1"):
                     return None
                     
-                ultimas_15 = historico[:15]
-                win_rate_geral = (ultimas_15.count('V') / 15) * 100
+                ultimas_10 = historico[:10]
+                win_rate_geral = (ultimas_10.count('V') / 10) * 100
                 
-                logger.debug(f"[FIBONACCI_RECOVERY_F1] Últimas 15 ops: {' '.join(ultimas_15)}")
+                logger.debug(f"[FIBONACCI_RECOVERY_F1] Últimas 10 ops: {' '.join(ultimas_10)}")
                 logger.debug(f"[FIBONACCI_RECOVERY_F1] Win rate geral: {win_rate_geral:.1f}%, critério: >=80%")
                 
                 if win_rate_geral < 80:
                     filtro1_time = time.time() - filtro1_start
                     logger.debug(f"[FIBONACCI_RECOVERY_F1_REJECT] Filtro 1 rejeitado em {filtro1_time:.3f}s: {win_rate_geral:.1f}% < 80%")
-                    print(f"    X Rejeitado: Win rate geral {win_rate_geral:.1f}% < 80%")
+                    print(f"    X Rejeitado: Win rate {win_rate_geral:.1f}% < 80% nas últimas 10")
                     return None
                 
                 filtro1_time = time.time() - filtro1_start
                 logger.debug(f"[FIBONACCI_RECOVERY_F1_PASS] Filtro 1 passou em {filtro1_time:.3f}s: {win_rate_geral:.1f}% >= 80%")
-                print(f"    ✓ Filtro 1: Win rate geral {win_rate_geral:.1f}% >= 80%")
+                print(f"    ✓ Filtro 1: Win rate {win_rate_geral:.1f}% >= 80% nas últimas 10")
             
-            # Corrigir critérios para usar números Fibonacci reais
-            # Sequência Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21...
+            # Verificar janelas Fibonacci: nas últimas 3, 5 ou 8 operações, 
+            # o número de WINs deve ser exatamente 3, 5 ou 8 (números Fibonacci)
             fibonacci_windows = {
-                3: {'start': 1, 'end': 4, 'fibonacci_target': 3, 'min_wins': 3},    # Exatamente 3 WINs (Fibonacci)
-                5: {'start': 1, 'end': 6, 'fibonacci_target': 5, 'min_wins': 5},    # Exatamente 5 WINs (Fibonacci)
-                8: {'start': 1, 'end': 9, 'fibonacci_target': 8, 'min_wins': 7}     # Pelo menos 7 WINs em 8 (87.5%)
+                3: {'start': 1, 'end': 4, 'fibonacci_target': 3},    # Exatamente 3 WINs em 3 operações
+                5: {'start': 1, 'end': 6, 'fibonacci_target': 5},    # Exatamente 5 WINs em 5 operações  
+                8: {'start': 1, 'end': 9, 'fibonacci_target': 8}     # Exatamente 8 WINs em 8 operações
             }
             
             logger.debug(f"[FIBONACCI_RECOVERY_WINDOWS] Configuração Fibonacci correta: {fibonacci_windows}")
@@ -1500,36 +1497,37 @@ def analisar_estrategias_portfolio(historico):
                     win_count = window.count('V')
                     
                     logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}] Janela F{fib_num} [{start_idx}:{end_idx}]: {' '.join(window)}")
-                    logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}] WINs: {win_count}, Target Fibonacci: {config['fibonacci_target']}, Min: {config['min_wins']}")
+                    logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}] WINs: {win_count}, Target Fibonacci: {config['fibonacci_target']}")
                     
-                    # Verificar se atende ao critério Fibonacci
-                    if win_count >= config['min_wins']:
+                    # Verificar se atende ao critério Fibonacci - deve ser exatamente o número Fibonacci
+                    if win_count == config['fibonacci_target']:
                         fibonacci_matches.append({
                             'window_size': fib_num,
                             'wins': win_count,
                             'fibonacci_target': config['fibonacci_target'],
-                            'is_exact_fibonacci': win_count == config['fibonacci_target'],
-                            'win_rate': (win_count / fib_num) * 100  # CORREÇÃO 1: Adicionar campo win_rate
+                            'is_exact_fibonacci': True,
+                            'win_rate': (win_count / fib_num) * 100
                         })
-                        logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}_VALID] Janela Fibonacci válida")
-                        print(f"    ✓ Fibonacci {fib_num}: {win_count} WINs (target: {config['fibonacci_target']})")
+                        logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}_VALID] Janela Fibonacci válida - exato")
+                        print(f"    ✓ Fibonacci {fib_num}: {win_count} WINs = {config['fibonacci_target']} (exato)")
                     else:
-                        logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}_INVALID] Insuficiente: {win_count} < {config['min_wins']}")
+                        logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}_INVALID] Não exato: {win_count} != {config['fibonacci_target']}")
                 else:
                     logger.debug(f"[FIBONACCI_RECOVERY_W{fib_num}_SKIP] Histórico insuficiente: {len(historico)} < {config['end']}")
             
             logger.debug(f"[FIBONACCI_RECOVERY_WINDOWS_RESULT] Análise das janelas Fibonacci concluída, janelas válidas: {len(fibonacci_matches)}")
             
-            # Filtro 2: Pelo menos 2 janelas Fibonacci devem atender aos critérios
+            # Filtro 2: Pelo menos 1 janela Fibonacci deve atender aos critérios
             filtro2_start = time.time()
-            if len(fibonacci_matches) < 2:
+            if len(fibonacci_matches) < 1:
                 filtro2_time = time.time() - filtro2_start
-                logger.debug(f"[FIBONACCI_RECOVERY_F2_REJECT] Filtro 2 rejeitado em {filtro2_time:.3f}s: {len(fibonacci_matches)} < 2")
-                print(f"    X Rejeitado: Apenas {len(fibonacci_matches)} janelas Fibonacci válidas (mínimo 2)")
+                logger.debug(f"[FIBONACCI_RECOVERY_F2_REJECT] Filtro 2 rejeitado em {filtro2_time:.3f}s: {len(fibonacci_matches)} < 1")
+                print(f"    X Rejeitado: Nenhuma janela Fibonacci válida encontrada")
                 return None
             
             filtro2_time = time.time() - filtro2_start
-            logger.debug(f"[FIBONACCI_RECOVERY_F2_PASS] Filtro 2 passou em {filtro2_time:.3f}s: {len(fibonacci_matches)} >= 2")
+            logger.debug(f"[FIBONACCI_RECOVERY_F2_PASS] Filtro 2 passou em {filtro2_time:.3f}s: {len(fibonacci_matches)} >= 1")
+            print(f"    ✓ Filtro 2: {len(fibonacci_matches)} janela(s) Fibonacci válida(s)")
             
             # Filtro 3: Verificar consistência - não deve haver mais de 1 LOSS nas últimas 10 operações
             filtro3_start = time.time()
@@ -1613,18 +1611,18 @@ def analisar_estrategias_portfolio(historico):
             # Janela antiga: operações mais velhas (índices maiores)
             
             if len(historico) >= 16:
-                # JANELA RECENTE: operações 1-8 (excluindo LOSS atual no índice 0)
-                recent_start, recent_end = 1, 9
-                # JANELA ANTIGA: operações 9-16 (mais antigas cronologicamente)
-                old_start, old_end = 9, 17
+                # JANELA RECENTE: operações 1-8 ([-7,0] excluindo LOSS atual)
+                recent_start, recent_end = 1, 8
+                # JANELA ANTIGA: operações 8-16 ([-15,-7] mais antigas)
+                old_start, old_end = 8, 16
                 
                 if not validar_bounds_array(historico, recent_start, recent_end, "MOMENTUM_SHIFT_RECENT"):
                     return None
                 if not validar_bounds_array(historico, old_start, old_end, "MOMENTUM_SHIFT_OLD"):
                     return None
                 
-                recent_window = historico[recent_start:recent_end]  # 8 operações recentes
-                old_window = historico[old_start:old_end]           # 8 operações antigas
+                recent_window = historico[recent_start:recent_end]  # 7 operações recentes [-7,0]
+                old_window = historico[old_start:old_end]           # 8 operações antigas [-15,-7]
                 
                 logger.debug(f"[MOMENTUM_SHIFT_WINDOWS] Janela RECENTE (cronologicamente) [{recent_start}:{recent_end}]: {' '.join(recent_window)}")
                 logger.debug(f"[MOMENTUM_SHIFT_WINDOWS] Janela ANTIGA (cronologicamente) [{old_start}:{old_end}]: {' '.join(old_window)}")
@@ -1641,61 +1639,31 @@ def analisar_estrategias_portfolio(historico):
                 improvement = recent_win_rate - old_win_rate
                 logger.debug(f"[MOMENTUM_SHIFT_IMPROVEMENT] Melhoria: {recent_win_rate*100:.1f}% - {old_win_rate*100:.1f}% = {improvement*100:.1f}%")
                 
-                # Filtro 1: Baseline deve ser baixo (≤60%) para caracterizar momentum shift
+                # Filtro 1: Melhoria deve ser significativa (≥20%)
                 filtro1_start = time.time()
-                if old_win_rate > 0.60:
+                if improvement < 0.20:
                     filtro1_time = time.time() - filtro1_start
-                    logger.debug(f"[MOMENTUM_SHIFT_F1_REJECT] Filtro 1 rejeitado em {filtro1_time:.3f}s: {old_win_rate*100:.1f}% > 60%")
-                    print(f"    X Rejeitado: Baseline muito alto {old_win_rate*100:.1f}% > 60% (não há shift)")
+                    logger.debug(f"[MOMENTUM_SHIFT_F1_REJECT] Filtro 1 rejeitado em {filtro1_time:.3f}s: {improvement*100:.1f}% < 20%")
+                    print(f"    X Rejeitado: Melhoria {improvement*100:.1f}% < 20%")
                     return None
                 
                 filtro1_time = time.time() - filtro1_start
-                logger.debug(f"[MOMENTUM_SHIFT_F1_PASS] Filtro 1 passou em {filtro1_time:.3f}s: {old_win_rate*100:.1f}% <= 60%")
+                logger.debug(f"[MOMENTUM_SHIFT_F1_PASS] Filtro 1 passou em {filtro1_time:.3f}s: {improvement*100:.1f}% >= 20%")
+                print(f"    ✓ Filtro 1: Melhoria {improvement*100:.1f}% >= 20%")
                 
-                # Filtro 2: Melhoria deve ser significativa (≥25%)
+                # Filtro 2: Win rate recente deve ser alto (≥85%)
                 filtro2_start = time.time()
-                if improvement < 0.25:
+                if recent_win_rate < 0.85:
                     filtro2_time = time.time() - filtro2_start
-                    logger.debug(f"[MOMENTUM_SHIFT_F2_REJECT] Filtro 2 rejeitado em {filtro2_time:.3f}s: {improvement*100:.1f}% < 25%")
-                    print(f"    X Rejeitado: Melhoria {improvement*100:.1f}% < 25%")
+                    logger.debug(f"[MOMENTUM_SHIFT_F2_REJECT] Filtro 2 rejeitado em {filtro2_time:.3f}s: {recent_win_rate*100:.1f}% < 85%")
+                    print(f"    X Rejeitado: Win rate recente {recent_win_rate*100:.1f}% < 85%")
                     return None
                 
                 filtro2_time = time.time() - filtro2_start
-                logger.debug(f"[MOMENTUM_SHIFT_F2_PASS] Filtro 2 passou em {filtro2_time:.3f}s: {improvement*100:.1f}% >= 25%")
+                logger.debug(f"[MOMENTUM_SHIFT_F2_PASS] Filtro 2 passou em {filtro2_time:.3f}s: {recent_win_rate*100:.1f}% >= 85%")
+                print(f"    ✓ Filtro 2: Win rate recente {recent_win_rate*100:.1f}% >= 85%")
                 
-                # Filtro 3: Win rate recente deve ser alto (≥80%)
-                filtro3_start = time.time()
-                if recent_win_rate < 0.80:
-                    filtro3_time = time.time() - filtro3_start
-                    logger.debug(f"[MOMENTUM_SHIFT_F3_REJECT] Filtro 3 rejeitado em {filtro3_time:.3f}s: {recent_win_rate*100:.1f}% < 80%")
-                    print(f"    X Rejeitado: Win rate recente {recent_win_rate*100:.1f}% < 80%")
-                    return None
-                
-                filtro3_time = time.time() - filtro3_start
-                logger.debug(f"[MOMENTUM_SHIFT_F3_PASS] Filtro 3 passou em {filtro3_time:.3f}s: {recent_win_rate*100:.1f}% >= 80%")
-                
-                # Filtro 4: Verificar consistência - máximo 1 LOSS nas últimas 10 operações
-                filtro4_start = time.time()
-                if len(historico) >= 11:
-                    consist_start, consist_end = 1, 11
-                    if not validar_bounds_array(historico, consist_start, consist_end, "MOMENTUM_SHIFT_F4"):
-                        return None
-                        
-                    ultimas_10_antes = historico[consist_start:consist_end]
-                    losses_10 = ultimas_10_antes.count('D')
-                    
-                    logger.debug(f"[MOMENTUM_SHIFT_F4] Últimas 10 antes da LOSS [{consist_start}:{consist_end}]: {' '.join(ultimas_10_antes)}")
-                    logger.debug(f"[MOMENTUM_SHIFT_F4] LOSSes: {losses_10}/10, critério: <=1")
-                    
-                    if losses_10 > 1:
-                        filtro4_time = time.time() - filtro4_start
-                        logger.debug(f"[MOMENTUM_SHIFT_F4_REJECT] Filtro 4 rejeitado em {filtro4_time:.3f}s: {losses_10} > 1")
-                        print(f"    X Rejeitado: {losses_10} LOSSes nas últimas 10 operações (máximo 1)")
-                        return None
-                    
-                    filtro4_time = time.time() - filtro4_start
-                    logger.debug(f"[MOMENTUM_SHIFT_F4_PASS] Filtro 4 passou em {filtro4_time:.3f}s: {losses_10} <= 1")
-                    print(f"    OK Filtro 4: {losses_10} LOSS nas últimas 10 operações")
+                # Todos os filtros passaram
                 
                 strategy_total_time = time.time() - strategy_start_time
                 logger.debug(f"[MOMENTUM_SHIFT_SUCCESS] Estratégia aprovada em {strategy_total_time:.3f}s")
@@ -1723,25 +1691,25 @@ def analisar_estrategias_portfolio(historico):
         return None
     
     # ESTRATÉGIA 8: STABILITY BREAK (88.7% confiança)
-    # Trigger: LOSS após período de alta estabilidade
+    # Trigger: LOSS isolada (historico[0] == 'D' and historico[1] != 'D')
+    # Filtros: 1) Máximo 1 LOSS nas últimas 15 operações (antes da LOSS atual)
+    #          2) Últimas 5 operações antes da LOSS devem ter pelo menos 4 WINs
     @strategy_exception_handler('STABILITY_BREAK')
     def estrategia_stability_break(historico):
         strategy_start_time = time.time()
         logger.debug("[STABILITY_BREAK_START] Iniciando análise da estratégia STABILITY_BREAK")
         
         try:
-            # Edge case: histórico insuficiente ou não é LOSS isolada
-            if len(historico) < 25:
-                logger.debug(f"[STABILITY_BREAK_EDGE] Histórico insuficiente: {len(historico)} < 25")
+            # Edge case: histórico insuficiente
+            if len(historico) < 16:  # Precisa de pelo menos 16 operações (1 atual + 15 anteriores)
+                logger.debug(f"[STABILITY_BREAK_EDGE] Histórico insuficiente: {len(historico)} < 16")
                 return None
                 
-            # Verificar LOSS isolada
-            trigger_condition1 = historico[0] == 'D'
-            trigger_condition2 = len(historico) < 2 or historico[1] != 'D'
-            trigger_condition = trigger_condition1 and trigger_condition2
+            # TRIGGER OBRIGATÓRIO: LOSS isolada
+            trigger_condition = historico[0] == 'D' and historico[1] != 'D'
             
-            logger.debug(f"[STABILITY_BREAK_TRIGGER] LOSS isolada? historico[0]={historico[0]}, historico[1]={historico[1] if len(historico) > 1 else 'N/A'}")
-            logger.debug(f"[STABILITY_BREAK_TRIGGER] Condições: LOSS={trigger_condition1}, não dupla={trigger_condition2}, trigger={trigger_condition}")
+            logger.debug(f"[STABILITY_BREAK_TRIGGER] LOSS isolada? historico[0]={historico[0]}, historico[1]={historico[1]}")
+            logger.debug(f"[STABILITY_BREAK_TRIGGER] Trigger condition: {trigger_condition}")
             
             if not trigger_condition:
                 logger.debug("[STABILITY_BREAK_NO_TRIGGER] Não é LOSS isolada")
@@ -1750,147 +1718,69 @@ def analisar_estrategias_portfolio(historico):
             print("  - STABILITY_BREAK: LOSS isolada detectada")
             logger.debug("[STABILITY_BREAK_DETECTED] LOSS isolada confirmada")
             
-            # Algoritmo corrigido para detectar períodos de estabilidade
+            # FILTRO DE ESTABILIDADE: Máximo 1 LOSS nas últimas 15 operações (antes da LOSS atual)
             filter1_start_time = time.time()
-            logger.debug("[STABILITY_BREAK_FILTER1_START] Calculando períodos de estabilidade")
+            logger.debug("[STABILITY_BREAK_FILTER1_START] Verificando filtro de estabilidade")
             
-            if not validar_bounds_array(historico, 1, min(21, len(historico)), "STABILITY_BREAK_stability_analysis"):
+            # Validar bounds para as últimas 15 operações antes da LOSS atual
+            if not validar_bounds_array(historico, 1, 16, "STABILITY_BREAK_stability_filter"):
                 return None
             
-            # Encontrar TODOS os períodos consecutivos de WINs
-            periodos_estabilidade = []
-            periodo_atual = 0
-            inicio_periodo = -1
+            ultimas_15 = historico[1:16]  # Operações 1-15 (excluindo a LOSS atual na posição 0)
+            losses_in_15 = ultimas_15.count('D')
             
-            for i in range(1, min(21, len(historico))):
-                if historico[i] == 'V':
-                    if periodo_atual == 0:
-                        inicio_periodo = i
-                    periodo_atual += 1
-                else:  # LOSS encontrada
-                    if periodo_atual > 0:
-                        periodos_estabilidade.append({
-                            'inicio': inicio_periodo,
-                            'fim': i-1,
-                            'tamanho': periodo_atual,
-                            'sequencia': historico[inicio_periodo:i]
-                        })
-                        logger.debug(f"[STABILITY_PERIOD] Período encontrado: {periodo_atual} WINs consecutivos nos índices [{inicio_periodo}:{i}]")
-                    periodo_atual = 0
+            logger.debug(f"[STABILITY_BREAK_FILTER1_CALC] Últimas 15 operações: {ultimas_15}")
+            logger.debug(f"[STABILITY_BREAK_FILTER1_CALC] LOSSes encontradas: {losses_in_15}")
             
-            # Verificar último período se terminou em WIN
-            if periodo_atual > 0:
-                periodos_estabilidade.append({
-                    'inicio': inicio_periodo,
-                    'fim': min(20, len(historico)-1),
-                    'tamanho': periodo_atual,
-                    'sequencia': historico[inicio_periodo:min(21, len(historico))]
-                })
+            print(f"    - Filtro de estabilidade: {losses_in_15} LOSSes nas últimas 15 operações")
             
-            # Encontrar maior período de estabilidade
-            max_stability_period = max([p['tamanho'] for p in periodos_estabilidade]) if periodos_estabilidade else 0
-            
-            filter1_time = time.time() - filter1_start_time
-            logger.debug(f"[STABILITY_BREAK_RESULT] Períodos encontrados: {len(periodos_estabilidade)}, Maior: {max_stability_period}")
-            
-            print(f"    - Maior período de estabilidade encontrado: {max_stability_period} WINs consecutivos")
-            logger.debug(f"[STABILITY_BREAK_STABILITY_RESULT] Período máximo de estabilidade: {max_stability_period}")
-            
-            # Filtro 1: Deve ter pelo menos 8 WINs consecutivos para caracterizar estabilidade
-            if max_stability_period < 8:
-                filter1_fail_time = time.time() - strategy_start_time
-                logger.debug(f"[STABILITY_BREAK_FILTER1_FAIL] Filtro 1 falhou em {filter1_fail_time:.3f}s: {max_stability_period} < 8")
-                print(f"    X Rejeitado: Período de estabilidade {max_stability_period} < 8 WINs consecutivos")
+            if losses_in_15 > 1:
+                filter1_fail_time = time.time() - filter1_start_time
+                logger.debug(f"[STABILITY_BREAK_FILTER1_FAIL] Filtro 1 falhou em {filter1_fail_time:.3f}s: {losses_in_15} LOSSes > 1")
+                print(f"    X Rejeitado: {losses_in_15} LOSSes nas últimas 15 operações (máximo 1)")
                 return None
             
             filter1_pass_time = time.time() - filter1_start_time
             logger.debug(f"[STABILITY_BREAK_FILTER1_PASS] Filtro 1 passou em {filter1_pass_time:.3f}s")
+            print(f"    ✓ Filtro de estabilidade: {losses_in_15} LOSS nas últimas 15 operações")
             
-            # Filtro 2: Verificar estabilidade geral nas últimas 18 operações
+            # FILTRO DE QUALIDADE: Últimas 5 operações antes da LOSS devem ter pelo menos 4 WINs
             filter2_start_time = time.time()
-            logger.debug("[STABILITY_BREAK_FILTER2_START] Verificando estabilidade geral")
+            logger.debug("[STABILITY_BREAK_FILTER2_START] Verificando filtro de qualidade")
             
-            # Validar bounds para janela de estabilidade
-            if not validar_bounds_array(historico, 1, 19, "STABILITY_BREAK_stability_window"):
-                logger.error("[STABILITY_BREAK_BOUNDS_ERROR] Erro de bounds na janela de estabilidade")
+            # Validar bounds para as últimas 5 operações antes da LOSS atual
+            if not validar_bounds_array(historico, 1, 6, "STABILITY_BREAK_quality_filter"):
                 return None
             
-            stability_window = historico[1:19]  # 18 operações antes da LOSS
-            loss_count_stability = stability_window.count('D')
-            win_rate_stability = (stability_window.count('V') / len(stability_window)) * 100
+            ultimas_5 = historico[1:6]  # Operações 1-5 (excluindo a LOSS atual na posição 0)
+            wins_in_5 = ultimas_5.count('V')
             
-            logger.debug(f"[STABILITY_BREAK_FILTER2_CALC] Janela estabilidade: {stability_window}")
-            logger.debug(f"[STABILITY_BREAK_FILTER2_CALC] LOSSes: {loss_count_stability}, Win rate: {win_rate_stability:.1f}%")
+            logger.debug(f"[STABILITY_BREAK_FILTER2_CALC] Últimas 5 operações: {ultimas_5}")
+            logger.debug(f"[STABILITY_BREAK_FILTER2_CALC] WINs encontrados: {wins_in_5}")
             
-            # Critério mais flexível: máximo 2 LOSSes em 18 operações (≥89% win rate)
-            if loss_count_stability > 2:
+            print(f"    - Filtro de qualidade: {wins_in_5} WINs nas últimas 5 operações")
+            
+            if wins_in_5 < 4:
                 filter2_fail_time = time.time() - filter2_start_time
-                logger.debug(f"[STABILITY_BREAK_FILTER2_FAIL] Filtro 2a falhou em {filter2_fail_time:.3f}s: {loss_count_stability} LOSSes > 2")
-                print(f"    X Rejeitado: {loss_count_stability} LOSSes em 18 operações (máximo 2)")
-                return None
-            
-            if win_rate_stability < 89:
-                filter2_fail_time = time.time() - filter2_start_time
-                logger.debug(f"[STABILITY_BREAK_FILTER2_FAIL] Filtro 2b falhou em {filter2_fail_time:.3f}s: {win_rate_stability:.1f}% < 89%")
-                print(f"    X Rejeitado: Win rate de estabilidade {win_rate_stability:.1f}% < 89%")
+                logger.debug(f"[STABILITY_BREAK_FILTER2_FAIL] Filtro 2 falhou em {filter2_fail_time:.3f}s: {wins_in_5} WINs < 4")
+                print(f"    X Rejeitado: {wins_in_5} WINs nas últimas 5 operações (mínimo 4)")
                 return None
             
             filter2_pass_time = time.time() - filter2_start_time
             logger.debug(f"[STABILITY_BREAK_FILTER2_PASS] Filtro 2 passou em {filter2_pass_time:.3f}s")
-            print(f"    ✓ Filtro 2: Estabilidade geral {win_rate_stability:.1f}% com {loss_count_stability} LOSSes")
-            
-            # Filtro 3: Verificar qualidade das últimas 7 operações antes da LOSS
-            filter3_start_time = time.time()
-            logger.debug("[STABILITY_BREAK_FILTER3_START] Verificando qualidade recente")
-            
-            # Validar bounds para janela recente
-            if not validar_bounds_array(historico, 1, 8, "STABILITY_BREAK_recent_window"):
-                logger.error("[STABILITY_BREAK_BOUNDS_ERROR] Erro de bounds na janela recente")
-                return None
-            
-            recent_7 = historico[1:8]
-            wins_in_recent_7 = recent_7.count('V')
-            losses_in_recent_7 = recent_7.count('D')
-            
-            logger.debug(f"[STABILITY_BREAK_FILTER3_CALC] Janela recente: {recent_7}")
-            logger.debug(f"[STABILITY_BREAK_FILTER3_CALC] WINs: {wins_in_recent_7}, LOSSes: {losses_in_recent_7}")
-            
-            # Deve ter pelo menos 6 WINs em 7 operações (≥85.7%)
-            if wins_in_recent_7 < 6:
-                filter3_fail_time = time.time() - filter3_start_time
-                logger.debug(f"[STABILITY_BREAK_FILTER3_FAIL] Filtro 3 falhou em {filter3_fail_time:.3f}s: {wins_in_recent_7}/7 < 6")
-                print(f"    X Rejeitado: Qualidade recente insuficiente ({wins_in_recent_7}/7 WINs < 6)")
-                return None
-            
-            filter3_pass_time = time.time() - filter3_start_time
-            logger.debug(f"[STABILITY_BREAK_FILTER3_PASS] Filtro 3 passou em {filter3_pass_time:.3f}s")
-            
-            # Filtro 4: Não deve haver LOSSes consecutivas no período recente
-            filter4_start_time = time.time()
-            logger.debug("[STABILITY_BREAK_FILTER4_START] Verificando LOSSes consecutivas")
-            
-            if losses_in_recent_7 > 0:
-                # Verificar se a LOSS recente não é consecutiva com a atual
-                if recent_7[0] == 'D':  # LOSS imediatamente antes da atual
-                    filter4_fail_time = time.time() - filter4_start_time
-                    logger.debug(f"[STABILITY_BREAK_FILTER4_FAIL] Filtro 4 falhou em {filter4_fail_time:.3f}s: LOSSes consecutivas")
-                    print("    X Rejeitado: LOSSes consecutivas detectadas")
-                    return None
-            
-            filter4_pass_time = time.time() - filter4_start_time
-            logger.debug(f"[STABILITY_BREAK_FILTER4_PASS] Filtro 4 passou em {filter4_pass_time:.3f}s")
+            print(f"    ✓ Filtro de qualidade: {wins_in_5} WINs nas últimas 5 operações")
             
             strategy_total_time = time.time() - strategy_start_time
             logger.debug(f"[STABILITY_BREAK_SUCCESS] Estratégia aprovada em {strategy_total_time:.3f}s")
-            print(f"    ✓ STABILITY_BREAK: Estabilidade de {max_stability_period} WINs, qualidade recente {wins_in_recent_7}/7")
+            print(f"    ✓ STABILITY_BREAK: Estabilidade ({losses_in_15}/15 LOSSes) + Qualidade ({wins_in_5}/5 WINs)")
             
             return {
                 'strategy': 'STABILITY_BREAK',
                 'confidence': 88.7,
-                'max_stability_period': max_stability_period,
-                'stability_win_rate': round(win_rate_stability, 1),
-                'recent_quality': f"{wins_in_recent_7}/7",
-                'stability_losses': loss_count_stability
+                'stability_losses': losses_in_15,
+                'quality_wins': wins_in_5,
+                'stability_window': f"{losses_in_15}/15 LOSSes",
+                'quality_window': f"{wins_in_5}/5 WINs"
             }
             
         except Exception as e:
@@ -2127,28 +2017,9 @@ def enviar_sinal_para_supabase(supabase, is_safe_to_operate, reason, pattern_fou
         
         current_time = datetime.now().isoformat()
         
-        # Lógica condicional para o campo reason
-        final_reason = reason  # Valor padrão
-        
-        # Verificar se uma estratégia válida foi detectada
-        estrategia_valida = (
-            strategy_info is not None and 
-            strategy_info.get('strategy') is not None and 
-            strategy_info.get('strategy') != 'NONE'
-        )
-        
-        if estrategia_valida and is_safe_to_operate:
-            # Estratégia detectada e aprovada para operar
-            final_reason = "Patron Encontrado, Activar Bot Ahora!"
-        elif estrategia_valida and not is_safe_to_operate:
-            # Estratégia detectada mas não aprovada para operar
-            final_reason = f"Estratégia {strategy_info.get('strategy')} detectada mas inativa"
-        elif not estrategia_valida and not is_safe_to_operate:
-            # Nenhuma estratégia detectada e não seguro para operar
-            final_reason = "Esperando el patrón. No activar aún."
-        elif strategy_info is None or strategy_info.get('strategy') == 'NONE':
-            # Sistema analisando sem estratégia específica
-            final_reason = "Analisando o Mercado, Espere..."
+        # CORREÇÃO: Usar o reason original sem sobrescrever
+        # O reason já vem correto da função analisar_estrategias_portfolio
+        final_reason = reason  # Manter o reason original sem modificações
         
         # Estrutura base de dados
         data = {
