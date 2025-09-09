@@ -103,34 +103,54 @@ last_operation_id_when_signal = None
 last_checked_operation_id = None
 monitoring_start_time = None
 active_signal_data = None
+active_tracking_id = None  # ID numérico do registro de rastreamento ativo
 
 # ===== FUNÇÕES DE GERENCIAMENTO DE ESTADO =====
 
-def reset_bot_state():
+def reset_bot_state(supabase=None):
     """Reseta o bot para o estado ANALYZING"""
     global bot_current_state, monitoring_operations_count
-    global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data
+    global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id
     
     logger.info("[STATE] Resetando estado para ANALYZING")
+    
+    # Finalizar rastreamento se necessário
+    if supabase:
+        finalizar_rastreamento_se_necessario(supabase)
+    
     bot_current_state = BotState.ANALYZING
     monitoring_operations_count = 0
     last_operation_id_when_signal = None
     last_checked_operation_id = None
     monitoring_start_time = None
     active_signal_data = None
+    active_tracking_id = None
 
-def activate_monitoring_state(signal_data: dict, latest_operation_id: str):
+def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supabase):
     """Ativa o estado MONITORING após encontrar um padrão"""
     global bot_current_state, monitoring_operations_count
-    global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data
+    global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id
     
     logger.info(f"[STATE] Ativando estado MONITORING - Sinal: {signal_data['strategy']}")
-    bot_current_state = BotState.MONITORING
-    monitoring_operations_count = 0
-    last_operation_id_when_signal = latest_operation_id
-    last_checked_operation_id = latest_operation_id  # Inicializar com o ID do sinal
-    monitoring_start_time = time.time()
-    active_signal_data = signal_data.copy()
+    
+    # Criar registro de rastreamento
+    tracking_id = criar_registro_de_rastreamento(
+        supabase, 
+        signal_data['strategy'], 
+        signal_data['confidence']
+    )
+    
+    if tracking_id:
+        bot_current_state = BotState.MONITORING
+        monitoring_operations_count = 0
+        last_operation_id_when_signal = latest_operation_id
+        last_checked_operation_id = latest_operation_id  # Inicializar com o ID do sinal
+        monitoring_start_time = time.time()
+        active_signal_data = signal_data.copy()
+        active_tracking_id = tracking_id
+        logger.info(f"[TRACKING] Rastreamento iniciado com ID: {tracking_id}")
+    else:
+        logger.error(f"[TRACKING] Falha ao criar rastreamento - mantendo estado ANALYZING")
 
 def check_new_operations(current_operation_id: str) -> bool:
     """Verifica se houve novas operações desde o sinal
@@ -175,6 +195,47 @@ def should_reset_to_analyzing() -> bool:
         return True
     
     return False
+
+def coletar_resultados_operacoes(supabase, num_operacoes: int = 2) -> List[str]:
+    """Coleta os resultados das últimas operações para rastreamento"""
+    try:
+        response = supabase.table('scalping_accumulator_bot_logs') \
+            .select('operation_result') \
+            .eq('bot_name', BOT_NAME) \
+            .order('created_at', desc=True) \
+            .limit(num_operacoes) \
+            .execute()
+        
+        if response.data:
+            # Inverter a ordem para ter os resultados cronológicos
+            resultados = [op['operation_result'] for op in reversed(response.data)]
+            logger.info(f"[TRACKING] Resultados coletados: {resultados}")
+            return resultados
+        else:
+            logger.warning(f"[TRACKING] Nenhum resultado encontrado")
+            return []
+            
+    except Exception as e:
+        logger.error(f"[TRACKING_ERROR] Erro ao coletar resultados: {e}")
+        return []
+
+def finalizar_rastreamento_se_necessario(supabase):
+    """Finaliza o rastreamento ativo se houver operações suficientes"""
+    global active_tracking_id, monitoring_operations_count
+    
+    if active_tracking_id and monitoring_operations_count >= PERSISTENCIA_OPERACOES:
+        # Coletar resultados das operações
+        resultados = coletar_resultados_operacoes(supabase, PERSISTENCIA_OPERACOES)
+        
+        if len(resultados) >= PERSISTENCIA_OPERACOES:
+            # Finalizar registro de rastreamento
+            sucesso = finalizar_registro_de_rastreamento(supabase, active_tracking_id, resultados)
+            if sucesso:
+                logger.info(f"[TRACKING] Rastreamento {active_tracking_id} finalizado com sucesso")
+            else:
+                logger.error(f"[TRACKING] Falha ao finalizar rastreamento {active_tracking_id}")
+        else:
+            logger.warning(f"[TRACKING] Resultados insuficientes para finalizar rastreamento: {len(resultados)}/{PERSISTENCIA_OPERACOES}")
 
 def get_state_info() -> dict:
     """Retorna informações do estado atual"""
@@ -551,26 +612,22 @@ def buscar_operacoes_historico(supabase):
         logger.error(f"[HISTORICO_ERROR] Erro ao buscar operações: {e}")
         return [], [], None
 
-def criar_tracking_record(supabase, strategy_name: str, confidence_level: float, signal_id: str) -> str:
-    """Cria registro na tabela strategy_results_tracking"""
+def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_level: float) -> int:
+    """Cria registro na tabela strategy_results_tracking e retorna o ID serial"""
     try:
-        tracking_id = str(uuid.uuid4())
-        
         data = {
-            'tracking_id': tracking_id,
             'strategy_name': strategy_name,
             'strategy_confidence': confidence_level,
-            'pattern_found_at': datetime.now().isoformat(),
-            'signal_id': signal_id,
             'bot_name': BOT_NAME,
             'status': 'ACTIVE'
         }
         
-        response = supabase.table('strategy_results_tracking').insert(data).execute()
+        response = supabase.table('strategy_results_tracking').insert(data).select('id').execute()
         
-        if response.data:
-            logger.info(f"[TRACKING] Registro criado: {tracking_id} para {strategy_name}")
-            return tracking_id
+        if response.data and len(response.data) > 0:
+            record_id = response.data[0]['id']
+            logger.info(f"[TRACKING] Registro criado com ID: {record_id} para {strategy_name}")
+            return record_id
         else:
             logger.error(f"[TRACKING] Falha ao criar registro para {strategy_name}")
             return None
@@ -578,6 +635,38 @@ def criar_tracking_record(supabase, strategy_name: str, confidence_level: float,
     except Exception as e:
         logger.error(f"[TRACKING_ERROR] Erro ao criar tracking: {e}")
         return None
+
+def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: List[str]) -> bool:
+    """Finaliza registro de rastreamento com os resultados das operações"""
+    try:
+        # Mapear resultados para as colunas corretas
+        operation_1_result = resultados[0] if len(resultados) > 0 else None
+        operation_2_result = resultados[1] if len(resultados) > 1 else None
+        
+        # Determinar sucesso do padrão (True somente se ambos forem 'V')
+        pattern_success = (resultados == ['V', 'V']) if len(resultados) == 2 else False
+        
+        # Dados para atualização
+        update_data = {
+            'operation_1_result': operation_1_result,
+            'operation_2_result': operation_2_result,
+            'pattern_success': pattern_success,
+            'status': 'COMPLETED',
+            'completed_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('strategy_results_tracking').update(update_data).eq('id', record_id).execute()
+        
+        if response.data:
+            logger.info(f"[TRACKING] Registro {record_id} finalizado: {resultados} -> Sucesso: {pattern_success}")
+            return True
+        else:
+            logger.error(f"[TRACKING] Falha ao finalizar registro {record_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"[TRACKING_ERROR] Erro ao finalizar tracking {record_id}: {e}")
+        return False
 
 def consultar_eficacia_estrategia(supabase, strategy_name: str) -> Dict:
     """Consulta eficácia em tempo real de uma estratégia"""
@@ -1005,7 +1094,7 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
             
             # Se encontrou padrão, ativar estado MONITORING e armazenar resultado
             if resultado_ciclo['should_operate']:
-                activate_monitoring_state(resultado_ciclo, latest_operation_id)
+                activate_monitoring_state(resultado_ciclo, latest_operation_id, supabase)
                 logger.info(f"[STATE_CHANGE] ANALYZING → MONITORING (padrão encontrado)")
                 
         elif bot_current_state == BotState.MONITORING:
@@ -1029,7 +1118,7 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
                     'wins_consecutivos': active_signal_data.get('wins_consecutivos', 0)
                 }
                 
-                reset_bot_state()
+                reset_bot_state(supabase)
                 logger.info("[STATE_CHANGE] MONITORING → ANALYZING (monitoramento concluído)")
             else:
                 # Usar o sinal armazenado como resultado do ciclo atual
