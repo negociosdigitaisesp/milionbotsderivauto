@@ -1,0 +1,81 @@
+[33mfd76efb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m feat: add comprehensive test suite for scalping bot strategies
+[33ma06823e[m Update radar_analyzer - manual push
+[33m83429a4[m Force update from VPS
+[33maa80ba3[m feat(database): add strategy_used column to signals table
+[33m63bcd61[m feat: add accumulator bot system with radar integration and database support
+[33m4031c7a[m feat: add new trading bots and test scripts
+[33ma391b9b[m Forçando atualização completa com as últimas versões dos bots
+[33mc24c053[m feat(bots): add robust websocket error handling and retry mechanism
+[33mcc08c5d[m feat(scale_bot): add scale bot with adaptive prediction strategy
+[33m84e9a0d[m feat: implement VPS configuration with infinite operation and error handling
+[33mf990d40[m 🧹 Limpeza completa do projeto - Sistema de Trading Automatizado
+[33m4b8541d[m feat(vercel): add Python 3.12 deployment configuration
+[33m92bdc00[m feat: implement trading bot system with Supabase integration
+[33mfe05378[m feat(factor50x): add factor50x bot page with risk level configurations
+[33m67a9900[m refactor: remove deriv integration feature and related files
+[33me68afc4[m feat(deriv): add API token support and update app ID
+[33m6ad9ac6[m feat(env): add Deriv API configuration and environment setup
+[33m5073a18[m feat(deriv): add deriv integration with OAuth, bot management and trading
+[33mf03b5ca[m feat(auth): implement user activation system with status verification
+[33m0264e2d[m Reverted to commit 59b337ac8869717346ff98c3580c42bcf24b1d97
+[33m6f38881[m Feat: Show all users in admin panel
+[33m36a205c[m Fix: Admin panel visibility and user registration flow
+[33m960f4a3[m Fix: Resolve TypeScript errors related to 'title'
+[33m5cd50e6[m Add admin panel structure
+[33m59b337a[m feat(ui): add investment risk warning banner to multiple pages
+[33me962daf[m Add download link for Apalancamiento 100X bot in BotDetailView
+[33mf3a575c[m Add new Apalancamiento 100X bot to mock data and update accuracy for existing bots
+[33ma697ba6[m Update accuracy values for Wolf Bot and Bot A.I in mock data
+[33m8aad752[m Add download link for Wolf Bot in BotDetailView and update mock data with download URL
+[33mdb61692[m Add Wolf Bot to mock data with detailed strategy and usage instructions
+[33m419bf7d[m Update BotDetailView and mock data with new download links for bots
+[33mdf70331[m Update mock data for bots: adjust accuracy values for Quantum and Sniper Bots, and add new Bot A.I with detailed strategy and usage instructions.
+[33mb88d3e5[m Update BotDetailView and mock data to reflect changes in Quantum Bot's strategy
+[33m7a3a60a[m Refactor CSS structure and enhance BotDetailView with new download link
+[33m8145865[m Add new Sniper Bot to mock data and update existing bot details
+[33m9dfde59[m Update download link in BotDetailView component
+[33mdc2a1df[m Update bot accuracy and usage instructions in mock data
+[33mdb53eff[m Update button text color and enhance UI consistency
+[33mf3e4689[m Change login button color
+[33m063dd19[m Change logo and name color
+[33m011da2b[m Visual edit in Lovable
+[33m044c4cc[m Fix: Account logout issue
+[33mb78f78c[m Fix authentication error
+[33m63fc2cf[m Fix: Resolve login/signup auth errors
+[33m1f070ad[m feat: Add Netlify configuration and enhance authentication flow
+[33m68e1881[m Fix: Improve error handling and user feedback in Auth page
+[33m3f8c257[m Fix: Update password change logic and improve error handling in Settings page
+[33m23f7781[m feat: Add full database setup script and enhance Supabase integration
+[33m289f75b[m Fix: Supabase confirmation email not sent
+[33m7b587f3[m Fix: Resolve registration errors
+[33m5921810[m Fix: Account creation error and translate Auth page
+[33m2a704f5[m Fix: Supabase URL error
+[33m5b6ec48[m Fix: Supabase URL environment variable
+[33me6a9e0d[m Fix: Resolve 'supabase' not found error in Settings.tsx
+[33mfad5133[m feat: Implement login, settings, and Supabase integration
+[33m81f4d7a[m fix: update bot descriptions and usage instructions for Spanish localization
+[33m8f7a35e[m feat: update UI and localization for Spanish support
+[33m63cfb84[m feat(bots): add NexusBot and AlphaBot with detailed strategy and risk management
+[33m55dbcdb[m Add XBot to mock data
+[33m30f0dfd[m Reverted to commit 80616472a949d17a01179c417ee9597e8c8729f9
+[33m9dd0fa8[m Fix: Resolve runtime error in Index.tsx
+[33m8aa4de9[m Fix type errors in Index and MyBots pages
+[33m5143f54[m Fix import error in useBots
+[33m241fb1d[m Refactor sidebar menu options
+[33m8061647[m Visual edit in Lovable
+[33m63aee51[m Fix: Resolve 'downloads' property error
+[33m0001a50[m Feat: Implement bot ranking and UI improvements
+[33m4cd7a32[m Visual edit in Lovable
+[33m233050f[m Visual edit in Lovable
+[33me283425[m Visual edit in Lovable
+[33mf3b99a8[m Add Quantum Bot
+[33me687072[m Visual edit in Lovable
+[33m21d1100[m Visual edit in Lovable
+[33m03da6e3[m Visual edit in Lovable
+[33m7ed20ab[m Add Hunter Pro bot
+[33mfa36d80[m Add SMA Trend Follower bot
+[33me056c52[m Refactor: Improve bot detail view
+[33m8842b4d[m Add SMA Trend Runner Pro bot
+[33m32ca8cd[m Add Impulso Contrário Pro bot to portfolio
+[33m366e333[m feat: Implement trading bot dashboard
+[33m6fbd765[m Use tech stack vite_react_shadcn_ts
