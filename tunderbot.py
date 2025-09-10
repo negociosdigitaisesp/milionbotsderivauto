@@ -23,6 +23,12 @@ from enhanced_sync_system import EnhancedSyncSystem
 from aiohttp import web
 from error_handler import RobustErrorHandler, with_error_handling, ErrorType, ErrorSeverity
 
+# NOVOS IMPORTS - Sistema de Sincronia Aprimorado
+from enhanced_tick_buffer import EnhancedTickBuffer
+from websocket_recovery import WebSocketRecoveryManager
+from signal_queue_system import ThreadSafeSignalQueue
+from system_health_monitor import SystemHealthMonitor
+
 # Carregar variáveis de ambiente
 load_dotenv()
 
@@ -497,8 +503,21 @@ class AccumulatorScalpingBot:
         # NOVO: Sistema robusto de execução de ordens
         self.robust_order_system = RobustOrderSystem(self.api_manager)
         
-        # NOVO: Sistema de sincronização aprimorado
+        # SISTEMA ORIGINAL (mantido para compatibilidade)
         self.sync_system = EnhancedSyncSystem(max_concurrent_operations=2, max_queue_size=3)
+        
+        # NOVOS SISTEMAS APRIMORADOS
+        self.enhanced_tick_buffer = EnhancedTickBuffer(max_size=10, tolerance_seconds=1.0)
+        self.websocket_recovery = WebSocketRecoveryManager(max_retries=5, base_delay=2.0)
+        self.signal_queue = ThreadSafeSignalQueue(max_size=10, max_concurrent=2)
+        self.health_monitor = SystemHealthMonitor(
+            deadlock_threshold=120.0,
+            inactivity_threshold=180.0,
+            high_failure_rate=0.7
+        )
+        
+        # Configurar callbacks de recovery
+        self._setup_recovery_callbacks()
         
         # Cache de parâmetros pré-validados
         self._cached_params = None
@@ -527,6 +546,62 @@ class AccumulatorScalpingBot:
         logger.info(f"   • Win Stop: ${self.win_stop}")
         logger.info(f"   • Loss Limit: ${self.loss_limit}")
         logger.info(f"   • Sistema de Sinais: Integrado com radar_de_apalancamiento_signals")
+    
+    def _setup_recovery_callbacks(self):
+        """Configura callbacks para recovery automático"""
+        try:
+            # Callbacks do WebSocket Recovery
+            self.websocket_recovery.set_callbacks(
+                on_connected=self._on_websocket_connected,
+                on_disconnected=self._on_websocket_disconnected,
+                on_reconnect_failed=self._on_websocket_failed
+            )
+            
+            # Callbacks do Health Monitor
+            self.health_monitor.set_recovery_callbacks(
+                on_deadlock_detected=self._on_deadlock_detected,
+                on_connection_issues=self._on_connection_issues,
+                on_high_failure_rate=self._on_high_failure_rate,
+                on_inactivity_detected=self._on_inactivity_detected,
+                on_system_restart=self._force_restart_bot
+            )
+            
+            logger.info("✅ Callbacks de recovery configurados")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao configurar callbacks: {e}")
+    
+    async def _on_websocket_connected(self):
+        """Callback chamado quando WebSocket conecta"""
+        logger.info("🔗 WebSocket conectado via recovery manager")
+    
+    async def _on_websocket_disconnected(self):
+        """Callback chamado quando WebSocket desconecta"""
+        logger.warning("⚠️ WebSocket desconectado - recovery será iniciado")
+    
+    async def _on_websocket_failed(self):
+        """Callback chamado quando recovery do WebSocket falha"""
+        logger.error("❌ Recovery do WebSocket falhou - intervenção manual necessária")
+    
+    async def _on_deadlock_detected(self):
+        """Callback chamado quando deadlock é detectado"""
+        logger.error("🔄 Deadlock detectado - limpando queue de sinais")
+        await self.signal_queue.clear_queue()
+    
+    async def _on_connection_issues(self):
+        """Callback chamado para problemas de conexão"""
+        logger.error("🔄 Problemas de conexão detectados - reconectando")
+        await self._reconnect_and_resubscribe()
+    
+    async def _on_high_failure_rate(self):
+        """Callback chamado para alta taxa de falhas"""
+        logger.error("🔄 Alta taxa de falhas detectada - resetando circuit breaker")
+        self.signal_queue.circuit_breaker.reset()
+    
+    async def _on_inactivity_detected(self):
+        """Callback chamado para inatividade detectada"""
+        logger.error("🔄 Inatividade detectada - reiniciando subscription")
+        await self.api_manager.subscribe_ticks(ATIVO)
     
     @with_error_handling(ErrorType.DATA_PROCESSING, ErrorSeverity.MEDIUM)
     async def _handle_new_tick(self, tick_data):
@@ -1614,9 +1689,18 @@ class AccumulatorScalpingBot:
             logger.info("🚀 Iniciando processamento de sinais da queue...")
             signal_processor_task = asyncio.create_task(self._process_signals_from_queue())
             
-            # Iniciar monitoramento em tempo real
+            # Iniciar monitoramento em tempo real (sistema antigo como backup)
             logger.info("📊 Iniciando monitoramento em tempo real...")
             monitoring_task = asyncio.create_task(self._real_time_monitoring())
+            
+            # NOVO: Iniciar sistema de monitoramento de saúde aprimorado
+            logger.info("🏥 Iniciando monitoramento de saúde aprimorado...")
+            health_monitor_task = asyncio.create_task(
+                self.health_monitor.monitor_and_recover(
+                    stats_provider=self._get_enhanced_stats,
+                    check_interval=30.0
+                )
+            )
             
             # Iniciar servidor HTTP para endpoint /status
             logger.info("🌐 Iniciando servidor HTTP...")
@@ -1637,6 +1721,10 @@ class AccumulatorScalpingBot:
             )
             
             logger.info("✅ Bot em modo tempo real - aguardando ticks...")
+            logger.info("🏥 Sistema de monitoramento de saúde ativo")
+            logger.info("📊 Buffer de ticks sincronizado ativo")
+            logger.info("🔄 Sistema de recovery automático ativo")
+            logger.info("⚡ Queue de sinais thread-safe ativa")
             logger.info("🎯 Padrão será analisado automaticamente a cada tick recebido")
             logger.info("⚡ Sistema de sincronização aprimorado ativo")
             logger.info("📊 Sistema de sinais integrado com radar_de_apalancamiento_signals")
@@ -1668,6 +1756,98 @@ class AccumulatorScalpingBot:
             logger.error(f"❌ ERRO CRÍTICO NO SISTEMA DE TEMPO REAL: {e}")
             logger.error("🔄 Tentando reiniciar sistema...")
             await self._reconnect_and_resubscribe()
+    
+    async def _get_enhanced_stats(self) -> dict:
+        """Fornece estatísticas aprimoradas para o monitor de saúde"""
+        try:
+            # Obter estatísticas dos sistemas novos
+            queue_stats = self.signal_queue.get_queue_stats()
+            buffer_stats = self.enhanced_tick_buffer.get_buffer_stats()
+            websocket_stats = self.websocket_recovery.get_connection_stats()
+            
+            # Combinar com estatísticas antigas para compatibilidade
+            old_stats = self.sync_system.get_statistics()
+            
+            # Retornar estatísticas consolidadas
+            enhanced_stats = {
+                # Stats do novo sistema
+                'queue_size': queue_stats.get('queue_size', 0),
+                'active_operations': queue_stats.get('processing_count', 0),
+                'circuit_breaker_state': queue_stats.get('circuit_breaker_state', 'unknown'),
+                'last_signal_time': queue_stats.get('last_signal_time', 0),
+                'successful_operations': queue_stats.get('successful_operations', 0),
+                'failed_operations': queue_stats.get('failed_operations', 0),
+                'total_signals': queue_stats.get('total_signals', 0),
+                
+                # Stats de conexão
+                'connection_status': (
+                    self.api_manager.connected if hasattr(self, 'api_manager') else False
+                ),
+                'websocket_healthy': websocket_stats.get('connection_healthy', False),
+                'last_ping_time': websocket_stats.get('last_ping_age', 0),
+                
+                # Stats do buffer
+                'buffer_synced': buffer_stats.get('synced', True),
+                'buffer_size': buffer_stats.get('size', 0),
+                'tick_buffer_size': len(self.tick_buffer),
+                
+                # Stats de compatibilidade (sistema antigo)
+                'old_system_queue_size': old_stats.get('queue_size', 0),
+                'old_system_operations': old_stats.get('active_operations', 0),
+                
+                # Flags adicionais
+                'subscription_active': self.tick_subscription_active,
+                'cached_params_valid': (
+                    (time.time() - self._params_cache_time) < self._params_cache_ttl
+                    if self._cached_params else False
+                )
+            }
+            
+            return enhanced_stats
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao obter estatísticas aprimoradas: {e}")
+            # Fallback para estatísticas básicas
+            return {
+                'queue_size': len(self.tick_buffer),
+                'active_operations': 0,
+                'circuit_breaker_state': 'unknown',
+                'last_signal_time': time.time(),
+                'successful_operations': 0,
+                'failed_operations': 0,
+                'connection_status': False
+            }
+    
+    async def test_enhanced_systems(self):
+        """Testa os sistemas aprimorados (método de debug)"""
+        try:
+            logger.info("🧪 TESTANDO SISTEMAS APRIMORADOS...")
+            
+            # Teste do buffer sincronizado
+            test_ticks = [1.23456, 1.23457, 1.23458, 1.23459, 1.23460]
+            for i, tick in enumerate(test_ticks):
+                success = self.enhanced_tick_buffer.add_tick(tick, time.time() + i)
+                logger.info(f"Buffer test {i+1}: {'✅' if success else '❌'}")
+            
+            synced_ticks = self.enhanced_tick_buffer.get_last_n_ticks(5)
+            logger.info(f"Ticks sincronizados obtidos: {len(synced_ticks)}")
+            
+            # Teste da queue de sinais
+            queue_success = self.signal_queue.queue_signal(synced_ticks, True)
+            logger.info(f"Queue test: {'✅' if queue_success else '❌'}")
+            
+            # Teste das estatísticas
+            stats = await self._get_enhanced_stats()
+            logger.info(f"Stats test: {len(stats)} campos obtidos")
+            
+            # Teste do monitor de saúde
+            health_summary = self.health_monitor.get_health_summary()
+            logger.info(f"Health monitor: Status {health_summary['status']}")
+            
+            logger.info("🧪 TESTE DOS SISTEMAS APRIMORADOS CONCLUÍDO")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro no teste dos sistemas aprimorados: {e}")
     
     async def _reconnect_and_resubscribe(self):
         """Reconecta e reinicia subscription de ticks com recuperação automática"""

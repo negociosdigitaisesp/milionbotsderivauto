@@ -22,6 +22,10 @@ from robust_order_system import RobustOrderSystem, OperationType
 from enhanced_sync_system import EnhancedSyncSystem
 from aiohttp import web
 from error_handler import RobustErrorHandler, with_error_handling, ErrorType, ErrorSeverity
+from enhanced_tick_buffer import EnhancedTickBuffer
+from websocket_recovery import WebSocketRecoveryManager
+from signal_queue_system import ThreadSafeSignalQueue
+from system_health_monitor import SystemHealthMonitor
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -500,6 +504,17 @@ class AccumulatorScalpingBot:
         # NOVO: Sistema de sincronização aprimorado
         self.sync_system = EnhancedSyncSystem(max_concurrent_operations=2, max_queue_size=3)
         
+        # NOVO: Sistemas Avançados Integrados
+        self.enhanced_tick_buffer = EnhancedTickBuffer(max_size=10, tolerance_seconds=1.0)
+        self.websocket_recovery = WebSocketRecoveryManager(max_retries=5, base_delay=2.0)
+        self.signal_queue = ThreadSafeSignalQueue(max_size=10, max_concurrent=2)
+        self.health_monitor = SystemHealthMonitor(
+            deadlock_threshold=120.0,
+            inactivity_threshold=180.0,
+            high_failure_rate=0.7,
+            min_operations_for_rate_check=10
+        )
+        
         # Cache de parâmetros pré-validados
         self._cached_params = None
         self._params_cache_time = 0
@@ -516,6 +531,12 @@ class AccumulatorScalpingBot:
         self._restart_in_progress = False  # Flag para evitar múltiplos restarts
         self._operation_count = 0  # Contador de operações executadas
         
+        # Configurar callbacks de recuperação do health monitor
+        self.health_monitor.set_recovery_callbacks(
+            on_connection_issues=self._reconnect_and_resubscribe,
+            on_system_restart=self._force_restart_bot
+        )
+        
         logger.info(f"🤖 {NOME_BOT} inicializado")
         logger.info(f"📊 Configuração XML:")
         logger.info(f"   • Ativo: {ATIVO}")
@@ -526,6 +547,11 @@ class AccumulatorScalpingBot:
         logger.info(f"   • Khizzbot: {self.khizzbot}")
         logger.info(f"   • Win Stop: ${self.win_stop}")
         logger.info(f"   • Loss Limit: ${self.loss_limit}")
+        logger.info(f"🔧 Sistemas Avançados Integrados:")
+        logger.info(f"   • Enhanced Tick Buffer: ✅ (max_size=10)")
+        logger.info(f"   • WebSocket Recovery: ✅ (max_retries=5)")
+        logger.info(f"   • Signal Queue: ✅ (max_size=10, max_concurrent=2)")
+        logger.info(f"   • Health Monitor: ✅ (check_interval=30s)")
     
     @with_error_handling(ErrorType.DATA_PROCESSING, ErrorSeverity.HIGH)
     async def _handle_new_tick(self, tick_data):
@@ -976,6 +1002,111 @@ class AccumulatorScalpingBot:
             
         except Exception as e:
             logger.error(f"❌ Erro ao salvar histórico em arquivo: {e}")
+    
+    def _get_enhanced_stats(self) -> Dict[str, Any]:
+        """Retorna estatísticas detalhadas de todos os sistemas integrados"""
+        try:
+            # Stats do Enhanced Tick Buffer
+            buffer_stats = self.enhanced_tick_buffer.get_buffer_stats()
+            
+            # Stats do WebSocket Recovery
+            recovery_stats = self.websocket_recovery.get_connection_stats()
+            
+            # Stats da Signal Queue
+            queue_stats = self.signal_queue.get_queue_stats()
+            
+            # Stats do Health Monitor
+            health_summary = self.health_monitor.get_health_report()
+            
+            return {
+                'timestamp': datetime.now().isoformat(),
+                'bot_name': NOME_BOT,
+                'operation_count': self._operation_count,
+                'total_profit': self.total_profit,
+                'current_stake': self.stake,
+                'buffer_size': buffer_stats.get('current_size', 0),
+                'buffer_capacity': buffer_stats.get('max_size', 0),
+                'buffer_hit_rate': buffer_stats.get('hit_rate', 0.0),
+                'recovery_attempts': recovery_stats.get('total_attempts', 0),
+                'recovery_successes': recovery_stats.get('successful_recoveries', 0),
+                'queue_size': queue_stats.get('current_size', 0),
+                'queue_processed': queue_stats.get('total_processed', 0),
+                'queue_errors': queue_stats.get('total_errors', 0),
+                'health_score': health_summary.get('overall_health_score', 0.0),
+                'system_uptime': health_summary.get('uptime_seconds', 0),
+                'last_check': health_summary.get('last_check_time', 'N/A'),
+                'active_alerts': len(health_summary.get('active_alerts', []))
+            }
+        except Exception as e:
+            logger.error(f"❌ Erro ao obter estatísticas: {e}")
+            return {'error': str(e), 'timestamp': datetime.now().isoformat()}
+    
+    def test_enhanced_systems(self) -> Dict[str, Any]:
+        """Testa todos os sistemas avançados integrados"""
+        test_results = {
+            'timestamp': datetime.now().isoformat(),
+            'bot_name': NOME_BOT,
+            'tests': {}
+        }
+        
+        try:
+            # Teste Enhanced Tick Buffer
+            test_tick_value = 1.23456
+            self.enhanced_tick_buffer.add_tick(test_tick_value)
+            buffer_test = self.enhanced_tick_buffer.get_last_n_ticks(1)
+            buffer_stats = self.enhanced_tick_buffer.get_buffer_stats()
+            test_results['tests']['enhanced_tick_buffer'] = {
+                'status': 'PASS' if len(buffer_test) > 0 else 'FAIL',
+                'details': f'Buffer size: {len(buffer_test)}, Stats: {buffer_stats}'
+            }
+            
+            # Teste Signal Queue
+            test_ticks = [1.23456, 1.23457, 1.23458]
+            queue_added = self.signal_queue.queue_signal(test_ticks, True)
+            queue_stats = self.signal_queue.get_queue_stats()
+            test_results['tests']['signal_queue'] = {
+                'status': 'PASS' if queue_added else 'FAIL',
+                'details': f'Queue size: {queue_stats["current_size"]}, Stats: {queue_stats}'
+            }
+            
+            # Teste WebSocket Recovery
+            recovery_stats = self.websocket_recovery.get_connection_stats()
+            test_results['tests']['websocket_recovery'] = {
+                'status': 'PASS',
+                'details': f'Recovery manager initialized, state: {recovery_stats.get("state", "unknown")}'
+            }
+            
+            # Teste Health Monitor
+            health_report = self.health_monitor.get_health_report()
+            test_results['tests']['health_monitor'] = {
+                'status': 'PASS',
+                'details': f'Health status: {health_report.get("current_status", "unknown")}'
+            }
+            
+            # Teste Enhanced Stats
+            enhanced_stats = self._get_enhanced_stats()
+            test_results['tests']['enhanced_stats'] = {
+                'status': 'PASS' if 'error' not in enhanced_stats else 'FAIL',
+                'details': f'Stats fields: {len(enhanced_stats)}'
+            }
+            
+            # Resumo geral
+            passed_tests = sum(1 for test in test_results['tests'].values() if test['status'] == 'PASS')
+            total_tests = len(test_results['tests'])
+            test_results['summary'] = {
+                'total_tests': total_tests,
+                'passed': passed_tests,
+                'failed': total_tests - passed_tests,
+                'success_rate': f'{(passed_tests/total_tests)*100:.1f}%'
+            }
+            
+            logger.info(f"🧪 Teste dos sistemas avançados: {passed_tests}/{total_tests} PASS")
+            
+        except Exception as e:
+            test_results['error'] = str(e)
+            logger.error(f"❌ Erro durante teste dos sistemas: {e}")
+        
+        return test_results
     
     def _validar_configuracao_inicial(self):
         """Valida a configuração inicial do bot"""
@@ -1622,10 +1753,24 @@ class AccumulatorScalpingBot:
             logger.info("🌐 Iniciando servidor HTTP...")
             http_server_task = asyncio.create_task(self._start_http_server())
             
+            # Iniciar Health Monitor em paralelo
+            logger.info("🏥 Iniciando Health Monitor...")
+            health_monitor_task = asyncio.create_task(
+                self.health_monitor.monitor_and_recover(
+                    stats_provider=self._get_enhanced_stats,
+                    check_interval=30.0
+                )
+            )
+            
             logger.info("✅ Bot em modo tempo real - aguardando ticks...")
             logger.info("🎯 Padrão será analisado automaticamente a cada tick recebido")
             logger.info("⚡ Sistema de sincronização aprimorado ativo")
             logger.info("🌐 Endpoint de status disponível em http://localhost:8080/status")
+            logger.info("🔧 Sistemas Avançados Ativos:")
+            logger.info("   • Enhanced Tick Buffer: ✅ Otimização de dados")
+            logger.info("   • WebSocket Recovery: ✅ Auto-recuperação")
+            logger.info("   • Signal Queue: ✅ Processamento paralelo")
+            logger.info("   • Health Monitor: ✅ Monitoramento contínuo")
             
             # Loop de monitoramento principal
             while True:

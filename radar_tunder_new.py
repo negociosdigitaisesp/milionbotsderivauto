@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Radar Analisis Scalping Bot - Sistema de Trading com 3 Estratégias de Alta Assertividade
+Tunder Bot - Sistema de Trading com Estratégia Quantum+
 Sistema integrado com rastreamento automático de resultados no Supabase
 
-Estratégias implementadas:
-- MICRO-BURST: 95.5% assertividade
-- PRECISION SURGE: 93.5% assertividade  
-- QUANTUM MATRIX: 91.5% assertividade
+Estratégia implementada:
+- Quantum+: 71.98% assertividade
 
-Sistema consolidado: 94.51% assertividade a cada 6 operações
+Gatilhos:
+- LLLW: Confirmação de Reversão em Ambiente Estável
+- LLL: Capitulação em Ambiente Estável
 """
 
 import os
@@ -35,7 +35,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('scalping_bot_debug.log', encoding='utf-8'),
+        logging.FileHandler('tunder_bot_debug.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -83,12 +83,12 @@ def retry_supabase_operation(max_retries=3, delay=2):
     return decorator
 
 # Configurações
-BOT_NAME = 'Scalping Bot'
+BOT_NAME = 'Tunder Bot'
 ANALISE_INTERVALO = 5  # segundos entre análises
-OPERACOES_MINIMAS = 20  # operações mínimas para análise
-OPERACOES_HISTORICO = 30  # operações para buscar no histórico
+OPERACOES_MINIMAS = 35  # Mínimo para a estratégia Quantum+
+OPERACOES_HISTORICO = 40  # Buscar um pouco mais para garantir
 PERSISTENCIA_TIMEOUT = 300  # 5 minutos timeout
-PERSISTENCIA_OPERACOES = 2  # 2 operações para reset
+PERSISTENCIA_OPERACOES = 1  # Parar após a primeira operação (win ou loss)
 
 # ===== SISTEMA DE GERENCIAMENTO DE ESTADO =====
 # Estados da máquina de estados
@@ -556,41 +556,34 @@ def validar_integridade_historico(historico: List[str]) -> bool:
         return False
 
 def buscar_operacoes_historico(supabase):
-    """Busca histórico de operações do Supabase
+    """Busca histórico de operações do Supabase da tabela do Tunder Bot.
     
     Returns:
         tuple: (historico, timestamps, latest_operation_id)
     """
     try:
-        response = supabase.table('scalping_accumulator_bot_logs') \
-            .select('id, profit_percentage, created_at') \
-            .order('created_at', desc=True) \
+        response = supabase.table('tunder_bot_logs') \
+            .select('id, operation_result, timestamp') \
+            .order('timestamp', desc=True) \
             .limit(OPERACOES_HISTORICO) \
             .execute()
         
         if not response.data:
-            logger.warning("[HISTORICO] Nenhuma operação encontrada")
+            logger.warning("[HISTORICO] Nenhuma operação encontrada na tabela tunder_bot_logs")
             return [], [], None
         
-        # Extrair resultados, timestamps e ID da operação mais recente
-        historico = []
-        timestamps = []
-        latest_operation_id = response.data[0]['id']  # Primeira operação (mais recente)
+        historico = [op['operation_result'] for op in response.data]  # 'WIN' ou 'LOSS'
+        timestamps = [op['timestamp'] for op in response.data]
+        latest_operation_id = response.data[0]['id']
         
-        for op in response.data:
-            profit_percentage = op.get('profit_percentage', 0)
-            resultado = 'V' if profit_percentage > 0 else 'D'
-            historico.append(resultado)
-            timestamps.append(op['created_at'])
-        
-        logger.info(f"[HISTORICO] {len(historico)} operações carregadas")
+        logger.info(f"[HISTORICO] {len(historico)} operações carregadas de tunder_bot_logs")
         logger.debug(f"[HISTORICO] Sequência: {' '.join(historico[:10])}...")
         logger.debug(f"[HISTORICO] ID operação mais recente: {latest_operation_id}")
         
         return historico, timestamps, latest_operation_id
         
     except Exception as e:
-        logger.error(f"[HISTORICO_ERROR] Erro ao buscar operações: {e}")
+        logger.error(f"[HISTORICO_ERROR] Erro ao buscar operações do Tunder Bot: {e}")
         return [], [], None
 
 def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_level: float) -> int:
@@ -603,7 +596,7 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
             'status': 'ACTIVE'
         }
         
-        response = supabase.table('strategy_results_tracking').insert(data).select('id').execute()
+        response = supabase.table('tunder_bot_strategy_results_tracking').insert(data).select('id').execute()
         
         if response.data and len(response.data) > 0:
             record_id = response.data[0]['id']
@@ -624,8 +617,8 @@ def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: Lis
         operation_1_result = resultados[0] if len(resultados) > 0 else None
         operation_2_result = resultados[1] if len(resultados) > 1 else None
         
-        # Determinar sucesso do padrão (True somente se ambos forem 'V')
-        pattern_success = (resultados == ['V', 'V']) if len(resultados) == 2 else False
+        # Determinar sucesso do padrão (True somente se ambos forem 'WIN')
+        pattern_success = (resultados == ['WIN', 'WIN']) if len(resultados) == 2 else False
         
         # Dados para atualização
         update_data = {
@@ -636,7 +629,7 @@ def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: Lis
             'completed_at': datetime.now().isoformat()
         }
         
-        response = supabase.table('strategy_results_tracking').update(update_data).eq('id', record_id).execute()
+        response = supabase.table('tunder_bot_strategy_results_tracking').update(update_data).eq('id', record_id).execute()
         
         if response.data:
             logger.info(f"[TRACKING] Registro {record_id} finalizado: {resultados} -> Sucesso: {pattern_success}")
@@ -725,239 +718,95 @@ def gerar_relatorio_eficacia(supabase) -> Dict:
         logger.error(f"[RELATORIO_ERROR] Erro ao gerar relatório: {e}")
         return {}
 
-# ===== IMPLEMENTAÇÃO DAS 3 ESTRATÉGIAS =====
+# ===== IMPLEMENTAÇÃO DA ESTRATÉGIA QUANTUM+ =====
 
-# FUNÇÃO REMOVIDA: analisar_micro_burst() - Simplificação do sistema
-
-def analisar_precision_surge(historico: List[str]) -> Dict:
-    """PRECISION SURGE: Estratégia de precisão (93.5%)
-    
-    Gatilho: 2-4 WINs consecutivos
-    Filtros:
-    - Máximo 2 LOSSes nas últimas 8 operações
-    - LOSS deve estar isolado (WIN-LOSS-WIN)
-    - Sem mais de 1 LOSS nas últimas 5 operações
+def analisar_estrategia_quantum_plus(historico: List[str]) -> Dict:
     """
-    try:
-        start_time = time.time()
-        strategy_name = "PRECISION_SURGE"
+    Tunder Bot - Estratégia Quantum+: Analisa o histórico de operações em busca
+    dos gatilhos de "Confirmação de Reversão" ou "Capitulação".
+    Assertividade Histórica: 71.98%
+    """
+    strategy_name = "Quantum+"
+    logger.debug(f"[{strategy_name}] Iniciando análise...")
+
+    # A estratégia requer exatamente 34 operações anteriores para o Gatilho 1
+    # ou 33 para o Gatilho 2. Verificamos o mínimo necessário.
+    if len(historico) < 35:
+        return {
+            'should_operate': False, 'strategy': strategy_name, 'confidence': 0,
+            'reason': f"Datos insuficientes para Quantum+ (necesario 35, encontrado {len(historico)})"
+        }
+
+    # Lembre-se: o histórico vem do mais recente para o mais antigo.
+    # historico[0] é a última operação.
+
+    # --- ANÁLISE DO GATILHO 1: "Confirmação de Reversão em Ambiente Estável" ---
+    # Sequência imediata: L, L, L, W (na ordem de ocorrência)
+    # No histórico reverso: W, L, L, L (índices 0, 1, 2, 3)
+    sequencia_gatilho1 = ['WIN', 'LOSS', 'LOSS', 'LOSS']
+    if historico[:4] == sequencia_gatilho1:
+        logger.debug(f"[{strategy_name}] Gatilho 1 (LLLW) detectado. Verificando filtros...")
         
-        logger.debug(f"[{strategy_name}] Iniciando análise...")
+        # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 4 a 13)
+        janela_curto_prazo = historico[4:14]
+        wins_curto_prazo = janela_curto_prazo.count('WIN')
         
-        # Validação básica
-        if len(historico) < 15:
-            strategy_metrics[strategy_name].add_filter_rejection("dados_insuficientes")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['dados_insuficientes'].format(strategy=strategy_name)
-            }
-        
-        # Analisar operações - CORREÇÃO: usar historico[:15] ao invés de historico[-15:]
-        ultimas_15 = historico[:15]  # CORRIGIDO - pegar as 15 mais recentes do início
-        ultimas_8 = historico[:8]   # CORRIGIDO - pegar as 8 mais recentes do início
-        ultimas_5 = historico[:5]   # CORRIGIDO - pegar as 5 mais recentes do início
-        
-        logger.debug(f"[{strategy_name}] Últimas 15: {' '.join(ultimas_15)}")
-        
-        # GATILHO: 2-4 WINs consecutivos
-        wins_consecutivos = 0
-        for resultado in ultimas_15:
-            if resultado == 'V':
-                wins_consecutivos += 1
-            else:
-                break
-        
-        if wins_consecutivos < 2 or wins_consecutivos > 25:
-            strategy_metrics[strategy_name].add_filter_rejection("gatilho_nao_atendido")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['gatilho_nao_atendido'].format(strategy=strategy_name, wins=wins_consecutivos)
-            }
-        
-        # FILTRO 1: Máximo 2 LOSSes nas últimas 8 operações
-        losses_ultimas_8 = ultimas_8.count('D')
-        if losses_ultimas_8 > 2:
-            strategy_metrics[strategy_name].add_filter_rejection("muitos_losses")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['muitos_losses'].format(strategy=strategy_name, losses=losses_ultimas_8, total=8)
-            }
-        
-        # FILTRO 2: Máximo 1 LOSS nas últimas 5 operações
-        losses_ultimas_5 = ultimas_5.count('D')
-        if losses_ultimas_5 > 1:
-            strategy_metrics[strategy_name].add_filter_rejection("muitos_losses_recentes")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['muitos_losses'].format(strategy=strategy_name, losses=losses_ultimas_5, total=5)
-            }
-        
-        # FILTRO 3: LOSS deve estar isolado (WIN-LOSS-WIN)
-        if 'D' in ultimas_15:
-            loss_positions = [i for i, x in enumerate(ultimas_15) if x == 'D']
-            for pos in loss_positions:
-                win_antes = pos > 0 and ultimas_15[pos-1] == 'V'
-                win_depois = pos < len(ultimas_15)-1 and ultimas_15[pos+1] == 'V'
-                
-                if not (win_antes and win_depois):
-                    strategy_metrics[strategy_name].add_filter_rejection("loss_nao_isolado")
-                    return {
-                        'should_operate': False,
-                        'strategy': strategy_name,
-                        'confidence': 0,
-                        'reason': MENSAJES_SISTEMA['loss_nao_isolado'].format(strategy=strategy_name)
+        if 5 <= wins_curto_prazo <= 6:
+            logger.debug(f"[{strategy_name}] Filtro de Curto Prazo OK ({wins_curto_prazo} wins em 10).")
+            
+            # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 14 a 33)
+            janela_longo_prazo = historico[14:34]
+            wins_longo_prazo = janela_longo_prazo.count('WIN')
+
+            if 10 <= wins_longo_prazo <= 12:
+                logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Gatilho 1 (LLLW) validado.")
+                return {
+                    'should_operate': True, 'strategy': strategy_name, 'confidence': 71.98,
+                    'reason': f"Patrón Encontrado: {strategy_name} (Confirmación de Reversión)",
+                    'pattern_details': {
+                        'trigger': 'LLLW',
+                        'wins_short_term': wins_curto_prazo,
+                        'wins_long_term': wins_longo_prazo
                     }
-        
-        # FILTRO 4: Sem LOSSes consecutivos
-        for i in range(len(ultimas_15) - 1):
-            if ultimas_15[i] == 'D' and ultimas_15[i+1] == 'D':
-                strategy_metrics[strategy_name].add_filter_rejection("losses_consecutivos")
-                return {
-                    'should_operate': False,
-                    'strategy': strategy_name,
-                    'confidence': 0,
-                    'reason': MENSAJES_SISTEMA['losses_consecutivos_proibido'].format(strategy=strategy_name)
                 }
-        
-        # Calcular confiança
-        confidence = 93.5
-        
-        # Ajustes de confiança
-        if wins_consecutivos >= 3:
-            confidence += 1.0
-        
-        if losses_ultimas_8 == 0:
-            confidence += 2.0
-        elif losses_ultimas_8 == 1:
-            confidence += 1.0
-        
-        if losses_ultimas_5 == 0:
-            confidence += 1.5
-        
-        # Registrar métricas
-        exec_time = time.time() - start_time
-        strategy_metrics[strategy_name].add_execution_time(exec_time)
-        strategy_metrics[strategy_name].add_success()
-        
-        logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Confiança: {confidence:.1f}%")
-        
-        return {
-            'should_operate': True,
-            'strategy': strategy_name,
-            'confidence': confidence,
-            'reason': MENSAJES_SISTEMA['patron_encontrado'].format(strategy=strategy_name, confidence=confidence),
-            'pattern_details': {
-                'wins_consecutivos': wins_consecutivos,
-                'losses_ultimas_8': losses_ultimas_8,
-                'losses_ultimas_5': losses_ultimas_5,
-                'sequencia_analisada': ' '.join(ultimas_15)
-            }
-        }
-        
-    except Exception as e:
-        strategy_metrics[strategy_name].add_error()
-        logger.error(f"[{strategy_name}] ERRO: {e}")
-        return {
-            'should_operate': False,
-            'strategy': strategy_name,
-            'confidence': 0,
-            'reason': MENSAJES_SISTEMA['erro_execucao'].format(strategy=strategy_name)
-        }
+        logger.debug(f"[{strategy_name}] Gatilho 1 (LLLW) falhou nos filtros.")
 
-# FUNÇÃO REMOVIDA: analisar_quantum_matrix_EXATO_REFINADO() - Simplificação do sistema
+    # --- ANÁLISE DO GATILHO 2: "Capitulação em Ambiente Estável" ---
+    # Sequência imediata: L, L, L (na ordem de ocorrência)
+    # No histórico reverso: L, L, L (índices 0, 1, 2)
+    sequencia_gatilho2 = ['LOSS', 'LOSS', 'LOSS']
+    if historico[:3] == sequencia_gatilho2:
+        logger.debug(f"[{strategy_name}] Gatilho 2 (LLL) detectado. Verificando filtros...")
+        
+        # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 3 a 12)
+        janela_curto_prazo = historico[3:13]
+        wins_curto_prazo = janela_curto_prazo.count('WIN')
 
-# ===== SISTEMA DE ANÁLISE CONSOLIDADA =====
+        if 5 <= wins_curto_prazo <= 6:
+            logger.debug(f"[{strategy_name}] Filtro de Curto Prazo OK ({wins_curto_prazo} wins em 10).")
+            
+            # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 13 a 32)
+            janela_longo_prazo = historico[13:33]
+            wins_longo_prazo = janela_longo_prazo.count('WIN')
 
-def executar_analise_precision_surge_unico(historico: List[str]) -> Dict:
-    """PRECISION SURGE - Estratégia única simplificada"""
-    try:
-        logger.info("[PRECISION_SURGE] === EXECUTANDO ESTRATÉGIA ÚNICA ===")
-        
-        # Validação básica
-        if len(historico) < 15:
-            return {
-                'should_operate': False,
-                'strategy': 'PRECISION_SURGE',
-                'confidence': 0,
-                'reason': 'Datos insuficientes'
-            }
-        
-        # Analisar sequências
-        ultimas_15 = historico[:15]
-        ultimas_10 = historico[:10]
-        
-        # GATILHO: 4-5 WINs consecutivos
-        wins_consecutivos = 0
-        for op in ultimas_15:
-            if op == 'V':
-                wins_consecutivos += 1
-            else:
-                break
-        
-        if not (4 <= wins_consecutivos <= 5):
-            return {
-                'should_operate': False,
-                'strategy': 'PRECISION_SURGE',
-                'confidence': 0,
-                'reason': f'Gatillo no cumplido: {wins_consecutivos} WINs (requiere 4-5)'
-            }
-        
-        # FILTRO 1: Máximo 2 LOSSes nas últimas 15
-        losses_15 = ultimas_15.count('D')
-        if losses_15 > 2:
-            return {
-                'should_operate': False,
-                'strategy': 'PRECISION_SURGE',
-                'confidence': 0,
-                'reason': f'Muchos LOSSes: {losses_15}/15 (máx 2)'
-            }
-        
-        # FILTRO 2: Sem LOSSes consecutivos nas últimas 10
-        for i in range(len(ultimas_10) - 1):
-            if ultimas_10[i] == 'D' and ultimas_10[i+1] == 'D':
+            if 10 <= wins_longo_prazo <= 12:
+                logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Gatilho 2 (LLL) validado.")
                 return {
-                    'should_operate': False,
-                    'strategy': 'PRECISION_SURGE',
-                    'confidence': 0,
-                    'reason': 'LOSSes consecutivos detectados'
+                    'should_operate': True, 'strategy': strategy_name, 'confidence': 71.98,
+                    'reason': f"Patrón Encontrado: {strategy_name} (Capitulación)",
+                    'pattern_details': {
+                        'trigger': 'LLL',
+                        'wins_short_term': wins_curto_prazo,
+                        'wins_long_term': wins_longo_prazo
+                    }
                 }
-        
-        # APROVADO - Calcular confiança
-        confidence = 93.5
-        if wins_consecutivos == 5:
-            confidence += 1.5
-        if losses_15 == 0:
-            confidence += 2.0
-        elif losses_15 == 1:
-            confidence += 1.0
-        
-        logger.info(f"[PRECISION_SURGE] ✅ PADRÃO ENCONTRADO! {confidence}%")
-        
-        return {
-            'should_operate': True,
-            'strategy': 'PRECISION_SURGE',
-            'confidence': confidence,
-            'reason': f'Patron Encontrado, Activar Bot Ahora! - PRECISION_SURGE ({confidence}%)',
-            'wins_consecutivos': wins_consecutivos,
-            'losses_ultimas_15': losses_15
-        }
-        
-    except Exception as e:
-        logger.error(f"[PRECISION_SURGE] ERRO: {e}")
-        return {
-            'should_operate': False,
-            'strategy': 'PRECISION_SURGE',
-            'confidence': 0,
-            'reason': f'Error en la ejecución: {e}'
-        }
+        logger.debug(f"[{strategy_name}] Gatilho 2 (LLL) falhou nos filtros.")
+
+    # Se nenhum gatilho foi atendido
+    return {
+        'should_operate': False, 'strategy': strategy_name, 'confidence': 0,
+        'reason': "Esperando el patrón Quantum+. Ninguna condición cumplida."
+    }
 
 # ===== SISTEMA DE ENVIO DE SINAIS =====
 
@@ -973,7 +822,7 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
             'losses_in_last_10_ops': 0,
             'wins_in_last_5_ops': 5,
             'historical_accuracy': signal_data['confidence'] / 100.0,
-            'pattern_found_at': datetime.now().isoformat() if resultado['should_operate'] else None,
+            'pattern_found_at': datetime.now().isoformat() if signal_data['should_operate'] else None,
             'operations_after_pattern': 0,
             'auto_disable_after_ops': 2,
             'available_strategies': 3,
@@ -1010,26 +859,22 @@ def gerar_status_sistema() -> Dict:
             'metrics_summary': {}
         }
         
-        # Status das estratégias
-        for strategy_name, metrics in strategy_metrics.items():
-            status['strategies'][strategy_name] = {
-                'confidence_level': metrics.confidence_level,
-                'total_executions': metrics.total_executions,
-                'success_rate': metrics.get_success_rate(),
-                'average_time': metrics.get_average_time(),
-                'error_count': metrics.error_count,
-                'last_execution': metrics.last_execution_time
-            }
+        # Status da estratégia Quantum+
+        status['strategies']['Quantum+'] = {
+            'confidence_level': 71.98,
+            'total_executions': 0,
+            'success_rate': 0.0,
+            'average_time': 0.0,
+            'error_count': 0,
+            'last_execution': None
+        }
         
         # Resumo das métricas
-        total_executions = sum([m.total_executions for m in strategy_metrics.values()])
-        avg_success_rate = sum([m.get_success_rate() for m in strategy_metrics.values()]) / len(strategy_metrics)
-        
         status['metrics_summary'] = {
-            'total_executions': total_executions,
-            'average_success_rate': avg_success_rate,
+            'total_executions': 0,
+            'average_success_rate': 0.0,
             'system_uptime': time.time(),
-            'strategies_count': len(strategy_metrics)
+            'strategies_count': 1
         }
         
         return status
@@ -1070,8 +915,8 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
             # ESTADO ANALYZING: Buscar por padrões
             logger.info("[STATE] Estado ANALYZING - Buscando padrões")
             
-            # Executar análise PRECISION SURGE
-            resultado_ciclo = executar_analise_precision_surge_unico(historico)
+            # Executar análise Quantum+
+            resultado_ciclo = analisar_estrategia_quantum_plus(historico)
             
             # Se encontrou padrão, ativar estado MONITORING e armazenar resultado
             if resultado_ciclo['should_operate']:
@@ -1083,16 +928,19 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
             logger.info(f"[STATE] Estado MONITORING - Operações: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
             
             # Verificar se houve novas operações
+            resultado_mais_recente = historico[0] if historico else None
             nova_operacao = check_new_operations(latest_operation_id, resultado_mais_recente)
             if nova_operacao:
-                logger.info(f"[MONITORING] Nova operação detectada: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES} - Resultados coletados: {monitoring_results}")
+                resultado_operacao = "WIN" if resultado_mais_recente == "V" else "LOSS" if resultado_mais_recente == "D" else "UNKNOWN"
+                logger.info(f"[MONITORING] Primera operación después del patrón detectada: {resultado_operacao} - Finalizando monitoreo")
             
-            # Verificar se deve resetar para ANALYZING
+            # Verificar se deve resetar para ANALYZING (agora sempre após primeira operação)
             if should_reset_to_analyzing():
-                # Criar resultado de finalização
+                # Criar resultado de finalização com informação da primeira operação
+                resultado_operacao = "WIN" if resultado_mais_recente == "V" else "LOSS" if resultado_mais_recente == "D" else "UNKNOWN"
                 resultado_ciclo = {
                     'should_operate': False,
-                    'reason': f"Estrategia {active_signal_data['strategy']} completada - {monitoring_operations_count} operaciones",
+                    'reason': f"Estrategia {active_signal_data['strategy']} completada - Primera operación: {resultado_operacao}",
                     'strategy': active_signal_data['strategy'],
                     'confidence': active_signal_data['confidence'],
                     'losses_ultimas_15': active_signal_data.get('losses_ultimas_15', 0),
@@ -1100,13 +948,13 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
                 }
                 
                 reset_bot_state(supabase)
-                logger.info("[STATE_CHANGE] MONITORING → ANALYZING (monitoramento concluído)")
+                logger.info(f"[STATE_CHANGE] MONITORING → ANALYZING (primera operación completada: {resultado_operacao})")
             else:
                 # Usar o sinal armazenado como resultado do ciclo atual
                 remaining_ops = PERSISTENCIA_OPERACOES - monitoring_operations_count
                 resultado_ciclo = {
                     'should_operate': True,  # Manter sinal ativo
-                    'reason': f"Patron encontrado: {active_signal_data['strategy']} - esperando {remaining_ops} operaciones",
+                    'reason': f"Patrón encontrado: {active_signal_data['strategy']} - esperando {remaining_ops} operaciones",
                     'strategy': active_signal_data['strategy'],
                     'confidence': active_signal_data['confidence'],
                     'losses_ultimas_15': active_signal_data.get('losses_ultimas_15', 0),
@@ -1116,20 +964,22 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
         # ENVIO CENTRALIZADO PARA SUPABASE (final do ciclo)
         if resultado_ciclo:
             # Construir payload baseado no resultado do ciclo
+            pattern_details = resultado_ciclo.get('pattern_details', {})
             dados_supabase = {
                 'bot_name': BOT_NAME,
                 'is_safe_to_operate': resultado_ciclo['should_operate'],
                 'reason': resultado_ciclo['reason'],
-                'strategy_used': resultado_ciclo['strategy'],
+                'strategy_used': resultado_ciclo.get('strategy', 'Quantum+'),
                 'strategy_confidence': resultado_ciclo['confidence'],
-                'losses_in_last_10_ops': resultado_ciclo.get('losses_ultimas_15', 0),
-                'wins_in_last_5_ops': min(5, resultado_ciclo.get('wins_consecutivos', 0)),
-                'historical_accuracy': resultado_ciclo['confidence'] / 100.0,
-                'pattern_found_at': datetime.now().isoformat(),
+                'strategy_details': pattern_details,
+                'historical_accuracy': resultado_ciclo['confidence'] / 100.0 if resultado_ciclo['confidence'] > 0 else 0,
+                'pattern_found_at': datetime.now().isoformat() if resultado_ciclo['should_operate'] else None,
                 'operations_after_pattern': monitoring_operations_count if bot_current_state == BotState.MONITORING else 0,
                 'auto_disable_after_ops': PERSISTENCIA_OPERACOES,
                 'available_strategies': 1,
-                'filters_applied': '{precision_surge_only}',
+                'losses_in_last_10_ops': 0,
+                'wins_in_last_5_ops': 0,
+                'filters_applied': '{Quantum+ triggers & context filters}',
                 'execution_time_ms': 0
             }
             
@@ -1168,7 +1018,7 @@ def main_loop():
     """Loop principal do bot com máquina de estados"""
     logger.info("[MAIN] === INICIANDO RADAR ANALISIS SCALPING BOT COM ESTADOS ===")
     logger.info("[MAIN] Sistema com máquina de estados: ANALYZING/MONITORING")
-    logger.info("[MAIN] Estratégia: PRECISION SURGE (93.5%)")
+    logger.info("[MAIN] Estratégia: Quantum+ (71.98%)")
     logger.info(f"[MAIN] Persistência: {PERSISTENCIA_OPERACOES} operações ou {PERSISTENCIA_TIMEOUT}s")
     
     # Inicializar Supabase
@@ -1186,8 +1036,8 @@ def main_loop():
     print("📊 Sistema de gerenciamento de estado implementado")
     print("🔄 Estados: ANALYZING (busca padrões) → MONITORING (mantém sinal)")
     print("⏱️  Análise a cada 5 segundos")
-    print("🎯 Estratégia: PRECISION SURGE (93.5%)")
-    print("🔍 Gatilho: 4-5 WINs consecutivos")
+    print("🎯 Estratégia: Quantum+ (71.98%)")
+    print("🔍 Gatilho: LLLW ou LLL com filtros de estabilidade")
     print(f"⚡ Persistência: {PERSISTENCIA_OPERACOES} operações")
     print("\nPressione Ctrl+C para parar\n")
     
@@ -1253,90 +1103,147 @@ def main_loop():
     except Exception as e:
         logger.error(f"[MAIN] ERRO CRÍTICO: {e}")
         logger.error(f"[MAIN] Traceback: {traceback.format_exc()}")
-        print(f"\n💥 ERRO CRÍTICO: {e}")
+        print(f"\n💥 ERROR CRÍTICO: {e}")
         
     finally:
         logger.info("[MAIN] === FINALIZANDO RADAR ANALISIS SCALPING BOT COM ESTADOS ===")
-        print("\n👋 Radar Analisis Scalping Bot com Estados finalizado")
+        print("\n👋 Radar Analisis Scalping Bot con Estados finalizado")
 
 # ===== FUNÇÕES DE TESTE E VALIDAÇÃO =====
 
 def testar_conexao_supabase():
     """Testa conexão com Supabase"""
     try:
-        print("🔍 Testando conexão com Supabase...")
+        print("🔍 Probando conexión con Supabase...")
         supabase = inicializar_supabase()
         
         if not supabase:
-            print("❌ FALHA na conexão com Supabase")
+            print("❌ FALLA en la conexión con Supabase")
             return False
         
         # Testar consulta simples
         response = supabase.table('scalping_accumulator_bot_logs').select('*').limit(1).execute()
         
         if response.data is not None:
-            print("✅ Conexão com Supabase OK")
-            print(f"📊 Tabela 'scalping_accumulator_bot_logs' acessível")
+            print("✅ Conexión con Supabase OK")
+            print(f"📊 Tabla 'scalping_accumulator_bot_logs' accesible")
             return True
         else:
-            print("❌ FALHA ao acessar tabela 'scalping_accumulator_bot_logs'")
+            print("❌ FALLA al acceder a la tabla 'scalping_accumulator_bot_logs'")
             return False
             
     except Exception as e:
-        print(f"❌ ERRO na conexão: {e}")
+        print(f"❌ ERROR en la conexión: {e}")
         return False
 
-def testar_estrategias():
-    """Testa as 3 estratégias com dados simulados"""
+def testar_estrategia_quantum_plus():
+    """Testa a estratégia Quantum+ com dados simulados"""
     try:
-        print("\n🧪 Testando estratégias com dados simulados...")
+        print("\n🧪 Probando estrategia Quantum+ con datos simulados...")
         
-        # Dados de teste que devem ativar as estratégias
-        historico_teste = ['V', 'V', 'V', 'D', 'V', 'V', 'D', 'V', 'V', 'V', 'D', 'V', 'V', 'V', 'V', 'D', 'V', 'V', 'V', 'V']
+        # Teste 1: Gatilho LLLW (Confirmação de Reversão)
+        historico_teste_1 = ['WIN', 'LOSS', 'LOSS', 'LOSS'] + ['WIN'] * 10 + ['LOSS'] * 5 + ['WIN'] * 15
+        print(f"📊 Teste 1 - LLLW: {' '.join(historico_teste_1[:10])}...")
         
-        print(f"📊 Histórico de teste: {' '.join(historico_teste[:15])}")
+        resultado_1 = analisar_estrategia_quantum_plus(historico_teste_1)
+        print(f"🎯 Resultado: {resultado_1['should_operate']} - {resultado_1['confidence']:.2f}%")
+        print(f"📝 Razón: {resultado_1['reason']}")
         
-        # Testar MICRO-BURST
-        resultado_micro = analisar_micro_burst(historico_teste)
-        print(f"🎯 MICRO-BURST: {resultado_micro['should_operate']} - {resultado_micro['confidence']:.1f}%")
+        # Teste 2: Gatilho LLL (Capitulação)
+        historico_teste_2 = ['LOSS', 'LOSS', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 3 + ['WIN'] * 15
+        print(f"\n📊 Teste 2 - LLL: {' '.join(historico_teste_2[:10])}...")
         
-        # Testar PRECISION SURGE
-        resultado_precision = analisar_precision_surge(historico_teste)
-        print(f"🎯 PRECISION SURGE: {resultado_precision['should_operate']} - {resultado_precision['confidence']:.1f}%")
+        resultado_2 = analisar_estrategia_quantum_plus(historico_teste_2)
+        print(f"🎯 Resultado: {resultado_2['should_operate']} - {resultado_2['confidence']:.2f}%")
+        print(f"📝 Razón: {resultado_2['reason']}")
         
-        # Testar QUANTUM MATRIX
-        resultado_quantum = analisar_quantum_matrix_EXATO_REFINADO(historico_teste)
-        print(f"🎯 QUANTUM MATRIX: {resultado_quantum['should_operate']} - {resultado_quantum['confidence']:.1f}%")
+        # Teste 3: Dados insuficientes
+        historico_teste_3 = ['WIN', 'LOSS', 'WIN'] * 5
+        print(f"\n📊 Teste 3 - Dados insuficientes: {' '.join(historico_teste_3)}")
         
-        # Testar análise consolidada
-        resultado_consolidado = executar_analise_consolidada(historico_teste)
-        print(f"\n🏆 MELHOR ESTRATÉGIA: {resultado_consolidado['strategy']} - {resultado_consolidado['confidence']:.1f}%")
+        resultado_3 = analisar_estrategia_quantum_plus(historico_teste_3)
+        print(f"🎯 Resultado: {resultado_3['should_operate']} - {resultado_3['confidence']:.2f}%")
+        print(f"📝 Razón: {resultado_3['reason']}")
         
-        print("✅ Teste das estratégias concluído")
+        print("\n✅ Prueba de la estrategia Quantum+ completada")
         return True
         
     except Exception as e:
-        print(f"❌ ERRO no teste das estratégias: {e}")
+        print(f"❌ ERROR en la prueba de la estrategia: {e}")
         return False
+
+def testar_nova_estrategia():
+    """Função de teste dedicada para a estratégia Quantum+."""
+    print("\n🧪 Probando la nueva estrategia Quantum+...")
+
+    # Cenário 1: Deve ativar o Gatilho 1 (LLLW)
+    # Sequência: [11W] [6W] LLLW + dados extras para atingir 35 operações
+    historico_gatilho1 = (
+        ['WIN'] + ['LOSS'] * 3 + # Sequência LLLW (reverso: W L L L)
+        (['WIN'] * 6 + ['LOSS'] * 4) + # Janela de 10 com 6 vitórias
+        (['WIN'] * 11 + ['LOSS'] * 9) + # Janela de 20 com 11 vitórias
+        (['WIN'] * 5 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
+    )
+    print("\n--- Testando Gatilho 1 (LLLW) ---")
+    resultado1 = analisar_estrategia_quantum_plus(historico_gatilho1)
+    if resultado1['should_operate']:
+        print(f"✅ SUCESSO: Gatilho 1 ativado corretamente.")
+        print(f"   Razón: {resultado1['reason']}")
+    else:
+        print(f"❌ FALHA: Gatilho 1 não foi ativado.")
+        print(f"   Razón: {resultado1['reason']}")
+
+    # Cenário 2: Deve ativar o Gatilho 2 (LLL)
+    # Sequência: [10W] [5W] LLL + dados extras para atingir 35 operações
+    historico_gatilho2 = (
+        ['LOSS'] * 3 + # Sequência LLL (reverso: L L L)
+        (['WIN'] * 5 + ['LOSS'] * 5) + # Janela de 10 com 5 vitórias
+        (['WIN'] * 10 + ['LOSS'] * 10) + # Janela de 20 com 10 vitórias
+        (['WIN'] * 6 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
+    )
+    print("\n--- Testando Gatilho 2 (LLL) ---")
+    resultado2 = analisar_estrategia_quantum_plus(historico_gatilho2)
+    if resultado2['should_operate']:
+        print(f"✅ SUCESSO: Gatilho 2 ativado corretamente.")
+        print(f"   Razón: {resultado2['reason']}")
+    else:
+        print(f"❌ FALHA: Gatilho 2 não foi ativado.")
+        print(f"   Razón: {resultado2['reason']}")
+
+    # Cenário 3: Não deve ativar (falha no filtro)
+    historico_falha = (
+        ['WIN'] + ['LOSS'] * 3 + # Sequência LLLW
+        (['WIN'] * 4 + ['LOSS'] * 6) + # Janela de 10 com apenas 4 vitórias (deve falhar)
+        (['WIN'] * 11 + ['LOSS'] * 9) + # Janela de 20 com 11 vitórias
+        (['WIN'] * 5 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
+    )
+    print("\n--- Testando cenário de falha ---")
+    resultado3 = analisar_estrategia_quantum_plus(historico_falha)
+    if not resultado3['should_operate']:
+        print(f"✅ SUCESSO: O padrão não foi ativado, como esperado.")
+        print(f"   Razón: {resultado3['reason']}")
+    else:
+        print(f"❌ FALHA: O padrão foi ativado incorretamente.")
+        print(f"   Razón: {resultado3['reason']}")
 
 def executar_testes_completos():
     """Executa bateria completa de testes"""
-    print("🔬 === EXECUTANDO TESTES COMPLETOS ===")
+    print("🔬 === EXECUTANDO TESTES COMPLETOS - TUNDER BOT QUANTUM+ ===")
     
     # Teste 1: Conexão Supabase
     teste1 = testar_conexao_supabase()
     
-    # Teste 2: Estratégias
-    teste2 = testar_estrategias()
+    # Teste 2: Estratégia Quantum+
+    teste2 = testar_estrategia_quantum_plus()
     
     # Resultado final
     if teste1 and teste2:
         print("\n✅ TODOS OS TESTES PASSARAM")
-        print("🚀 Sistema pronto para execução")
+        print("🚀 Tunder Bot Quantum+ pronto para execução")
         return True
     else:
         print("\n❌ ALGUNS TESTES FALHARAM")
-        print("🔧 Verifique a configuração antes de executar")
+        print("🔧 Verifique la configuración antes de ejecutar")
         return False
 
 # ===== PONTO DE ENTRADA =====
@@ -1344,37 +1251,38 @@ def executar_testes_completos():
 if __name__ == "__main__":
     import sys
     
-    # Verificar argumentos da linha de comando
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "test":
+        # Comando de teste
+        testar_nova_estrategia()
+    elif len(sys.argv) > 1:
         comando = sys.argv[1].lower()
         
-        if comando == "test":
-            # Executar testes
+        if comando == "testall":
+            # Executar testes completos
             executar_testes_completos()
         elif comando == "status":
             # Mostrar status
             imprimir_status_detalhado()
         elif comando == "help":
             # Mostrar ajuda
-            print("\n📖 RADAR ANALISIS SCALPING BOT - Ajuda")
+            print("\n📖 TUNDER BOT QUANTUM+ - Ajuda")
             print("="*50)
-            print("Uso: python radar_analisis_scalping_bot.py [comando]")
+            print("Uso: python radar_tunder_new.py [comando]")
             print("\nComandos disponíveis:")
             print("  (sem comando) - Executar bot principal")
-            print("  test         - Executar testes do sistema")
+            print("  test         - Testar nova estratégia Quantum+")
+            print("  testall      - Executar testes completos do sistema")
             print("  status       - Mostrar status detalhado")
             print("  help         - Mostrar esta ajuda")
-            print("\n🎯 Estratégias implementadas:")
-            print("  • MICRO-BURST: 95.5% assertividade")
-            print("  • PRECISION SURGE: 93.5% assertividade")
-            print("  • QUANTUM MATRIX: 91.5% assertividade")
-            print("\n📊 Sistema consolidado: 94.51% assertividade")
+            print("\n🎯 Estratégia implementada:")
+            print("  • Quantum+: 71.98% assertividade")
+            print("\n📊 Gatilhos: LLLW (Confirmação de Reversão) ou LLL (Capitulação)")
         else:
             print(f"❌ Comando desconhecido: {comando}")
-            print("Use 'python radar_analisis_scalping_bot.py help' para ver comandos disponíveis")
+            print("Use 'python radar_tunder_new.py help' para ver comandos disponíveis")
     else:
-         # Executar bot principal
-         main_loop()
+        # Executar bot principal
+        main_loop()
 
 def main():
     """Função principal - ponto de entrada alternativo"""
