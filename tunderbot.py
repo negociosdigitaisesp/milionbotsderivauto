@@ -257,11 +257,25 @@ class DerivWebSocketNativo:
             # Aguardar response com timeout
             try:
                 response = await asyncio.wait_for(future, timeout=self.request_timeout)
-                return response
+                return response  # Retorne a resposta em caso de sucesso
             except asyncio.TimeoutError:
-                # Cleanup em caso de timeout
-                self.pending_requests.pop(req_id, None)
-                raise Exception(f"Timeout aguardando response para req_id {req_id}")
+                logger.warning(f"A requisição {req_id} expirou (timeout).")
+                # Remover a future do dicionário para evitar vazamento de memória
+                if req_id in self.pending_requests:
+                    del self.pending_requests[req_id]
+                return None  # Retornar None para indicar falha por timeout
+            except asyncio.CancelledError:
+                logger.warning(f"A requisição {req_id} foi cancelada.")
+                # Remover a future também em caso de cancelamento
+                if req_id in self.pending_requests:
+                    del self.pending_requests[req_id]
+                # Propagar o erro para que a tarefa que o cancelou saiba disso
+                raise
+            except Exception as e:
+                logger.error(f"Erro inesperado ao enviar requisição {req_id}: {e}")
+                if req_id in self.pending_requests:
+                    del self.pending_requests[req_id]
+                return None
                 
         except Exception as e:
             # Cleanup em caso de erro
@@ -889,114 +903,91 @@ class AccumulatorScalpingBot:
     
     async def _force_restart_bot(self):
         """Força reinicialização completa do bot em caso de deadlock crítico"""
+        logger.info("Forçando o reinício do bot devido a inatividade ou erro...")
         try:
-            logger.error("🔄 INICIANDO REINICIALIZAÇÃO FORÇADA DO BOT...")
+            # 1. Desconectar de forma limpa
+            logger.info("Fechando conexão existente...")
+            if self.api_manager and self.api_manager.connected:
+                await self.api_manager.disconnect()
             
-            # 1. Parar processamento de sinais
-            self.running = False
-            logger.info("✅ Processamento de sinais interrompido")
-            
-            # 2. Limpar queue de sinais
-            await self.sync_system.clear_signal_queue()
-            logger.info("✅ Queue de sinais limpa")
-            
-            # 3. Reset do circuit breaker
-            self.robust_order_system.reset_circuit_breaker()
-            logger.info("✅ Circuit breaker resetado")
-            
-            # 4. Desconectar WebSocket com timeout
-            if hasattr(self, 'api_manager') and self.api_manager:
-                try:
-                    await asyncio.wait_for(self.api_manager.disconnect(), timeout=10.0)
-                    logger.info("✅ WebSocket desconectado")
-                except asyncio.TimeoutError:
-                    logger.warning("⚠️ Timeout na desconexão WebSocket - continuando...")
-                except Exception as e:
-                    logger.warning(f"⚠️ Erro na desconexão WebSocket: {e} - continuando...")
-            
-            # 5. Aguardar limpeza completa
-            await asyncio.sleep(8)
-            
-            # 6. Reinicializar componentes
-            self.api_manager = DerivWebSocketNativo()
-            self.api_manager.set_bot_instance(self)
-            logger.info("✅ API Manager reinicializado")
-            
-            # 7. Reconectar com retry e timeout
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    logger.info(f"🔗 Tentativa {attempt + 1}/{max_retries} de reconexão...")
-                    await asyncio.wait_for(self.api_manager.connect(), timeout=15.0)
-                    await asyncio.sleep(2)  # Aguardar estabilização
-                    
-                    await asyncio.wait_for(self.api_manager.subscribe_ticks(ATIVO), timeout=10.0)
-                    logger.info("✅ Reconectado e resubscrito aos ticks")
-                    break
-                    
-                except asyncio.TimeoutError:
-                    logger.warning(f"⚠️ Timeout na tentativa {attempt + 1} - tentando novamente...")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(5)
-                    else:
-                        raise Exception("Falha na reconexão após múltiplas tentativas")
-                        
-                except Exception as e:
-                    logger.warning(f"⚠️ Erro na tentativa {attempt + 1}: {e}")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(5)
-                    else:
-                        raise
-            
-            # 8. Reiniciar processamento
-            self.running = True
-            logger.info("✅ Processamento de sinais reiniciado")
-            
-            # 9. Reiniciar tarefas assíncronas
-            asyncio.create_task(self._process_signals_from_queue())
-            asyncio.create_task(self._real_time_monitoring())
-            
-            logger.error("🔄 REINICIALIZAÇÃO FORÇADA CONCLUÍDA COM SUCESSO")
-            
+            # 2. Aguardar um pouco para garantir que tudo foi encerrado
+            await asyncio.sleep(2)
+
+            # 3. Reconectar
+            logger.info("Estabelecendo nova conexão...")
+            # Recrie a instância do api_manager ou chame um método de conexão
+            await self.api_manager.connect()
+
+            # 4. Tentar se reinscrever com tratamento de erro
+            logger.info(f"Reinscrevendo nos ticks para o ativo {ATIVO}...")
+            try:
+                await asyncio.wait_for(self.api_manager.subscribe_ticks(ATIVO), timeout=10.0)
+                logger.info("Reinscrição nos ticks realizada com sucesso.")
+                self.last_activity_time = time.time()
+                return True
+            except asyncio.TimeoutError:
+                logger.error("Falha ao se reinscrever nos ticks (timeout). O reinício falhou.")
+                return False
+            except asyncio.CancelledError:
+                logger.warning("A reinscrição nos ticks foi cancelada durante o reinício.")
+                # Não retorne nada, deixe o erro ser propagado se necessário
+                raise
+            except Exception as e:
+                logger.error(f"Erro inesperado durante a reinscrição nos ticks: {e}")
+                return False
+
         except Exception as e:
-            logger.error(f"❌ ERRO CRÍTICO na reinicialização forçada: {e}")
-            # Em caso de falha crítica, encerrar o processo
-            logger.error("💀 ENCERRANDO PROCESSO - Falha na recuperação automática")
-            os._exit(1)
+            logger.critical(f"Erro crítico durante o processo de reinício forçado: {e}")
+            return False
+        finally:
+            # O bloco finally garante que, mesmo com erros, o estado é atualizado
+            self.is_restarting = False
+            logger.info("Processo de reinício finalizado.")
     
     async def _check_inactivity_and_restart(self):
-        """Verifica inatividade e reinicia o bot se necessário"""
-        try:
-            current_time = time.time()
-            time_since_last_operation = current_time - self._last_operation_time
-            
-            # Log de monitoramento a cada 30 segundos
-            if int(time_since_last_operation) % 30 == 0 and int(time_since_last_operation) > 0:
-                logger.info(f"⏱️ Tempo desde última operação: {int(time_since_last_operation)}s (limite: {self._inactivity_timeout}s)")
-            
-            # Verificar se excedeu o timeout de inatividade
-            if time_since_last_operation > self._inactivity_timeout and not self._restart_in_progress:
-                logger.warning(f"⚠️ INATIVIDADE DETECTADA: {int(time_since_last_operation)}s sem operações")
-                logger.warning(f"🔄 Iniciando reinício automático do bot...")
+        """Monitora inatividade continuamente e reinicia o bot se necessário"""
+        logger.info("🔍 Sistema de monitoramento de inatividade iniciado")
+        
+        while True:
+            try:
+                await asyncio.sleep(30)  # Verifica a cada 30 segundos
                 
-                self._restart_in_progress = True
+                if self._restart_in_progress:
+                    logger.debug("⏸️ Reinicialização em progresso, pulando verificação")
+                    continue
                 
-                # Executar restart
-                restart_success = await self._force_restart_bot()
+                current_time = time.time()
+                time_since_last_operation = current_time - self._last_operation_time
                 
-                if restart_success:
-                    # Resetar timestamp e contador
-                    self._last_operation_time = time.time()
-                    self._operation_count = 0
-                    logger.info("✅ Bot reiniciado com sucesso após inatividade")
-                else:
-                    logger.error("❌ Falha no reinício automático")
+                # Log de monitoramento a cada verificação
+                logger.info(f"🔍 Monitorando inatividade - Tempo desde última operação: {time_since_last_operation:.1f}s (timeout: {self._inactivity_timeout}s)")
                 
+                # Verificar se excedeu o timeout de inatividade
+                if time_since_last_operation > self._inactivity_timeout:
+                    logger.warning(f"⚠️ INATIVIDADE DETECTADA: {int(time_since_last_operation)}s sem operações")
+                    logger.warning(f"🔄 Iniciando reinício automático do bot...")
+                    
+                    self._restart_in_progress = True
+                    
+                    # Executar restart
+                    restart_success = await self._force_restart_bot()
+                    
+                    if restart_success:
+                        # Resetar timestamp e contador
+                        self._last_operation_time = time.time()
+                        self._operation_count = 0
+                        logger.info("✅ Bot reiniciado com sucesso após inatividade")
+                    else:
+                        logger.error("❌ Falha no reinício automático")
+                    
+                    self._restart_in_progress = False
+                    
+            except Exception as e:
+                logger.error(f"❌ Erro no monitoramento de inatividade: {e}")
+                import traceback
+                logger.error(f"Stack trace: {traceback.format_exc()}")
                 self._restart_in_progress = False
-                
-        except Exception as e:
-            logger.error(f"❌ Erro no monitoramento de inatividade: {e}")
-            self._restart_in_progress = False
+                await asyncio.sleep(10)  # Aguarda antes de tentar novamente
     
     def _update_operation_timestamp(self):
         """Atualiza o timestamp da última operação"""
@@ -2050,8 +2041,27 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
+        print("\nBot interrompido pelo usuário.")
         logger.info("🛑 Tunder Bot finalizado pelo usuário")
+    except asyncio.CancelledError:
+        print("A execução principal foi cancelada.")
+        logger.info("🔄 Execução principal cancelada")
+    except RuntimeError as e:
+        if "Event loop is closed" in str(e):
+            # Este erro é esperado durante um desligamento forçado, pode ser ignorado
+            print("Event loop foi fechado, finalizando o programa.")
+            logger.info("🔄 Event loop fechado durante finalização")
+        else:
+            # Logar outros RuntimeErrors
+            logger.critical(f"Erro de tempo de execução fatal: {e}")
+            print(f"Erro de tempo de execução fatal: {e}")
     except Exception as e:
-        logger.error(f"❌ ERRO FATAL: {e}")
+        logger.critical(f"O bot encontrou um erro fatal e foi encerrado: {e}")
+        import traceback
+        logger.critical(traceback.format_exc())
+        print(f"O bot encontrou um erro fatal e foi encerrado: {e}")
         # Log do erro mas não fazer exit com código 1
         logger.info("🔄 Bot será reiniciado pelo gerenciador")
+    finally:
+        print("Programa finalizado.")
+        logger.info("🏁 Programa finalizado")
