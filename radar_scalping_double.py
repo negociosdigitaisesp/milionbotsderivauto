@@ -34,7 +34,12 @@ from functools import wraps
 from datetime import timezone
 
 # NUEVAS IMPORTACIONES PARA TELEGRAM
+# Importar sys e os para manipulação de path
+import sys
+import os
+
 try:
+    # Primeiro tenta importar normalmente
     from telegram_notifier import (
         inicializar_telegram,
         enviar_alerta_patron,
@@ -44,8 +49,21 @@ try:
     )
     TELEGRAM_DISPONIBLE = True
 except ImportError:
-    print("⚠️ Módulo telegram_notifier no encontrado - funcionando sin notificaciones")
-    TELEGRAM_DISPONIBLE = False
+    try:
+        # Se falhar, tenta adicionar o diretório atual ao path
+        # Adiciona o diretório atual ao path
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from telegram_notifier import (
+            inicializar_telegram,
+            enviar_alerta_patron,
+            enviar_resultado_operacion,
+            enviar_finalizacion_estrategia,
+            enviar_mensaje_sistema
+        )
+        TELEGRAM_DISPONIBLE = True
+    except ImportError:
+        print("⚠️ Módulo telegram_notifier no encontrado - funcionando sin notificaciones")
+        TELEGRAM_DISPONIBLE = False
 
 # Variable global para controlar si Telegram está activo
 telegram_activo = False
@@ -851,15 +869,17 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
         return None
 
 def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
-    """Cria registro na tabela strategy_results_tracking linkado com signal_id"""
+    """Cria registro na tabela strategy_results_tracking linkado com signal_id e evita campos duplicados"""
     try:
         data = {
             'signal_id': signal_id,  # NOVO: Link com a tabela de sinais
             'strategy_name': strategy_name,
             'strategy_confidence': confidence_level,  # CORRETO: usar strategy_confidence
             'bot_name': BOT_NAME,
-            'status': 'ACTIVE',
-            'pattern_detected_at': datetime.now().isoformat()
+            'status': 'ACTIVE',  # Usar este em vez de tracking_status
+            'pattern_detected_at': datetime.now().isoformat(),
+            'operations_completed': 0,
+            'validation_complete': False
         }
         
         response = supabase.table('strategy_results_tracking').insert(data).execute()

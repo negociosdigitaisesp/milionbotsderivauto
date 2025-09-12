@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Importar as funções necessárias
 from radar_tunder_new import (
-    analisar_estrategia_quantum_plus,
+    analisar_estrategia_vigilancia_regime,
     BotState,
     PERSISTENCIA_OPERACOES,
     should_reset_to_analyzing,
@@ -29,27 +29,25 @@ def test_persistencia_operacoes():
         print(f"❌ FALHA: PERSISTENCIA_OPERACOES deveria ser 1, mas é {PERSISTENCIA_OPERACOES}")
         return False
 
-def test_quantum_plus_strategy():
-    """Testa se a estratégia Quantum+ ainda funciona corretamente"""
-    print(f"\n🧪 Testando estratégia Quantum+...")
+def test_vigilancia_regime_strategy():
+    """Testa se a estratégia Vigilância de Regime funciona corretamente"""
+    print(f"\n🧪 Testando estratégia Vigilância de Regime...")
     
-    # Teste com gatilho LLLW válido
+    # Teste com gatilho WWL válido e saldo positivo
     historico_teste = (
-        ['WIN', 'LOSS', 'LOSS', 'LOSS'] +  # Sequência LLLW
-        (['WIN'] * 6 + ['LOSS'] * 4) +      # 6 wins em 10 ops
-        (['WIN'] * 11 + ['LOSS'] * 9) +     # 11 wins em 20 ops
-        (['WIN'] * 5 + ['LOSS'] * 1)        # Dados extras
+        ['LOSS', 'WIN', 'WIN'] +           # Sequência WWL
+        (['WIN'] * 12 + ['LOSS'] * 5)      # Janela de 20 com saldo positivo
     )
     
-    resultado = analisar_estrategia_quantum_plus(historico_teste)
+    resultado = analisar_estrategia_vigilancia_regime(historico_teste)
     
     if resultado['should_operate']:
-        print("✅ SUCESSO: Estratégia Quantum+ detecta padrão corretamente")
+        print("✅ SUCESSO: Estratégia Vigilância de Regime detecta padrão corretamente")
         print(f"   Razão: {resultado['reason']}")
         print(f"   Confiança: {resultado['confidence']}%")
         return True
     else:
-        print("❌ FALHA: Estratégia Quantum+ não detectou padrão válido")
+        print("❌ FALHA: Estratégia Vigilância de Regime não detectou padrão válido")
         print(f"   Razão: {resultado['reason']}")
         return False
 
@@ -98,8 +96,8 @@ def main():
     # Teste 1: Configuração PERSISTENCIA_OPERACOES
     resultados.append(test_persistencia_operacoes())
     
-    # Teste 2: Estratégia Quantum+ ainda funciona
-    resultados.append(test_quantum_plus_strategy())
+    # Teste 2: Estratégia Vigilância de Regime funciona
+    resultados.append(test_vigilancia_regime_strategy())
     
     # Teste 3: Lógica de reset
     resultados.append(test_reset_logic())

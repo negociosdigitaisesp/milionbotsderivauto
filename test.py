@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Tunder Bot - Sistema de Trading com Estratégia Quantum+
+Tunder Bot - Sistema de Trading com Estratégia Vigilância de Regime
 Sistema integrado com rastreamento automático de resultados no Supabase
 
 Estratégia implementada:
-- Quantum+: 71.98% assertividade
+- Vigilância de Regime: 75.32% assertividade
 
 Gatilhos:
-- LLLW: Confirmação de Reversão em Ambiente Estável
-- LLL: Capitulação em Ambiente Estável
+- WWL: Confirmação de Tendência com Saldo Positivo ou Negativo
 """
 
 import os
@@ -85,7 +84,7 @@ def retry_supabase_operation(max_retries=3, delay=2):
 # Configurações
 BOT_NAME = 'Tunder Bot'
 ANALISE_INTERVALO = 5  # segundos entre análises
-OPERACOES_MINIMAS = 35  # Mínimo para a estratégia Quantum+
+OPERACOES_MINIMAS = 35  # Mínimo para a estratégia Vigilância de Regime
 OPERACOES_HISTORICO = 40  # Buscar um pouco mais para garantir
 PERSISTENCIA_TIMEOUT = 300  # 5 minutos timeout
 PERSISTENCIA_OPERACOES = 1  # Parar após a primeira operação (win ou loss)
@@ -596,7 +595,7 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
             'status': 'ACTIVE'
         }
         
-        response = supabase.table('tunder_bot_strategy_results_tracking').insert(data).select('id').execute()
+        response = supabase.table('tunder_bot_strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
             record_id = response.data[0]['id']
@@ -718,15 +717,15 @@ def gerar_relatorio_eficacia(supabase) -> Dict:
         logger.error(f"[RELATORIO_ERROR] Erro ao gerar relatório: {e}")
         return {}
 
-# ===== IMPLEMENTAÇÃO DA ESTRATÉGIA QUANTUM+ =====
+# ===== IMPLEMENTAÇÃO DA ESTRATÉGIA VIGILÂNCIA DE REGIME =====
 
-def analisar_estrategia_quantum_plus(historico: List[str]) -> Dict:
+def analisar_estrategia_vigilancia_regime(historico: List[str]) -> Dict:
     """
-    Tunder Bot - Estratégia Quantum+: Analisa o histórico de operações em busca
-    dos gatilhos de "Confirmação de Reversão" ou "Capitulação".
-    Assertividade Histórica: 71.98%
+    Tunder Bot - Estratégia Vigilância de Regime: Analisa o histórico de operações em busca
+    dos gatilhos de "Confirmação de Tendência" com saldo positivo ou negativo.
+    Assertividade Histórica: 75.32%
     """
-    strategy_name = "Quantum+"
+    strategy_name = "Vigilância de Regime"
     logger.debug(f"[{strategy_name}] Iniciando análise...")
 
     # A estratégia requer exatamente 34 operações anteriores para o Gatilho 1
@@ -734,78 +733,78 @@ def analisar_estrategia_quantum_plus(historico: List[str]) -> Dict:
     if len(historico) < 35:
         return {
             'should_operate': False, 'strategy': strategy_name, 'confidence': 0,
-            'reason': f"Datos insuficientes para Quantum+ (necesario 35, encontrado {len(historico)})"
+            'reason': f"Datos insuficientes para {strategy_name} (necesario 35, encontrado {len(historico)})"
         }
 
     # Lembre-se: o histórico vem do mais recente para o mais antigo.
     # historico[0] é a última operação.
 
-    # --- ANÁLISE DO GATILHO 1: "Confirmação de Reversão em Ambiente Estável" ---
-    # Sequência imediata: L, L, L, W (na ordem de ocorrência)
-    # No histórico reverso: W, L, L, L (índices 0, 1, 2, 3)
-    sequencia_gatilho1 = ['WIN', 'LOSS', 'LOSS', 'LOSS']
-    if historico[:4] == sequencia_gatilho1:
-        logger.debug(f"[{strategy_name}] Gatilho 1 (LLLW) detectado. Verificando filtros...")
-        
-        # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 4 a 13)
-        janela_curto_prazo = historico[4:14]
-        wins_curto_prazo = janela_curto_prazo.count('WIN')
-        
-        if 5 <= wins_curto_prazo <= 6:
-            logger.debug(f"[{strategy_name}] Filtro de Curto Prazo OK ({wins_curto_prazo} wins em 10).")
-            
-            # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 14 a 33)
-            janela_longo_prazo = historico[14:34]
-            wins_longo_prazo = janela_longo_prazo.count('WIN')
-
-            if 10 <= wins_longo_prazo <= 12:
-                logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Gatilho 1 (LLLW) validado.")
-                return {
-                    'should_operate': True, 'strategy': strategy_name, 'confidence': 71.98,
-                    'reason': f"Patrón Encontrado: {strategy_name} (Confirmación de Reversión)",
-                    'pattern_details': {
-                        'trigger': 'LLLW',
-                        'wins_short_term': wins_curto_prazo,
-                        'wins_long_term': wins_longo_prazo
-                    }
-                }
-        logger.debug(f"[{strategy_name}] Gatilho 1 (LLLW) falhou nos filtros.")
-
-    # --- ANÁLISE DO GATILHO 2: "Capitulação em Ambiente Estável" ---
-    # Sequência imediata: L, L, L (na ordem de ocorrência)
-    # No histórico reverso: L, L, L (índices 0, 1, 2)
-    sequencia_gatilho2 = ['LOSS', 'LOSS', 'LOSS']
-    if historico[:3] == sequencia_gatilho2:
-        logger.debug(f"[{strategy_name}] Gatilho 2 (LLL) detectado. Verificando filtros...")
+    # --- ANÁLISE DO GATILHO 1: "Confirmação de Tendência com Saldo Positivo" ---
+    # Sequência imediata: W, W, L (na ordem de ocorrência)
+    # No histórico reverso: L, W, W (índices 0, 1, 2)
+    sequencia_gatilho1 = ['LOSS', 'WIN', 'WIN']
+    if historico[:3] == sequencia_gatilho1:
+        logger.debug(f"[{strategy_name}] Gatilho 1 (WWL) com saldo positivo detectado. Verificando filtros...")
         
         # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 3 a 12)
         janela_curto_prazo = historico[3:13]
         wins_curto_prazo = janela_curto_prazo.count('WIN')
-
-        if 5 <= wins_curto_prazo <= 6:
+        
+        if 7 <= wins_curto_prazo <= 8:
             logger.debug(f"[{strategy_name}] Filtro de Curto Prazo OK ({wins_curto_prazo} wins em 10).")
             
             # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 13 a 32)
             janela_longo_prazo = historico[13:33]
             wins_longo_prazo = janela_longo_prazo.count('WIN')
 
-            if 10 <= wins_longo_prazo <= 12:
-                logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Gatilho 2 (LLL) validado.")
+            if 12 <= wins_longo_prazo <= 14:
+                logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Gatilho 1 (WWL) com saldo positivo validado.")
                 return {
-                    'should_operate': True, 'strategy': strategy_name, 'confidence': 71.98,
-                    'reason': f"Patrón Encontrado: {strategy_name} (Capitulación)",
+                    'should_operate': True, 'strategy': strategy_name, 'confidence': 75.32,
+                    'reason': f"Patrón Encontrado: {strategy_name} (Confirmación de Tendencia con Saldo Positivo)",
                     'pattern_details': {
-                        'trigger': 'LLL',
+                        'trigger': 'WWL',
                         'wins_short_term': wins_curto_prazo,
                         'wins_long_term': wins_longo_prazo
                     }
                 }
-        logger.debug(f"[{strategy_name}] Gatilho 2 (LLL) falhou nos filtros.")
+        logger.debug(f"[{strategy_name}] Gatilho 1 (WWL) com saldo positivo falhou nos filtros.")
+
+    # --- ANÁLISE DO GATILHO 2: "Confirmação de Tendência com Saldo Negativo" ---
+    # Sequência imediata: W, W, L (na ordem de ocorrência)
+    # No histórico reverso: L, W, W (índices 0, 1, 2)
+    sequencia_gatilho2 = ['LOSS', 'WIN', 'WIN']
+    if historico[:3] == sequencia_gatilho2:
+        logger.debug(f"[{strategy_name}] Gatilho 2 (WWL) com saldo negativo detectado. Verificando filtros...")
+        
+        # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 3 a 12)
+        janela_curto_prazo = historico[3:13]
+        wins_curto_prazo = janela_curto_prazo.count('WIN')
+
+        if 3 <= wins_curto_prazo <= 4:
+            logger.debug(f"[{strategy_name}] Filtro de Curto Prazo OK ({wins_curto_prazo} wins em 10).")
+            
+            # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 13 a 32)
+            janela_longo_prazo = historico[13:33]
+            wins_longo_prazo = janela_longo_prazo.count('WIN')
+
+            if 8 <= wins_longo_prazo <= 10:
+                logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Gatilho 2 (WWL) com saldo negativo validado.")
+                return {
+                    'should_operate': True, 'strategy': strategy_name, 'confidence': 75.32,
+                    'reason': f"Patrón Encontrado: {strategy_name} (Confirmación de Tendencia con Saldo Negativo)",
+                    'pattern_details': {
+                        'trigger': 'WWL',
+                        'wins_short_term': wins_curto_prazo,
+                        'wins_long_term': wins_longo_prazo
+                    }
+                }
+        logger.debug(f"[{strategy_name}] Gatilho 2 (WWL) com saldo negativo falhou nos filtros.")
 
     # Se nenhum gatilho foi atendido
     return {
         'should_operate': False, 'strategy': strategy_name, 'confidence': 0,
-        'reason': "Esperando el patrón Quantum+. Ninguna condición cumplida."
+        'reason': "Esperando el patrón Vigilância de Regime. Ninguna condición cumplida."
     }
 
 # ===== SISTEMA DE ENVIO DE SINAIS =====
@@ -859,9 +858,9 @@ def gerar_status_sistema() -> Dict:
             'metrics_summary': {}
         }
         
-        # Status da estratégia Quantum+
-        status['strategies']['Quantum+'] = {
-            'confidence_level': 71.98,
+        # Status da estratégia Vigilância de Regime
+        status['strategies']['Vigilância de Regime'] = {
+            'confidence_level': 75.32,
             'total_executions': 0,
             'success_rate': 0.0,
             'average_time': 0.0,
@@ -1018,7 +1017,7 @@ def main_loop():
     """Loop principal do bot com máquina de estados"""
     logger.info("[MAIN] === INICIANDO RADAR ANALISIS SCALPING BOT COM ESTADOS ===")
     logger.info("[MAIN] Sistema com máquina de estados: ANALYZING/MONITORING")
-    logger.info("[MAIN] Estratégia: Quantum+ (71.98%)")
+    logger.info("[MAIN] Estratégia: Vigilância de Regime (75.32%)")
     logger.info(f"[MAIN] Persistência: {PERSISTENCIA_OPERACOES} operações ou {PERSISTENCIA_TIMEOUT}s")
     
     # Inicializar Supabase
@@ -1036,8 +1035,8 @@ def main_loop():
     print("📊 Sistema de gerenciamento de estado implementado")
     print("🔄 Estados: ANALYZING (busca padrões) → MONITORING (mantém sinal)")
     print("⏱️  Análise a cada 5 segundos")
-    print("🎯 Estratégia: Quantum+ (71.98%)")
-    print("🔍 Gatilho: LLLW ou LLL com filtros de estabilidade")
+    print("🎯 Estratégia: Vigilância de Regime (75.32%)")
+    print("🔍 Gatilho: WWL com filtros de saldo positivo ou negativo")
     print(f"⚡ Persistência: {PERSISTENCIA_OPERACOES} operações")
     print("\nPressione Ctrl+C para parar\n")
     
@@ -1136,24 +1135,24 @@ def testar_conexao_supabase():
         print(f"❌ ERROR en la conexión: {e}")
         return False
 
-def testar_estrategia_quantum_plus():
-    """Testa a estratégia Quantum+ com dados simulados"""
+def testar_estrategia_vigilancia_regime():
+    """Testa a estratégia Vigilância de Regime com dados simulados"""
     try:
-        print("\n🧪 Probando estrategia Quantum+ con datos simulados...")
+        print("\n🧪 Probando estrategia Vigilância de Regime con datos simulados...")
         
-        # Teste 1: Gatilho LLLW (Confirmação de Reversão)
-        historico_teste_1 = ['WIN', 'LOSS', 'LOSS', 'LOSS'] + ['WIN'] * 10 + ['LOSS'] * 5 + ['WIN'] * 15
-        print(f"📊 Teste 1 - LLLW: {' '.join(historico_teste_1[:10])}...")
+        # Teste 1: Gatilho WWL (com saldo positivo)
+        historico_teste_1 = ['LOSS', 'WIN', 'WIN'] + ['WIN'] * 10 + ['LOSS'] * 7 + ['WIN'] * 0
+        print(f"📊 Teste 1 - WWL: {' '.join(historico_teste_1[:10])}...")
         
-        resultado_1 = analisar_estrategia_quantum_plus(historico_teste_1)
+        resultado_1 = analisar_estrategia_vigilancia_regime(historico_teste_1)
         print(f"🎯 Resultado: {resultado_1['should_operate']} - {resultado_1['confidence']:.2f}%")
         print(f"📝 Razón: {resultado_1['reason']}")
         
-        # Teste 2: Gatilho LLL (Capitulação)
-        historico_teste_2 = ['LOSS', 'LOSS', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 3 + ['WIN'] * 15
-        print(f"\n📊 Teste 2 - LLL: {' '.join(historico_teste_2[:10])}...")
+        # Teste 2: Gatilho WWL (com saldo negativo)
+        historico_teste_2 = ['LOSS', 'WIN', 'WIN'] + ['WIN'] * 5 + ['LOSS'] * 12 + ['WIN'] * 0
+        print(f"\n📊 Teste 2 - WWL (saldo negativo): {' '.join(historico_teste_2[:10])}...")
         
-        resultado_2 = analisar_estrategia_quantum_plus(historico_teste_2)
+        resultado_2 = analisar_estrategia_vigilancia_regime(historico_teste_2)
         print(f"🎯 Resultado: {resultado_2['should_operate']} - {resultado_2['confidence']:.2f}%")
         print(f"📝 Razón: {resultado_2['reason']}")
         
@@ -1161,11 +1160,11 @@ def testar_estrategia_quantum_plus():
         historico_teste_3 = ['WIN', 'LOSS', 'WIN'] * 5
         print(f"\n📊 Teste 3 - Dados insuficientes: {' '.join(historico_teste_3)}")
         
-        resultado_3 = analisar_estrategia_quantum_plus(historico_teste_3)
+        resultado_3 = analisar_estrategia_vigilancia_regime(historico_teste_3)
         print(f"🎯 Resultado: {resultado_3['should_operate']} - {resultado_3['confidence']:.2f}%")
         print(f"📝 Razón: {resultado_3['reason']}")
         
-        print("\n✅ Prueba de la estrategia Quantum+ completada")
+        print("\n✅ Prueba de la estrategia Vigilância de Regime completada")
         return True
         
     except Exception as e:
@@ -1173,73 +1172,68 @@ def testar_estrategia_quantum_plus():
         return False
 
 def testar_nova_estrategia():
-    """Função de teste dedicada para a estratégia Quantum+."""
-    print("\n🧪 Probando la nueva estrategia Quantum+...")
+    """Função de teste dedicada para a estratégia Vigilância de Regime."""
+    print("\n🧪 Probando la nueva estrategia Vigilância de Regime...")
 
-    # Cenário 1: Deve ativar o Gatilho 1 (LLLW)
-    # Sequência: [11W] [6W] LLLW + dados extras para atingir 35 operações
+    # Cenário 1: Deve ativar o Gatilho WWL com saldo positivo
+    # Sequência: WWL + dados extras para atingir 20 operações com saldo positivo
     historico_gatilho1 = (
-        ['WIN'] + ['LOSS'] * 3 + # Sequência LLLW (reverso: W L L L)
-        (['WIN'] * 6 + ['LOSS'] * 4) + # Janela de 10 com 6 vitórias
-        (['WIN'] * 11 + ['LOSS'] * 9) + # Janela de 20 com 11 vitórias
-        (['WIN'] * 5 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
+        ['LOSS', 'WIN', 'WIN'] + # Sequência WWL (reverso: L W W)
+        (['WIN'] * 10 + ['LOSS'] * 7) # Completar 20 operações com saldo positivo
     )
-    print("\n--- Testando Gatilho 1 (LLLW) ---")
-    resultado1 = analisar_estrategia_quantum_plus(historico_gatilho1)
+    print("\n--- Testando Gatilho WWL com saldo positivo ---")
+    resultado1 = analisar_estrategia_vigilancia_regime(historico_gatilho1)
     if resultado1['should_operate']:
-        print(f"✅ SUCESSO: Gatilho 1 ativado corretamente.")
+        print(f"✅ SUCESSO: Gatilho WWL com saldo positivo ativado corretamente.")
         print(f"   Razón: {resultado1['reason']}")
     else:
-        print(f"❌ FALHA: Gatilho 1 não foi ativado.")
+        print(f"❌ FALHA: Gatilho WWL com saldo positivo não foi ativado.")
         print(f"   Razón: {resultado1['reason']}")
 
-    # Cenário 2: Deve ativar o Gatilho 2 (LLL)
-    # Sequência: [10W] [5W] LLL + dados extras para atingir 35 operações
+    # Cenário 2: Não deve ativar com saldo negativo
+    # Sequência: WWL + dados extras para atingir 20 operações com saldo negativo
     historico_gatilho2 = (
-        ['LOSS'] * 3 + # Sequência LLL (reverso: L L L)
-        (['WIN'] * 5 + ['LOSS'] * 5) + # Janela de 10 com 5 vitórias
-        (['WIN'] * 10 + ['LOSS'] * 10) + # Janela de 20 com 10 vitórias
-        (['WIN'] * 6 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
+        ['LOSS', 'WIN', 'WIN'] + # Sequência WWL (reverso: L W W)
+        (['WIN'] * 5 + ['LOSS'] * 12) # Completar 20 operações com saldo negativo
     )
-    print("\n--- Testando Gatilho 2 (LLL) ---")
-    resultado2 = analisar_estrategia_quantum_plus(historico_gatilho2)
-    if resultado2['should_operate']:
-        print(f"✅ SUCESSO: Gatilho 2 ativado corretamente.")
+    print("\n--- Testando Gatilho WWL com saldo negativo ---")
+    resultado2 = analisar_estrategia_vigilancia_regime(historico_gatilho2)
+    if not resultado2['should_operate']:
+        print(f"✅ SUCESSO: Gatilho WWL com saldo negativo rejeitado corretamente.")
         print(f"   Razón: {resultado2['reason']}")
     else:
-        print(f"❌ FALHA: Gatilho 2 não foi ativado.")
+        print(f"❌ FALHA: Gatilho WWL com saldo negativo foi ativado incorretamente.")
         print(f"   Razón: {resultado2['reason']}")
 
-    # Cenário 3: Não deve ativar (falha no filtro)
-    historico_falha = (
-        ['WIN'] + ['LOSS'] * 3 + # Sequência LLLW
-        (['WIN'] * 4 + ['LOSS'] * 6) + # Janela de 10 com apenas 4 vitórias (deve falhar)
-        (['WIN'] * 11 + ['LOSS'] * 9) + # Janela de 20 com 11 vitórias
-        (['WIN'] * 5 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
-    )
-    print("\n--- Testando cenário de falha ---")
-    resultado3 = analisar_estrategia_quantum_plus(historico_falha)
+    # Cenário 3: Sequência incorreta
+    historico_gatilho3 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 10 + ['LOSS'] * 7
+    print("\n--- Testando sequência incorreta ---")
+    resultado3 = analisar_estrategia_vigilancia_regime(historico_gatilho3)
     if not resultado3['should_operate']:
-        print(f"✅ SUCESSO: O padrão não foi ativado, como esperado.")
+        print(f"✅ SUCESSO: Sequência incorreta rejeitada corretamente.")
         print(f"   Razón: {resultado3['reason']}")
     else:
-        print(f"❌ FALHA: O padrão foi ativado incorretamente.")
+        print(f"❌ FALHA: Sequência incorreta foi ativada incorretamente.")
         print(f"   Razón: {resultado3['reason']}")
+
+    print("\n✅ Testes da estratégia Vigilância de Regime concluídos.")
+    return True
+
 
 def executar_testes_completos():
     """Executa bateria completa de testes"""
-    print("🔬 === EXECUTANDO TESTES COMPLETOS - TUNDER BOT QUANTUM+ ===")
+    print("🔬 === EXECUTANDO TESTES COMPLETOS - TUNDER BOT VIGILÂNCIA DE REGIME ===")
     
     # Teste 1: Conexão Supabase
     teste1 = testar_conexao_supabase()
     
-    # Teste 2: Estratégia Quantum+
-    teste2 = testar_estrategia_quantum_plus()
+    # Teste 2: Estratégia Vigilância de Regime
+    teste2 = testar_estrategia_vigilancia_regime()
     
     # Resultado final
     if teste1 and teste2:
         print("\n✅ TODOS OS TESTES PASSARAM")
-        print("🚀 Tunder Bot Quantum+ pronto para execução")
+        print("🚀 Tunder Bot Vigilância de Regime pronto para execução")
         return True
     else:
         print("\n❌ ALGUNS TESTES FALHARAM")
@@ -1265,18 +1259,18 @@ if __name__ == "__main__":
             imprimir_status_detalhado()
         elif comando == "help":
             # Mostrar ajuda
-            print("\n📖 TUNDER BOT QUANTUM+ - Ajuda")
+            print("\n📖 TUNDER BOT VIGILÂNCIA DE REGIME - Ajuda")
             print("="*50)
             print("Uso: python radar_tunder_new.py [comando]")
             print("\nComandos disponíveis:")
             print("  (sem comando) - Executar bot principal")
-            print("  test         - Testar nova estratégia Quantum+")
+            print("  test         - Testar nova estratégia Vigilância de Regime")
             print("  testall      - Executar testes completos do sistema")
             print("  status       - Mostrar status detalhado")
             print("  help         - Mostrar esta ajuda")
             print("\n🎯 Estratégia implementada:")
-            print("  • Quantum+: 71.98% assertividade")
-            print("\n📊 Gatilhos: LLLW (Confirmação de Reversão) ou LLL (Capitulação)")
+            print("  • Vigilância de Regime: 75.32% assertividade")
+            print("\n📊 Gatilhos: WWL (Win-Win-Loss) com saldo positivo")
         else:
             print(f"❌ Comando desconhecido: {comando}")
             print("Use 'python radar_tunder_new.py help' para ver comandos disponíveis")

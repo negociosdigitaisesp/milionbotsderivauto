@@ -72,17 +72,19 @@ def enviar_sinal_supabase_corrigido(supabase, signal_data):
         return None
 
 def criar_registro_de_rastreamento_linkado(supabase, strategy_name, confidence, signal_id):
-    """Cria registro de rastreamento linkado ao sinal - versão de teste"""
+    """Cria registro de rastreamento linkado ao sinal - versão de teste (evitando campos duplicados)"""
     try:
         tracking_data = {
             'signal_id': signal_id,
             'strategy_name': strategy_name,
             'strategy_confidence': confidence,  # CORRETO: usar strategy_confidence
-            'operation_1_result': None,
+            'operation_1_result': None,  # Usar este em vez de next_operation_1_result
             'operation_2_result': None,
             'pattern_success': None,
-            'status': 'ACTIVE',
-            'created_at': datetime.now().isoformat()
+            'status': 'ACTIVE',  # Usar este em vez de tracking_status
+            'pattern_detected_at': datetime.now().isoformat(),  # Usar este em vez de pattern_found_at
+            'operations_completed': 0,
+            'validation_complete': False
         }
         
         response = supabase.table('strategy_results_tracking').insert(tracking_data).execute()

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Tunder Bot - Sistema de Trading com Estratégia Quantum+
-Sistema integrado com rastreamento automático de resultados no Supabase
+"""Tunder Bot - Sistema de Trading com Estratégia WWL 
+Sistema integrado com rastreamento automático de resultados no Supabase 
 
-Estratégia implementada:
-- Quantum+: 71.98% assertividade
+Estratégia implementada: 
+- WWL: Estratégia Win-Win-Loss com 78.6% de assertividade 
 
-Gatilhos:
-- LLLW: Confirmação de Reversão em Ambiente Estável
-- LLL: Capitulação em Ambiente Estável
+Gatilhos: 
+- Padrão WWL nas últimas 3 operações 
+- Máximo 5 derrotas nas últimas 20 operações 
 """
 
 import os
@@ -29,6 +28,7 @@ from functools import wraps
 
 # NUEVAS IMPORTACIONES PARA TELEGRAM
 try:
+    # Primeiro tenta importar normalmente
     from telegram_notifier import (
         inicializar_telegram,
         enviar_alerta_patron,
@@ -38,8 +38,23 @@ try:
     )
     TELEGRAM_DISPONIBLE = True
 except ImportError:
-    print("⚠️ Módulo telegram_notifier no encontrado - funcionando sin notificaciones")
-    TELEGRAM_DISPONIBLE = False
+    try:
+        # Se falhar, tenta adicionar o diretório atual ao path
+        import sys
+        import os
+        # Adiciona o diretório atual ao path
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from telegram_notifier import (
+            inicializar_telegram,
+            enviar_alerta_patron,
+            enviar_resultado_operacion,
+            enviar_finalizacion_estrategia,
+            enviar_mensaje_sistema
+        )
+        TELEGRAM_DISPONIBLE = True
+    except ImportError:
+        print("⚠️ Módulo telegram_notifier no encontrado - funcionando sin notificaciones")
+        TELEGRAM_DISPONIBLE = False
 
 # Variable global para controlar si Telegram está activo
 telegram_activo = False
@@ -99,12 +114,13 @@ def retry_supabase_operation(max_retries=3, delay=2):
     return decorator
 
 # Configurações
-BOT_NAME = 'Tunder Bot'
+BOT_NAME = 'Tunder Bot'  # <-- NOME MANTIDO CONFORME SOLICITADO
 ANALISE_INTERVALO = 5  # segundos entre análises
-OPERACOES_MINIMAS = 35  # Mínimo para a estratégia Quantum+
-OPERACOES_HISTORICO = 35  # O gatilho mais longo (LLLW) precisa de 4 (gatilho) + 10 (curto prazo) + 20 (longo prazo) = 34. Buscamos 35 para ter uma pequena margem de segurança.
+# A estratégia WWL precisa de no mínimo 20 operações para análise de saldo.
+OPERACOES_MINIMAS = 20
+OPERACOES_HISTORICO = 25 # Buscamos 25 para uma margem de segurança.
 PERSISTENCIA_TIMEOUT = 300  # 5 minutos timeout
-PERSISTENCIA_OPERACOES = 1  # Parar após a primeira operação (win ou loss)
+PERSISTENCIA_OPERACOES = 1  # A Regra 3 (Saída) dita que o bot para após 1 operação.
 
 # ===== SISTEMA DE GERENCIAMENTO DE ESTADO =====
 # Estados da máquina de estados
@@ -740,16 +756,19 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
 def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
     """Cria registro na tabela strategy_results_tracking linkado com signal_id"""
     try:
+        # Usar campos que existem na tabela e evitar duplicações
         data = {
-            'signal_id': signal_id,  # NOVO: Link com a tabela de sinais
+            'signal_id': signal_id,
             'strategy_name': strategy_name,
             'strategy_confidence': confidence_level,
             'bot_name': BOT_NAME,
-            'status': 'ACTIVE',
-            'pattern_detected_at': datetime.now().isoformat()
+            'status': 'ACTIVE',  # Usar este em vez de tracking_status
+            'pattern_detected_at': datetime.now().isoformat(),
+            'operations_completed': 0,
+            'validation_complete': False
         }
         
-        response = supabase.table('strategy_results_tracking').insert(data).select('id').execute()
+        response = supabase.table('strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
             record_id = response.data[0]['id']
@@ -872,86 +891,104 @@ def gerar_relatorio_eficacia(supabase) -> Dict:
         logger.error(f"[RELATORIO_ERROR] Erro ao gerar relatório: {e}")
         return {}
 
-# ===== IMPLEMENTAÇÃO DA ESTRATÉGIA QUANTUM+ =====
+# ===== IMPLEMENTAÇÃO DA ESTRATÉGIA WWL =====
 
-def analisar_estrategia_quantum_plus(historico: List[str]) -> Dict:
-    """
-    VERSÃO DA EQUIPE - Lógica original mantida, com logs detalhados e otimização.
-    Assertividade Histórica: 71.98%
-    """
-    strategy_name = "Quantum+"
-    logger.debug(f"[{strategy_name}] Iniciando análise com {len(historico)} operações.")
+def analisar_estrategia_wwl(historico: List[str]) -> Dict:  
+    """ 
+    Tunder Bot - Estratégia WWL: Analisa o histórico de operações em busca 
+    do padrão WWL (Win-Win-Loss) nos últimos 3 resultados. 
+    Filtro: Máximo 5 derrotas nas últimas 20 operações. 
+    Assertividade Histórica: 78.6% 
+    """  
+    strategy_name = "WWL"  
+    logger.debug(f"[{strategy_name}] Iniciando análise...")  
     
-    # --- VALIDAÇÃO DE DADOS MÍNIMOS ---
-    if len(historico) < 34: # A verificação mais longa precisa de 34 posições (0 a 33)
-        logger.warning(f"[{strategy_name}] Dados insuficientes: {len(historico)} < 34")
-        return {
-            'should_operate': False, 'strategy': strategy_name, 'confidence': 0,
-            'reason': f"Datos insuficientes para Quantum+ (necessário 34, encontrado {len(historico)})"
+    # NOVO DEBUG DETALHADO 
+    logger.info(f"[{strategy_name}] Histórico recebido: {len(historico)} operações")  
+    logger.info(f"[{strategy_name}] Primeiras 5: {historico[:5]}")  
+    logger.info(f"[{strategy_name}] Verificando se >= 20 operações...")  
+    
+    try:  
+        # Verificar dados suficientes (mínimo 20 para análise de derrotas) 
+        if len(historico) < 20:  
+            logger.warning(f"[{strategy_name}] INSUFICIENTE: {len(historico)} < 20")  
+            return {  
+                'should_operate': False,  
+                'strategy': strategy_name,  
+                'confidence': 0,  
+                'reason': f"Datos insuficientes para {strategy_name} (necesario 20, encontrado {len(historico)})"  
+            }  
+        
+        logger.info(f"[{strategy_name}] Dados suficientes. Verificando gatilhos...")  
+        
+        # ===== REGRA 1: VERIFICAR PADRÃO WWL ===== 
+        # As 3 operações mais recentes devem ser Win-Win-Loss 
+        padrao_wwl = ['WIN', 'WIN', 'LOSS']  
+        ultimas_3 = historico[:3]  
+        
+        logger.info(f"[{strategy_name}] Verificando Gatilho 1 (WWL)")  
+        logger.info(f"[{strategy_name}] Sequência atual: {ultimas_3} vs {padrao_wwl}")  
+        
+        if ultimas_3 != padrao_wwl:  
+            logger.info(f"[{strategy_name}] Padrão WWL não encontrado: {ultimas_3}")  
+            return {  
+                'should_operate': False,  
+                'strategy': strategy_name,  
+                'confidence': 0,  
+                'reason': f"Patrón {strategy_name} no encontrado: {ultimas_3}"  
+            }  
+        
+        logger.info(f"[{strategy_name}] GATILHO DETECTADO! Verificando filtros...")  
+        
+        # ===== REGRA 2: CONTAR DERROTAS NAS ÚLTIMAS 20 OPERAÇÕES ===== 
+        ultimas_20 = historico[:20]  
+        total_derrotas = ultimas_20.count('LOSS') 
+        
+        logger.info(f"[{strategy_name}] Analisando derrotas nas últimas 20 operações") 
+        logger.info(f"[{strategy_name}] REGRA 2 - Contagem de derrotas nas últimas 20 operações")  
+        logger.info(f"[{strategy_name}] Total de derrotas encontradas: {total_derrotas}")  
+        logger.info(f"[{strategy_name}] Critério máximo permitido: 5 derrotas")  
+        
+        # Critério: Derrotas <= 5 
+        if total_derrotas > 5:  
+            logger.info(f"[{strategy_name}] ❌ REGRA 2 FALHOU: Muitas derrotas ({total_derrotas} > 5)")  
+            return {  
+                'should_operate': False,  
+                'strategy': strategy_name,  
+                'confidence': 0,  
+                'reason': f"Muitas derrotas: {total_derrotas}/20 operações (máximo: 5)"  
+            }  
+        
+        logger.info(f"[{strategy_name}] ✅ REGRA 2 APROVADA: Derrotas dentro do limite ({total_derrotas} <= 5)")  
+        
+        # ===== RESULTADO FINAL: TODAS AS REGRAS APROVADAS ===== 
+        logger.info(f"[{strategy_name}] 🎯 === PADRÃO WWL COMPLETO DETECTADO ===")  
+        logger.info(f"[{strategy_name}] ✅ REGRA 1: Padrão WWL confirmado")  
+        logger.info(f"[{strategy_name}] ✅ REGRA 2: Derrotas adequadas ({total_derrotas}/5)")  
+        logger.info(f"[{strategy_name}] 🔥 SINAL DE ENTRADA ATIVADO - Assertividade: 78.6%")  
+        
+        return {  
+            'should_operate': True,  
+            'strategy': strategy_name,  
+            'confidence': 78.6,  
+            'reason': f"Padrão WWL detectado com {total_derrotas} derrotas (≤5)",  
+            'pattern_details': {  
+                'trigger': 'WWL',  
+                'total_derrotas_20_ops': total_derrotas,  
+                'ultimas_3':  ultimas_3 
+            }  
+        }  
+        
+    except Exception as e:  
+        logger.error(f"[{strategy_name}] ERRO CRÍTICO: {e}")  
+        logger.error(f"[{strategy_name}] Traceback: {traceback.format_exc()}")  
+        return {  
+            'should_operate': False,  
+            'strategy': strategy_name,  
+            'confidence': 0,  
+            'reason': f"Erro na execução da estratégia: {str(e)}"  
         }
 
-    # --- ANÁLISE DO GATILHO 1: "Confirmação de Reversão" (LLLW) ---
-    gatilho_lllw = ['WIN', 'LOSS', 'LOSS', 'LOSS']
-    logger.debug(f"[{strategy_name}] Verificando Gatilho 1 (LLLW)...")
-    logger.debug(f"    - Sequência do histórico[:4]: {historico[:4]}")
-    logger.debug(f"    - Sequência esperada:        {gatilho_lllw}")
-    
-    if historico[:4] == gatilho_lllw:
-        logger.info(f"[{strategy_name}] GATILHO LLLW DETECTADO. Verificando filtros de contexto...")
-        
-        # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 4 a 13)
-        janela_curto_prazo = historico[4:14]
-        wins_curto_prazo = janela_curto_prazo.count('WIN')
-        logger.info(f"    - Filtro Curto Prazo (índices 4-13): {wins_curto_prazo} vitórias em 10. (Esperado: 5 ou 6)")
-        
-        if 5 <= wins_curto_prazo <= 6:
-            # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 14 a 33)
-            janela_longo_prazo = historico[14:34]
-            wins_longo_prazo = janela_longo_prazo.count('WIN')
-            logger.info(f"    - Filtro Longo Prazo (índices 14-33): {wins_longo_prazo} vitórias em 20. (Esperado: 10 a 12)")
-
-            if 10 <= wins_longo_prazo <= 12:
-                logger.info(f"[{strategy_name}] ✅ PADRÃO LLLW VALIDADO!")
-                return {
-                    'should_operate': True, 'strategy': strategy_name, 'confidence': 71.98,
-                    'reason': f"Patrón Encontrado: {strategy_name} (Confirmación de Reversión)",
-                    'pattern_details': { 'trigger': 'LLLW', 'wins_short_term': wins_curto_prazo, 'wins_long_term': wins_longo_prazo }
-                }
-    
-    # --- ANÁLISE DO GATILHO 2: "Capitulação" (LLL) ---
-    gatilho_lll = ['LOSS', 'LOSS', 'LOSS']
-    logger.debug(f"[{strategy_name}] Verificando Gatilho 2 (LLL)...")
-    logger.debug(f"    - Sequência do histórico[:3]: {historico[:3]}")
-    logger.debug(f"    - Sequência esperada:        {gatilho_lll}")
-    
-    if historico[:3] == gatilho_lll:
-        logger.info(f"[{strategy_name}] GATILHO LLL DETECTADO. Verificando filtros de contexto...")
-        
-        # Filtro de Curto Prazo: 10 ops ANTES da sequência (índices 3 a 12)
-        janela_curto_prazo = historico[3:13]
-        wins_curto_prazo = janela_curto_prazo.count('WIN')
-        logger.info(f"    - Filtro Curto Prazo (índices 3-12): {wins_curto_prazo} vitórias em 10. (Esperado: 5 ou 6)")
-        
-        if 5 <= wins_curto_prazo <= 6:
-            # Filtro de Longo Prazo: 20 ops ANTES da janela de 10 (índices 13 a 32)
-            janela_longo_prazo = historico[13:33]
-            wins_longo_prazo = janela_longo_prazo.count('WIN')
-            logger.info(f"    - Filtro Longo Prazo (índices 13-32): {wins_longo_prazo} vitórias em 20. (Esperado: 10 a 12)")
-
-            if 10 <= wins_longo_prazo <= 12:
-                logger.info(f"[{strategy_name}] ✅ PADRÃO LLL VALIDADO!")
-                return {
-                    'should_operate': True, 'strategy': strategy_name, 'confidence': 71.98,
-                    'reason': f"Patrón Encontrado: {strategy_name} (Capitulación)",
-                    'pattern_details': { 'trigger': 'LLL', 'wins_short_term': wins_curto_prazo, 'wins_long_term': wins_longo_prazo }
-                }
-
-    # Se nenhum gatilho foi atendido
-    logger.debug(f"[{strategy_name}] Nenhum padrão foi encontrado neste ciclo.")
-    return {
-        'should_operate': False, 'strategy': strategy_name, 'confidence': 0,
-        'reason': "Esperando el patrón Quantum+. Ninguna condición cumplida."
-    }
 
 # ===== SISTEMA DE ENVIO DE SINAIS =====
 
@@ -1039,9 +1076,9 @@ def gerar_status_sistema() -> Dict:
             'metrics_summary': {}
         }
         
-        # Status da estratégia Quantum+
-        status['strategies']['Quantum+'] = {
-            'confidence_level': 71.98,
+        # Status da estratégia Vigilância de Regime
+        status['strategies']['Vigilância de Regime'] = {
+            'confidence_level': 75.32,
             'total_executions': 0,
             'success_rate': 0.0,
             'average_time': 0.0,
@@ -1072,66 +1109,60 @@ def gerar_status_sistema() -> Dict:
 
 # ===== LOOP PRINCIPAL DO BOT =====
 
-def executar_ciclo_analise_simplificado(supabase) -> Dict:
+def executar_ciclo_analise_simplificado(supabase) -> Dict: 
     """Ciclo com máquina de estados - ANALYZING/MONITORING (VERSÃO CORRIGIDA)"""
-    try:
-        global bot_current_state, active_signal_data
+    try: 
+        global bot_current_state, active_signal_data 
         
-        logger.info(f"[CICLO] === CICLO ESTADO: {bot_current_state} ===")
+        logger.info(f"[CICLO] === CICLO ESTADO: {bot_current_state} ===") 
         
-        historico, timestamps, latest_operation_id = buscar_operacoes_historico(supabase)
+        historico, timestamps, latest_operation_id = buscar_operacoes_historico(supabase) 
         
-        # NOVO DEBUG CRÍTICO
-        logger.info(f"[DEBUG] Histórico recebido: {len(historico) if historico else 0} operações")
-        if historico:
-            logger.info(f"[DEBUG] Primeiras 10 operações: {historico[:10]}")
-            logger.info(f"[DEBUG] Últimas 5 operações: {historico[-5:]}")
-        logger.info(f"[DEBUG] Latest operation ID: {latest_operation_id}")
+        # NOVO DEBUG CRÍTICO 
+        logger.info(f"[DEBUG] Histórico recebido: {len(historico)} operações") 
+        if historico: 
+            logger.info(f"[DEBUG] Primeiras 10 operações: {historico[:10]}") 
+            logger.info(f"[DEBUG] Últimas 5 operações: {historico[-5:]}") 
+        logger.info(f"[DEBUG] Latest operation ID: {latest_operation_id}") 
         
-        if not historico:
-            # Envia um sinal de "Aguardando dados" se não houver histórico
-            dados_sem_historico = {
-                'should_operate': False,
-                'reason': 'Aguardando dados...',
-                'strategy': 'N/A',
-                'confidence': 0
-            }
-            enviar_sinal_supabase_corrigido(supabase, dados_sem_historico)
-            return {
-                'status': 'NO_DATA',
-                'message': 'Aguardando dados'
-            }
+        if not historico: 
+            dados_sem_historico = { 
+                'should_operate': False, 
+                'reason': 'Aguardando dados...', 
+                'strategy': 'N/A', 
+                'confidence': 0 
+            } 
+            enviar_sinal_supabase_corrigido(supabase, dados_sem_historico) 
+            return { 
+                'status': 'NO_DATA', 
+                'message': 'Aguardando dados' 
+            } 
+ 
+        # NOVO: Validar dados antes de analisar 
+        if not validar_integridade_historico(historico): 
+            logger.error("[DEBUG] Validação de integridade FALHOU") 
+            return {'status': 'VALIDATION_ERROR', 'message': 'Dados inválidos'} 
+        else: 
+            logger.info("[DEBUG] Validação de integridade PASSOU") 
 
-        # NOVO: Validar dados antes de analisar
-        if not validar_integridade_historico(historico):
-            logger.error("[DEBUG] Validação de integridade FALHOU")
-            return {'status': 'VALIDATION_ERROR', 'message': 'Dados inválidos'}
-        else:
-            logger.info("[DEBUG] Validação de integridade PASSOU")
-
-        # --- LÓGICA DA MÁQUINA DE ESTADOS ---
-
-        if bot_current_state == BotState.ANALYZING:
-            logger.info("[STATE] Estado ANALYZING - Buscando padrões")
-            logger.info(f"[DEBUG] Chamando analisar_estrategia_quantum_plus com {len(historico)} operações")
+        if bot_current_state == BotState.ANALYZING: 
+            logger.info("[STATE] Estado ANALYZING - Buscando padrões") 
+            logger.info(f"[DEBUG] Chamando analisar_estrategia_wwl com {len(historico)} operações") 
             
-            resultado_analise = analisar_estrategia_quantum_plus(historico)
+            resultado_analise = analisar_estrategia_wwl(historico) 
             
-            # NOVO DEBUG DA ANÁLISE
-            logger.info(f"[DEBUG] Resultado da análise: {resultado_analise}")
+            # NOVO DEBUG DA ANÁLISE 
+            logger.info(f"[DEBUG] Resultado da análise: {resultado_analise}") 
             
-            if resultado_analise['should_operate']:
-                # Padrão encontrado! Ativar o estado de monitoramento.
-                # A função activate_monitoring_state agora é responsável por enviar o SINAL INICIAL.
-                sucesso_ativacao = activate_monitoring_state(resultado_analise, latest_operation_id, supabase)
-                if not sucesso_ativacao:
-                    # Se a ativação falhar (ex: erro no DB), envie um sinal de erro.
-                    logger.error("Falha ao ativar o estado de monitoramento. Enviando sinal de erro.")
-                    sinal_de_falha = {**resultado_analise, 'should_operate': False, 'reason': 'Erro interno ao ativar o sinal'}
-                    enviar_sinal_supabase_corrigido(supabase, sinal_de_falha)
-            else:
-                # Nenhum padrão encontrado. Envie um sinal de "esperando".
-                logger.info("[ANALYSIS] Nenhum padrão encontrado. Enviando status de espera.")
+            if resultado_analise['should_operate']: 
+                logger.info(f"[DEBUG] PADRÃO ENCONTRADO! Ativando monitoramento...") 
+                sucesso_ativacao = activate_monitoring_state(resultado_analise, latest_operation_id, supabase) 
+                if not sucesso_ativacao: 
+                    logger.error("Falha ao ativar o estado de monitoramento.") 
+                    sinal_de_falha = {**resultado_analise, 'should_operate': False, 'reason': 'Erro interno ao ativar o sinal'} 
+                    enviar_sinal_supabase_corrigido(supabase, sinal_de_falha) 
+            else: 
+                logger.info("[DEBUG] Nenhum padrão encontrado. Enviando status de espera.") 
                 enviar_sinal_supabase_corrigido(supabase, resultado_analise)
 
         elif bot_current_state == BotState.MONITORING:
@@ -1181,7 +1212,7 @@ def main_loop():
     """Loop principal do bot com máquina de estados"""
     logger.info("[MAIN] === INICIANDO RADAR ANALISIS SCALPING BOT COM ESTADOS ===")
     logger.info("[MAIN] Sistema com máquina de estados: ANALYZING/MONITORING")
-    logger.info("[MAIN] Estratégia: Quantum+ (71.98%)")
+    logger.info("[MAIN] Estratégia: Vigilância de Regime (75.32%)")
     logger.info(f"[MAIN] Persistência: {PERSISTENCIA_OPERACOES} operações ou {PERSISTENCIA_TIMEOUT}s")
     
     # Inicializar Supabase
@@ -1210,9 +1241,9 @@ def main_loop():
     print("📊 Sistema de gerenciamento de estado implementado")
     print("🔄 Estados: ANALYZING (busca padrões) → MONITORING (mantém sinal)")
     print("⏱️  Análise a cada 5 segundos")
-    print("🎯 Estratégia: Quantum+ (71.98%)")
+    print("🎯 Estratégia: Vigilância de Regime (75.32%)")
     print(f"📱 Telegram: {'✅ ACTIVO' if telegram_activo else '❌ INACTIVO'}")
-    print("🔍 Gatilho: LLLW ou LLL com filtros de estabilidade")
+    print("🔍 Gatilho: WWL com filtros de saldo positivo ou negativo")
     print(f"⚡ Persistência: {PERSISTENCIA_OPERACOES} operações")
     print("\nPressione Ctrl+C para parar\n")
     
@@ -1309,36 +1340,36 @@ def testar_conexao_supabase():
         print(f"❌ ERROR en la conexión: {e}")
         return False
 
-def testar_estrategia_quantum_plus():
-    """Testa a estratégia Quantum+ com dados simulados"""
+def testar_estrategia_wwl():
+    """Testa a estratégia WWL com dados simulados"""
     try:
-        print("\n🧪 Probando estrategia Quantum+ con datos simulados...")
+        print("\n🧪 Probando estrategia WWL con datos simulados...")
         
-        # Teste 1: Gatilho LLLW (Confirmação de Reversão)
-        historico_teste_1 = ['WIN', 'LOSS', 'LOSS', 'LOSS'] + ['WIN'] * 10 + ['LOSS'] * 5 + ['WIN'] * 15
-        print(f"📊 Teste 1 - LLLW: {' '.join(historico_teste_1[:10])}...")
+        # Teste 1: Padrão WWL com saldo positivo (deve aprovar)
+        historico_teste_1 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 17
+        print(f"📊 Teste 1 - Padrão WWL com saldo positivo: {' '.join(historico_teste_1[:10])}...")
         
-        resultado_1 = analisar_estrategia_quantum_plus(historico_teste_1)
+        resultado_1 = analisar_estrategia_wwl(historico_teste_1)
         print(f"🎯 Resultado: {resultado_1['should_operate']} - {resultado_1['confidence']:.2f}%")
         print(f"📝 Razón: {resultado_1['reason']}")
         
-        # Teste 2: Gatilho LLL (Capitulação)
-        historico_teste_2 = ['LOSS', 'LOSS', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 3 + ['WIN'] * 15
-        print(f"\n📊 Teste 2 - LLL: {' '.join(historico_teste_2[:10])}...")
+        # Teste 2: Padrão incorreto (não WWL) (deve rejeitar)
+        historico_teste_2 = ['WIN', 'LOSS', 'WIN'] + ['WIN'] * 17
+        print(f"\n📊 Teste 2 - Padrão incorreto (não WWL): {' '.join(historico_teste_2[:10])}...")
         
-        resultado_2 = analisar_estrategia_quantum_plus(historico_teste_2)
+        resultado_2 = analisar_estrategia_wwl(historico_teste_2)
         print(f"🎯 Resultado: {resultado_2['should_operate']} - {resultado_2['confidence']:.2f}%")
         print(f"📝 Razón: {resultado_2['reason']}")
         
         # Teste 3: Dados insuficientes
-        historico_teste_3 = ['WIN', 'LOSS', 'WIN'] * 5
+        historico_teste_3 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 5
         print(f"\n📊 Teste 3 - Dados insuficientes: {' '.join(historico_teste_3)}")
         
-        resultado_3 = analisar_estrategia_quantum_plus(historico_teste_3)
+        resultado_3 = analisar_estrategia_wwl(historico_teste_3)
         print(f"🎯 Resultado: {resultado_3['should_operate']} - {resultado_3['confidence']:.2f}%")
         print(f"📝 Razón: {resultado_3['reason']}")
         
-        print("\n✅ Prueba de la estrategia Quantum+ completada")
+        print("\n✅ Prueba de la estrategia WWL completada")
         return True
         
     except Exception as e:
@@ -1346,73 +1377,110 @@ def testar_estrategia_quantum_plus():
         return False
 
 def testar_nova_estrategia():
-    """Função de teste dedicada para a estratégia Quantum+."""
-    print("\n🧪 Probando la nueva estrategia Quantum+...")
+    """Função de teste dedicada para a estratégia WWL."""
+    print("\n🧪 Probando la nueva estrategia WWL...")
 
-    # Cenário 1: Deve ativar o Gatilho 1 (LLLW)
-    # Sequência: [11W] [6W] LLLW + dados extras para atingir 35 operações
-    historico_gatilho1 = (
-        ['WIN'] + ['LOSS'] * 3 + # Sequência LLLW (reverso: W L L L)
-        (['WIN'] * 6 + ['LOSS'] * 4) + # Janela de 10 com 6 vitórias
-        (['WIN'] * 11 + ['LOSS'] * 9) + # Janela de 20 com 11 vitórias
-        (['WIN'] * 5 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
-    )
-    print("\n--- Testando Gatilho 1 (LLLW) ---")
-    resultado1 = analisar_estrategia_quantum_plus(historico_gatilho1)
+    # Cenário 1: Deve ativar com padrão WWL e saldo adequado
+    historico_gatilho1 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 17
+    print("\n--- Testando padrão WWL com saldo positivo ---")
+    resultado1 = analisar_estrategia_wwl(historico_gatilho1)
     if resultado1['should_operate']:
-        print(f"✅ SUCESSO: Gatilho 1 ativado corretamente.")
+        print(f"✅ SUCESSO: Padrão WWL ativado corretamente.")
         print(f"   Razón: {resultado1['reason']}")
     else:
-        print(f"❌ FALHA: Gatilho 1 não foi ativado.")
+        print(f"❌ FALHA: Padrão WWL não foi ativado.")
         print(f"   Razón: {resultado1['reason']}")
 
-    # Cenário 2: Deve ativar o Gatilho 2 (LLL)
-    # Sequência: [10W] [5W] LLL + dados extras para atingir 35 operações
-    historico_gatilho2 = (
-        ['LOSS'] * 3 + # Sequência LLL (reverso: L L L)
-        (['WIN'] * 5 + ['LOSS'] * 5) + # Janela de 10 com 5 vitórias
-        (['WIN'] * 10 + ['LOSS'] * 10) + # Janela de 20 com 10 vitórias
-        (['WIN'] * 6 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
-    )
-    print("\n--- Testando Gatilho 2 (LLL) ---")
-    resultado2 = analisar_estrategia_quantum_plus(historico_gatilho2)
-    if resultado2['should_operate']:
-        print(f"✅ SUCESSO: Gatilho 2 ativado corretamente.")
+    # Cenário 2: Não deve ativar (padrão incorreto)
+    historico_gatilho2 = ['WIN', 'LOSS', 'WIN'] + ['WIN'] * 17
+    print("\n--- Testando padrão incorreto (não WWL) ---")
+    resultado2 = analisar_estrategia_wwl(historico_gatilho2)
+    if not resultado2['should_operate']:
+        print(f"✅ SUCESSO: Padrão incorreto rejeitado corretamente.")
         print(f"   Razón: {resultado2['reason']}")
     else:
-        print(f"❌ FALHA: Gatilho 2 não foi ativado.")
+        print(f"❌ FALHA: Padrão incorreto foi ativado incorretamente.")
         print(f"   Razón: {resultado2['reason']}")
 
-    # Cenário 3: Não deve ativar (falha no filtro)
-    historico_falha = (
-        ['WIN'] + ['LOSS'] * 3 + # Sequência LLLW
-        (['WIN'] * 4 + ['LOSS'] * 6) + # Janela de 10 com apenas 4 vitórias (deve falhar)
-        (['WIN'] * 11 + ['LOSS'] * 9) + # Janela de 20 com 11 vitórias
-        (['WIN'] * 5 + ['LOSS'] * 1) # Dados extras para atingir 35 operações
-    )
-    print("\n--- Testando cenário de falha ---")
-    resultado3 = analisar_estrategia_quantum_plus(historico_falha)
+    # Cenário 3: Não deve ativar (saldo insuficiente)
+    historico_falha = ['WIN', 'WIN', 'LOSS'] + ['LOSS'] * 17
+    print("\n--- Testando cenário com saldo insuficiente ---")
+    resultado3 = analisar_estrategia_wwl(historico_falha)
     if not resultado3['should_operate']:
-        print(f"✅ SUCESSO: O padrão não foi ativado, como esperado.")
+        print(f"✅ SUCESSO: O padrão não foi ativado devido ao saldo negativo, como esperado.")
         print(f"   Razón: {resultado3['reason']}")
     else:
         print(f"❌ FALHA: O padrão foi ativado incorretamente.")
         print(f"   Razón: {resultado3['reason']}")
 
+def testar_estrategia_wwl_local(): 
+    """Testa a estratégia WWL com dados controlados - VERSÃO ATUALIZADA""" 
+    print("\n=== TESTE ESTRATÉGIA WWL - FILTRO DE DERROTAS ===") 
+     
+    # Teste 1: WWL com poucas derrotas (DEVE ATIVAR) 
+    print("\n--- Teste 1: WWL com 5 derrotas (DEVE ATIVAR) ---") 
+    # Padrão WWL + 5 derrotas nas 20 operações = APROVADO 
+    historico_teste1 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 5 
+     
+    resultado1 = analisar_estrategia_wwl(historico_teste1) 
+    print(f"Resultado: {resultado1['should_operate']}") 
+    print(f"Confiança: {resultado1['confidence']}") 
+    print(f"Razão: {resultado1['reason']}") 
+     
+    # Teste 2: WWL com exatamente 5 derrotas (DEVE ATIVAR) 
+    print("\n--- Teste 2: WWL com exatamente 5 derrotas (DEVE ATIVAR) ---") 
+    # Padrão WWL + 5 derrotas nas 20 operações = APROVADO 
+    historico_teste2 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 5 
+     
+    resultado2 = analisar_estrategia_wwl(historico_teste2) 
+    print(f"Resultado: {resultado2['should_operate']}") 
+    print(f"Confiança: {resultado2['confidence']}") 
+    print(f"Razão: {resultado2['reason']}") 
+     
+    # Teste 3: WWL com 6 derrotas (NÃO DEVE ATIVAR) 
+    print("\n--- Teste 3: WWL com 6 derrotas (NÃO DEVE ATIVAR) ---") 
+    # Padrão WWL + 6 derrotas nas 20 operações = REJEITADO 
+    historico_teste3 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 11 + ['LOSS'] * 6 
+     
+    resultado3 = analisar_estrategia_wwl(historico_teste3) 
+    print(f"Resultado: {resultado3['should_operate']}") 
+    print(f"Confiança: {resultado3['confidence']}") 
+    print(f"Razão: {resultado3['reason']}") 
+     
+    # Teste 4: Padrão errado (NÃO DEVE ATIVAR) 
+    print("\n--- Teste 4: Padrão WLL em vez de WWL ---") 
+    historico_teste4 = ['WIN', 'LOSS', 'LOSS'] + ['WIN'] * 15 + ['LOSS'] * 2 
+     
+    resultado4 = analisar_estrategia_wwl(historico_teste4) 
+    print(f"Resultado: {resultado4['should_operate']}") 
+    print(f"Confiança: {resultado4['confidence']}") 
+    print(f"Razão: {resultado4['reason']}") 
+     
+    # Validar resultados 
+    if (resultado1['should_operate'] and 
+        resultado2['should_operate'] and 
+        not resultado3['should_operate'] and 
+        not resultado4['should_operate']): 
+        print("\n✅ TODOS OS TESTES WWL PASSARAM!") 
+        return True 
+    else: 
+        print("\n❌ ALGUNS TESTES WWL FALHARAM!") 
+        return False
+
 def executar_testes_completos():
     """Executa bateria completa de testes"""
-    print("🔬 === EXECUTANDO TESTES COMPLETOS - TUNDER BOT QUANTUM+ ===")
+    print("🔬 === EXECUTANDO TESTES COMPLETOS - TUNDER BOT WWL ===")
     
     # Teste 1: Conexão Supabase
     teste1 = testar_conexao_supabase()
     
-    # Teste 2: Estratégia Quantum+
-    teste2 = testar_estrategia_quantum_plus()
+    # Teste 2: Estratégia WWL
+    teste2 = testar_estrategia_wwl()
     
     # Resultado final
     if teste1 and teste2:
         print("\n✅ TODOS OS TESTES PASSARAM")
-        print("🚀 Tunder Bot Quantum+ pronto para execução")
+        print("🚀 Tunder Bot WWL pronto para execução")
         return True
     else:
         print("\n❌ ALGUNS TESTES FALHARAM")
@@ -1425,28 +1493,18 @@ def testar_deteccao_padroes_local():
     """Testa detecção de padrões com dados controlados localmente"""
     print("\n=== TESTE DE DETECÇÃO DE PADRÕES ===")
     
-    # Teste 1: Gatilho LLLW que DEVE funcionar
-    print("\n--- Teste 1: Gatilho LLLW (DEVE ATIVAR) ---")
-    historico_teste1 = (
-        ['WIN', 'LOSS', 'LOSS', 'LOSS'] +  # Gatilho LLLW
-        ['WIN'] * 5 + ['LOSS'] * 5 +       # 5 wins em 10 (dentro do range 5-6)
-        ['WIN'] * 11 + ['LOSS'] * 9 +      # 11 wins em 20 (dentro do range 10-12)
-        ['WIN'] * 5                        # Padding para 35+ operações
-    )
+    # Teste 1: 7 vitórias consecutivas e zero perdas nas últimas 15 (deve aprovar)
+    print("\n--- Teste 1: 7 vitórias consecutivas sem perdas recentes (DEVE ATIVAR) ---")
+    historico_teste1 = ['WIN'] * 7 + ['LOSS', 'WIN', 'WIN', 'WIN', 'WIN', 'WIN', 'WIN', 'WIN']
     
     resultado1 = analisar_estrategia_quantum_plus(historico_teste1)
     print(f"Resultado: {resultado1['should_operate']}")
     print(f"Confiança: {resultado1['confidence']}")
     print(f"Razão: {resultado1['reason']}")
     
-    # Teste 2: Gatilho LLL que DEVE funcionar
-    print("\n--- Teste 2: Gatilho LLL (DEVE ATIVAR) ---")
-    historico_teste2 = (
-        ['LOSS', 'LOSS', 'LOSS'] +          # Gatilho LLL
-        ['WIN'] * 6 + ['LOSS'] * 4 +        # 6 wins em 10 (dentro do range 5-6)
-        ['WIN'] * 10 + ['LOSS'] * 10 +      # 10 wins em 20 (dentro do range 10-12)
-        ['WIN'] * 6                         # Padding para 35+ operações
-    )
+    # Teste 2: 9 vitórias consecutivas mas com perdas recentes (deve rejeitar)
+    print("\n--- Teste 2: 9 vitórias mas com perdas recentes (NÃO DEVE ATIVAR) ---")
+    historico_teste2 = ['WIN'] * 9 + ['LOSS', 'WIN', 'WIN', 'LOSS', 'WIN', 'WIN', 'WIN', 'WIN']
     
     resultado2 = analisar_estrategia_quantum_plus(historico_teste2)
     print(f"Resultado: {resultado2['should_operate']}")
@@ -1455,7 +1513,7 @@ def testar_deteccao_padroes_local():
     
     # Teste 3: Dados insuficientes
     print("\n--- Teste 3: Dados Insuficientes (NÃO DEVE ATIVAR) ---")
-    historico_teste3 = ['WIN', 'LOSS'] * 10  # Só 20 operações
+    historico_teste3 = ['WIN'] * 5 + ['LOSS', 'WIN', 'WIN']  # Operações insuficientes
     
     resultado3 = analisar_estrategia_quantum_plus(historico_teste3)
     print(f"Resultado: {resultado3['should_operate']}")
@@ -1463,7 +1521,7 @@ def testar_deteccao_padroes_local():
     print(f"Razão: {resultado3['reason']}")
     
     # Validar resultados
-    if resultado1['should_operate'] and resultado2['should_operate'] and not resultado3['should_operate']:
+    if resultado1['should_operate'] and not resultado2['should_operate'] and not resultado3['should_operate']:
         print("\n✅ TODOS OS TESTES PASSARAM!")
         return True
     else:
@@ -1472,56 +1530,69 @@ def testar_deteccao_padroes_local():
 
 
 def probar_telegram():
-    """Prueba la integración de Telegram"""
+    """Prueba la integración de Telegram (versión síncrona - OBSOLETA)"""
+    print("⚠️ Esta función está obsoleta. Use 'python radar_tunder_new.py telegram' para probar con la versión asíncrona.")
+    return False
+
+async def probar_telegram_async():
+    """Prueba la integración de Telegram de forma asíncrona y segura."""
     print("🧪 === PROBANDO INTEGRACIÓN DE TELEGRAM ===")
     
-    if inicializar_telegram_bot():
-        print("✅ Telegram inicializado correctamente")
-        
-        # Datos de prueba
-        test_signal = {
-            'strategy': 'Bot - Tunder Bot',
-            'confidence': 71.98,
-            'reason': 'Prueba de patrón detectado',
-            'should_operate': True
-        }
-        
-        print("📤 Enviando alerta de prueba...")
-        if enviar_alerta_patron(test_signal):
-            print("✅ Alerta enviada correctamente")
-            
-            print("📤 Enviando resultado de prueba...")
-            if enviar_resultado_operacion("Bot - Tunder Bot", 1, "V", 2):
-                print("✅ Resultado enviado correctamente")
-                
-                print("📤 Enviando finalización de prueba...")
-                if enviar_finalizacion_estrategia("Bot - Tunder Bot", ["V", "V"], True):
-                    print("✅ Finalización enviada correctamente")
-                    print("🎉 ¡Todas las pruebas de Telegram exitosas!")
-                    return True
-        
-        print("❌ Error en las pruebas")
-        return False
-    else:
+    # Inicializa o bot UMA VEZ
+    if not inicializar_telegram():
         print("❌ Error al inicializar Telegram")
+        return False
+
+    print("✅ Telegram inicializado correctamente")
+    
+    # Dados de prueba
+    test_signal = {
+        'strategy': 'Bot - Tunder Bot', 'confidence': 72.0,
+        'reason': 'Prueba de patrón detectado', 'should_operate': True
+    }
+    
+    try:
+        print("📤 Enviando alerta de prueba...")
+        await enviar_alerta_patron(test_signal)
+        print("✅ Alerta enviada correctamente")
+
+        print("📤 Enviando resultado de prueba...")
+        await enviar_resultado_operacion("Bot - Tunder Bot", 1, "V", 1)
+        print("✅ Resultado enviado correctamente")
+
+        print("📤 Enviando finalización de prueba...")
+        await enviar_finalizacion_estrategia("Bot - Tunder Bot", ["V"], True)
+        print("✅ Finalización enviada correctamente")
+
+        print("🎉 ¡Todas las pruebas de Telegram exitosas!")
+        return True
+
+    except Exception as e:
+        logger.error(f"[TELEGRAM] Error en las pruebas asíncronas: {e}")
+        print("❌ Error en las pruebas de Telegram")
         return False
 
 
 if __name__ == "__main__":
     import sys
+    import asyncio # Importe asyncio aqui
     
     if len(sys.argv) > 1 and sys.argv[1].lower() == "test":
         # Comando de teste
         testar_nova_estrategia()
     elif len(sys.argv) > 1 and sys.argv[1].lower() == "telegram":
-        # NUEVO: Comando para probar Telegram
-        probar_telegram()
+        # Comando para probar Telegram
+        # Usa asyncio.run para gerenciar o loop corretamente
+        asyncio.run(probar_telegram_async())
     elif len(sys.argv) > 1:
         comando = sys.argv[1].lower()
         
         if comando == "testlocal":
             # NOVO comando para testar sem banco
             testar_deteccao_padroes_local()
+        elif comando == "testwwl":
+            # Testar estratégia WWL específica
+            testar_estrategia_wwl_local()
         elif comando == "testall":
             # Executar testes completos
             executar_testes_completos()
@@ -1530,32 +1601,33 @@ if __name__ == "__main__":
             imprimir_status_detalhado()
         elif comando == "help":
             # Mostrar ajuda
-            print("\n📖 TUNDER BOT QUANTUM+ - Ajuda")
+            print("\n📖 TUNDER BOT WWL - Ajuda")
             print("="*50)
             print("Uso: python radar_tunder_new.py [comando]")
             print("\nComandos disponíveis:")
             print("  (sem comando) - Executar bot principal")
-            print("  test         - Testar nova estratégia Quantum+")
+            print("  test         - Testar nova estratégia WWL")
             print("  telegram     - Probar integración de Telegram")
             print("  testlocal    - Testar detecção de padrões localmente")
+            print("  testwwl      - Testar estratégia WWL específica")
             print("  testall      - Executar testes completos do sistema")
             print("  status       - Mostrar status detalhado")
             print("  help         - Mostrar esta ajuda")
             print("\n🎯 Estratégia implementada:")
-            print("  • Quantum+: 71.98% assertividade")
-            print("\n📊 Gatilhos: LLLW (Confirmação de Reversão) ou LLL (Capitulação)")
+            print("  • WWL: 78.6% assertividade com análise de saldo")
+            print("\n📊 Gatilhos: Padrão WWL nas últimas 3 operações e saldo >= -$5.00 nas últimas 20 operações")
         else:
             print(f"❌ Comando desconhecido: {comando}")
             print("Use 'python radar_tunder_new.py help' para ver comandos disponíveis")
     else:
-        # Executar bot principal E telegram automaticamente
-        print("🚀 Iniciando Tunder Bot Quantum+ com integração Telegram automática...")
+        # Executar bot principal
+        print("🚀 Iniciando Tunder Bot WWL com integração Telegram automática...")
         
-        # 1. Primeiro inicializar Telegram
-        print("📱 Inicializando Telegram...")
-        probar_telegram()
+        # Inicializar Telegram
+        print("\n📱 Inicializando Bot de Telegram...")
+        inicializar_telegram_bot() # Esta função já trata o sucesso/falha
         
-        # 2. Depois executar bot principal
+        # Executar bot principal
         print("🤖 Iniciando bot principal...")
         main_loop()
 

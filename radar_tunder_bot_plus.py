@@ -603,7 +603,7 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
             'status': 'ACTIVE'
         }
         
-        response = supabase.table('strategy_results_tracking').insert(data).select('id').execute()
+        response = supabase.table('strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
             record_id = response.data[0]['id']
