@@ -597,6 +597,51 @@ class AccumulatorScalpingBot:
         """Callback chamado quando recovery do WebSocket falha"""
         logger.error("❌ Recovery do WebSocket falhou - intervenção manual necessária")
     
+    async def cleanup_resources(self):
+        """Limpa recursos e conexões antes de reiniciar o bot"""
+        logger.info("🧹 Iniciando limpeza de recursos para reinicialização...")
+        
+        try:
+            # Cancelar qualquer subscription ativa
+            if self.tick_subscription_active:
+                try:
+                    await self.api_manager.unsubscribe_ticks(ATIVO)
+                    logger.info("📡 Subscription de ticks cancelada")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao cancelar subscription: {e}")
+            
+            # Limpar buffers e filas
+            self.tick_buffer.clear()
+            self.enhanced_tick_buffer.clear()
+            self.signal_queue.clear()
+            logger.info("🧹 Buffers e filas limpos")
+            
+            # Resetar circuit breaker
+            self.robust_order_system.reset_circuit_breaker()
+            logger.info("🔄 Circuit breaker resetado")
+            
+            # Desconectar API
+            if self.api_manager.connected:
+                try:
+                    await self.api_manager.disconnect()
+                    logger.info("🔌 API desconectada")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao desconectar API: {e}")
+            
+            # Resetar flags
+            self.tick_subscription_active = False
+            self._restart_in_progress = False
+            
+            # Salvar histórico antes de limpar
+            self._save_history_to_file()
+            
+            logger.info("✅ Limpeza de recursos concluída com sucesso")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Erro durante limpeza de recursos: {e}")
+            return False
+    
     async def _on_deadlock_detected(self):
         """Callback chamado quando deadlock é detectado"""
         logger.error("🔄 Deadlock detectado - limpando queue de sinais")
@@ -2023,12 +2068,58 @@ async def main():
         print(f"   • Padrao: Red-Red-Red-Blue (3 subidas + 1 queda)")
         print(f"   • Gestao: Stake fixo (sem martingale)")
         print(f"   • Sistema de Sinais: Integrado")
+        print(f"   • Sistema de Reinicialização Automática: Ativado")
         print("="*60)
         
-        # Criar e iniciar o bot
+        # Criar e iniciar o bot com tratamento de erros interno
         bot = AccumulatorScalpingBot()
-        await bot.start()
         
+        # Configurar sistema de recuperação de erros internos
+        max_retries_internal = 3
+        retry_count = 0
+        
+        while retry_count < max_retries_internal:
+            try:
+                # Iniciar o bot com timeout de segurança
+                await asyncio.wait_for(bot.start(), timeout=3600)  # 1 hora de timeout
+                # Se chegou aqui, o bot foi finalizado normalmente
+                logger.info("✅ Bot finalizado normalmente dentro do método main")
+                break
+                
+            except asyncio.TimeoutError:
+                # Timeout de segurança atingido
+                retry_count += 1
+                logger.warning(f"⚠️ Timeout de segurança atingido. Reiniciando internamente. (Tentativa {retry_count}/{max_retries_internal})")
+                # Tentar limpar recursos antes de reiniciar
+                try:
+                    await bot.cleanup_resources()
+                except Exception as cleanup_error:
+                    logger.error(f"❌ Erro ao limpar recursos: {cleanup_error}")
+                continue
+                
+            except Exception as e:
+                # Erro durante a execução do bot
+                retry_count += 1
+                logger.error(f"❌ Erro durante execução do bot: {e}")
+                logger.error(f"📋 Tipo do erro: {type(e).__name__}")
+                
+                # Tentar limpar recursos antes de reiniciar
+                try:
+                    await bot.cleanup_resources()
+                except Exception as cleanup_error:
+                    logger.error(f"❌ Erro ao limpar recursos: {cleanup_error}")
+                
+                # Aguardar antes de tentar novamente
+                retry_delay = 5 * retry_count
+                logger.info(f"⏱️ Aguardando {retry_delay} segundos antes de tentar novamente...")
+                await asyncio.sleep(retry_delay)
+                continue
+        
+        # Se atingiu o número máximo de tentativas internas
+        if retry_count >= max_retries_internal:
+            logger.error(f"❌ Número máximo de tentativas internas ({max_retries_internal}) atingido. Reiniciando o bot completamente.")
+            raise Exception("Número máximo de tentativas internas atingido")
+            
     except KeyboardInterrupt:
         logger.info("🛑 Bot interrompido pelo usuário")
     except Exception as e:
@@ -2037,31 +2128,79 @@ async def main():
         # Não fazer sys.exit() para evitar exit code 1
         raise
 
+# Função para reiniciar o bot automaticamente
+def reiniciar_bot_automaticamente():
+    """Função que reinicia o bot automaticamente em caso de erro"""
+    max_tentativas = 10  # Número máximo de tentativas de reinicialização
+    tentativa_atual = 0
+    delay_base = 5  # Delay base em segundos
+    
+    while tentativa_atual < max_tentativas:
+        try:
+            tentativa_atual += 1
+            logger.info(f"🔄 REINICIANDO BOT (Tentativa {tentativa_atual}/{max_tentativas})")
+            
+            # Calcular delay progressivo (5s, 10s, 20s, 40s...)
+            delay = delay_base * (2 ** (tentativa_atual - 1)) if tentativa_atual > 1 else 0
+            if delay > 300:  # Limitar a 5 minutos no máximo
+                delay = 300
+                
+            if delay > 0:
+                logger.info(f"⏱️ Aguardando {delay} segundos antes de reiniciar...")
+                time.sleep(delay)
+            
+            # Executar o bot
+            asyncio.run(main())
+            
+            # Se chegou aqui, o bot foi finalizado normalmente
+            logger.info("✅ Bot finalizado normalmente")
+            break
+            
+        except KeyboardInterrupt:
+            logger.info("🛑 Bot interrompido pelo usuário")
+            print("\nBot interrompido pelo usuário.")
+            break
+            
+        except asyncio.CancelledError:
+            logger.info("🔄 Execução principal cancelada")
+            print("A execução principal foi cancelada.")
+            continue
+            
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                # Este erro é esperado durante um desligamento forçado
+                logger.info("🔄 Event loop fechado durante finalização")
+                print("Event loop foi fechado, reiniciando o programa.")
+                continue
+            else:
+                # Logar outros RuntimeErrors e tentar novamente
+                logger.error(f"❌ Erro de tempo de execução: {e}")
+                print(f"Erro de tempo de execução: {e}")
+                continue
+                
+        except Exception as e:
+            # Capturar qualquer outro erro e tentar novamente
+            logger.error(f"❌ O bot encontrou um erro e será reiniciado: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            print(f"O bot encontrou um erro e será reiniciado: {e}")
+            continue
+    
+    # Se chegou ao número máximo de tentativas
+    if tentativa_atual >= max_tentativas:
+        logger.critical(f"❌❌❌ Número máximo de tentativas de reinicialização ({max_tentativas}) atingido!")
+        print(f"Número máximo de tentativas de reinicialização ({max_tentativas}) atingido!")
+    
+    logger.info("🏁 Sistema de reinicialização automática finalizado")
+    print("Sistema de reinicialização automática finalizado.")
+
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        # Iniciar o sistema de reinicialização automática
+        reiniciar_bot_automaticamente()
     except KeyboardInterrupt:
-        print("\nBot interrompido pelo usuário.")
-        logger.info("🛑 Tunder Bot finalizado pelo usuário")
-    except asyncio.CancelledError:
-        print("A execução principal foi cancelada.")
-        logger.info("🔄 Execução principal cancelada")
-    except RuntimeError as e:
-        if "Event loop is closed" in str(e):
-            # Este erro é esperado durante um desligamento forçado, pode ser ignorado
-            print("Event loop foi fechado, finalizando o programa.")
-            logger.info("🔄 Event loop fechado durante finalização")
-        else:
-            # Logar outros RuntimeErrors
-            logger.critical(f"Erro de tempo de execução fatal: {e}")
-            print(f"Erro de tempo de execução fatal: {e}")
-    except Exception as e:
-        logger.critical(f"O bot encontrou um erro fatal e foi encerrado: {e}")
-        import traceback
-        logger.critical(traceback.format_exc())
-        print(f"O bot encontrou um erro fatal e foi encerrado: {e}")
-        # Log do erro mas não fazer exit com código 1
-        logger.info("🔄 Bot será reiniciado pelo gerenciador")
+        print("\nSistema interrompido pelo usuário.")
+        logger.info("🛑 Sistema finalizado pelo usuário")
     finally:
         print("Programa finalizado.")
         logger.info("🏁 Programa finalizado")

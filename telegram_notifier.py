@@ -14,11 +14,16 @@ from telegram import Bot
 from telegram.error import TelegramError
 import threading
 from dotenv import load_dotenv
+import time
 
 # Cargar variables de entorno
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Semáforo global para controlar conexiones concurrentes
+MAX_CONCURRENT_CONNECTIONS = 3  # Limitar a 3 conexiones simultáneas
+connection_semaphore = threading.Semaphore(MAX_CONCURRENT_CONNECTIONS)
 
 class TelegramNotifier:
     """Clase para enviar notificaciones via Telegram"""
@@ -40,74 +45,159 @@ class TelegramNotifier:
             raise
     
     def enviar_mensaje_sync(self, mensaje: str) -> bool:
-        """Envía mensaje de forma síncrona usando threading"""
-        try:
-            def ejecutar_envio():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    return loop.run_until_complete(self._enviar_mensaje_async(mensaje))
-                finally:
-                    loop.close()
-            
-            # Ejecutar en un hilo separado para evitar bloqueos
-            thread = threading.Thread(target=ejecutar_envio)
-            thread.daemon = True
-            thread.start()
-            thread.join(timeout=10)  # Timeout de 10 segundos
-            
-            logger.info(f"[TELEGRAM] Mensaje enviado correctamente")
-            return True
-            
-        except Exception as e:
-            logger.error(f"[TELEGRAM] Error al enviar mensaje: {e}")
-            return False
+        """Envía mensaje de forma síncrona usando threading con control de concurrencia"""
+        # Intentos máximos y tiempo de espera inicial
+        max_intentos = 3
+        tiempo_espera_base = 1  # segundos
+        
+        for intento in range(1, max_intentos + 1):
+            # Intentar adquirir el semáforo con timeout
+            semaforo_adquirido = False
+            try:
+                # Intentar adquirir el semáforo con un timeout
+                semaforo_adquirido = connection_semaphore.acquire(timeout=2)
+                if not semaforo_adquirido:
+                    logger.warning(f"[TELEGRAM] Intento {intento}/{max_intentos}: No se pudo adquirir el semáforo, todas las conexiones ocupadas")
+                    # Backoff exponencial entre intentos
+                    tiempo_espera = tiempo_espera_base * (2 ** (intento - 1))
+                    time.sleep(tiempo_espera)
+                    continue
+                
+                # Ejecutar el envío en un hilo separado
+                def ejecutar_envio():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(self._enviar_mensaje_async(mensaje))
+                    finally:
+                        loop.close()
+                
+                # Ejecutar en un hilo separado para evitar bloqueos
+                thread = threading.Thread(target=ejecutar_envio)
+                thread.daemon = True
+                thread.start()
+                thread.join(timeout=5)  # Reducir timeout para liberar conexiones más rápido
+                
+                logger.info(f"[TELEGRAM] Mensaje enviado correctamente (intento {intento}/{max_intentos})")
+                return True
+                
+            except Exception as e:
+                logger.error(f"[TELEGRAM] Error al enviar mensaje (intento {intento}/{max_intentos}): {e}")
+                # Si no es el último intento, esperar y reintentar
+                if intento < max_intentos:
+                    tiempo_espera = tiempo_espera_base * (2 ** (intento - 1))
+                    logger.info(f"[TELEGRAM] Reintentando en {tiempo_espera} segundos...")
+                    time.sleep(tiempo_espera)
+            finally:
+                # Liberar el semáforo si fue adquirido
+                if semaforo_adquirido:
+                    connection_semaphore.release()
+        
+        # Si llegamos aquí, todos los intentos fallaron
+        logger.error(f"[TELEGRAM] Todos los intentos de envío fallaron")
+        return False
     
     async def _enviar_mensaje_async(self, mensaje: str) -> bool:
-        """Envía mensaje de forma asíncrona"""
+        """Envía mensaje de forma asíncrona con manejo específico de errores"""
         try:
-            await self.bot.send_message(
-                chat_id=self.chat_id,
-                text=mensaje,
-                parse_mode='HTML',
-                disable_web_page_preview=True
+            # Intentar enviar el mensaje con un timeout específico
+            await asyncio.wait_for(
+                self.bot.send_message(
+                    chat_id=self.chat_id,
+                    text=mensaje,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                ),
+                timeout=4.0  # Timeout más estricto para la operación
             )
             return True
+        except asyncio.TimeoutError:
+            logger.error(f"[TELEGRAM] Timeout al enviar mensaje")
+            return False
         except TelegramError as e:
-            logger.error(f"[TELEGRAM] Error de Telegram: {e}")
+            # Manejar específicamente el error de pool timeout
+            if "Pool timeout" in str(e):
+                logger.error(f"[TELEGRAM] Error de pool de conexiones: {e}")
+                # Este error ya está siendo manejado por el sistema de reintentos
+            else:
+                logger.error(f"[TELEGRAM] Error de Telegram: {e}")
             return False
         except Exception as e:
             logger.error(f"[TELEGRAM] Error general: {e}")
             return False
     
     def verificar_conexion(self) -> bool:
-        """Verifica si el bot puede conectarse a Telegram"""
-        try:
-            def verificar():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    return loop.run_until_complete(self._verificar_conexion_async())
-                finally:
-                    loop.close()
-            
-            thread = threading.Thread(target=verificar)
-            thread.daemon = True
-            thread.start()
-            thread.join(timeout=10)
-            
-            return True
-        except Exception as e:
-            logger.error(f"[TELEGRAM] Error en verificación: {e}")
-            return False
+        """Verifica si el bot puede conectarse a Telegram con control de concurrencia"""
+        # Intentos máximos y tiempo de espera inicial
+        max_intentos = 2
+        tiempo_espera_base = 1  # segundos
+        
+        for intento in range(1, max_intentos + 1):
+            # Intentar adquirir el semáforo con timeout
+            semaforo_adquirido = False
+            try:
+                # Intentar adquirir el semáforo con un timeout
+                semaforo_adquirido = connection_semaphore.acquire(timeout=2)
+                if not semaforo_adquirido:
+                    logger.warning(f"[TELEGRAM] Verificación {intento}/{max_intentos}: No se pudo adquirir el semáforo, todas las conexiones ocupadas")
+                    # Backoff exponencial entre intentos
+                    tiempo_espera = tiempo_espera_base * (2 ** (intento - 1))
+                    time.sleep(tiempo_espera)
+                    continue
+                
+                def verificar():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(self._verificar_conexion_async())
+                    finally:
+                        loop.close()
+                
+                thread = threading.Thread(target=verificar)
+                thread.daemon = True
+                thread.start()
+                thread.join(timeout=5)  # Reducir timeout para liberar conexiones más rápido
+                
+                logger.info(f"[TELEGRAM] Verificación de conexión exitosa (intento {intento}/{max_intentos})")
+                return True
+                
+            except Exception as e:
+                logger.error(f"[TELEGRAM] Error al verificar conexión (intento {intento}/{max_intentos}): {e}")
+                # Si no es el último intento, esperar y reintentar
+                if intento < max_intentos:
+                    tiempo_espera = tiempo_espera_base * (2 ** (intento - 1))
+                    logger.info(f"[TELEGRAM] Reintentando verificación en {tiempo_espera} segundos...")
+                    time.sleep(tiempo_espera)
+            finally:
+                # Liberar el semáforo si fue adquirido
+                if semaforo_adquirido:
+                    connection_semaphore.release()
+        
+        # Si llegamos aquí, todos los intentos fallaron
+        logger.error(f"[TELEGRAM] Todos los intentos de verificación fallaron")
+        return False
     
     async def _verificar_conexion_async(self) -> bool:
-        """Verifica conexión de forma asíncrona"""
+        """Verifica conexión de forma asíncrona con timeout"""
         try:
-            await self.bot.get_me()
+            # Intentar obtener información del bot con timeout
+            await asyncio.wait_for(
+                self.bot.get_me(),
+                timeout=4.0  # Timeout estricto para la operación
+            )
             return True
+        except asyncio.TimeoutError:
+            logger.error(f"[TELEGRAM] Timeout al verificar conexión")
+            return False
+        except TelegramError as e:
+            # Manejar específicamente el error de pool timeout
+            if "Pool timeout" in str(e):
+                logger.error(f"[TELEGRAM] Error de pool de conexiones en verificación: {e}")
+            else:
+                logger.error(f"[TELEGRAM] Error de Telegram en verificación: {e}")
+            return False
         except Exception as e:
-            logger.error(f"[TELEGRAM] Error en verificación async: {e}")
+            logger.error(f"[TELEGRAM] Error general en verificación asíncrona: {e}")
             return False
 
 # Instancia global del notificador
@@ -138,16 +228,15 @@ def enviar_alerta_patron(strategy_data: Dict) -> bool:
         timestamp = datetime.now().strftime("%H:%M:%S")
         
         mensaje = f"""
-🚨 <b>PATRÓN DETECTADO</b> 🚨
+🚨 <b>ACTIVAR SCALPING BOT AHORA</b> 🚨
 
-⏰ <b>Hora:</b> {timestamp}
-🎯 <b>Estrategia:</b> {strategy_data['strategy']}
+🤖 <b>Bot:</b> Scalping Bot I.A
 📊 <b>Confianza:</b> {strategy_data['confidence']:.1f}%
 📝 <b>Razón:</b> {strategy_data['reason']}
 
-🤖 <b>ACTIVAR BOT AHORA!</b>
+⚠️ <b>ACTIVAR BOT AHORA!</b>
 
-Atencion - Ingresar solo en la primera operacion
+Atencion - Ingresar solo en la primera 2 operaciones
         """.strip()
         
         return telegram_notifier.enviar_mensaje_sync(mensaje)
@@ -174,12 +263,10 @@ def enviar_resultado_operacion(strategy_name: str, operacion_num: int, resultado
         mensaje = f"""
 {emoji_resultado} <b>RESULTADO OPERACIÓN</b>
 
-⏰ <b>Hora:</b> {timestamp}
-🎯 <b>Estrategia:</b> {strategy_name}
-📈 <b>Operación:</b> {operacion_num}/{total_operaciones}
-🎲 <b>Resultado:</b> {texto_resultado}
+🤖 <b>Bot:</b> Scalping Bot I.A
+🎯 <b>Resultado:</b> {texto_resultado}
 
-#{strategy_name} #{texto_resultado}
+#ScalpingBotIA #{texto_resultado}
         """.strip()
         
         return telegram_notifier.enviar_mensaje_sync(mensaje)
@@ -301,8 +388,7 @@ def enviar_finalizacion_estrategia(strategy_name: str, resultados: list, exito: 
         mensaje = f"""
 {emoji} <b>ESTRATEGIA {estado}</b>
 
-⏰ <b>Finalizada:</b> {timestamp}
-🎯 <b>Estrategia:</b> {strategy_name}
+🤖 <b>Bot:</b> Scalping Bot I.A
 
 📊 <b>RESULTADOS:</b>
 ✅ Wins: {wins}
@@ -312,7 +398,7 @@ def enviar_finalizacion_estrategia(strategy_name: str, resultados: list, exito: 
 
 📋 <b>Secuencia:</b> {' '.join(resultados)}
 
-#{strategy_name} #Finalizacion
+#ScalpingBotIA #Finalizacion
         """.strip()
         
         return telegram_notifier.enviar_mensaje_sync(mensaje)

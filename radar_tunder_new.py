@@ -217,10 +217,30 @@ def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supab
             # NUEVA INTEGRACIÓN: ENVIAR ALERTA DE TELEGRAM
             if telegram_activo:
                 try:
-                    enviar_alerta_patron(signal_data)
-                    logger.info(f"[TELEGRAM] Alerta de patrón enviada para {signal_data['strategy']}")
+                    # Verificar status do Telegram antes de enviar
+                    if verificar_status_telegram():
+                        # Garantir que signal_data tenha todos os campos necessários
+                        if 'strategy' not in signal_data:
+                            signal_data['strategy'] = 'WWL'
+                        if 'confidence' not in signal_data:
+                            signal_data['confidence'] = 75.0
+                        
+                        logger.info(f"[TELEGRAM] Enviando alerta de padrão para {signal_data['strategy']}...")
+                        # Enviar alerta com tratamento de erro detalhado
+                        resultado_envio = enviar_alerta_patron(signal_data)
+                        
+                        if resultado_envio:
+                            logger.info(f"[TELEGRAM] Alerta de padrão enviado com sucesso para {signal_data['strategy']}")
+                        else:
+                            logger.warning(f"[TELEGRAM] Falha ao enviar alerta para {signal_data['strategy']}")
+                    else:
+                        logger.warning("[TELEGRAM] Telegram não está ativo, não foi possível enviar alerta de padrão")
                 except Exception as e:
-                    logger.error(f"[TELEGRAM] Error al enviar alerta: {e}")
+                    logger.error(f"[TELEGRAM] Erro ao enviar alerta: {e}")
+                    logger.error(f"[TELEGRAM] Traceback: {traceback.format_exc()}")
+                    # Tentar reinicializar o Telegram em caso de falha
+                    logger.info("[TELEGRAM] Tentando reinicializar o Telegram após falha no envio de alerta...")
+                    inicializar_telegram_bot()
             
             logger.info(f"[TRACKING] Sistema completo activo - Signal ID: {signal_id}, Tracking ID: {tracking_id}")
             return True
@@ -257,15 +277,25 @@ def check_new_operations(supabase, current_operation_id: str) -> bool:
             # NUEVA INTEGRACIÓN: ENVIAR RESULTADO VIA TELEGRAM
             if telegram_activo and active_signal_data:
                 try:
-                    enviar_resultado_operacion(
-                        strategy_name=active_signal_data['strategy'],
-                        operacion_num=monitoring_operations_count,
-                        resultado=resultado_operacao,
-                        total_operaciones=PERSISTENCIA_OPERACOES
-                    )
-                    logger.info(f"[TELEGRAM] Resultado de operación enviado: {resultado_operacao}")
+                    # Verificar status do Telegram antes de enviar
+                    if verificar_status_telegram():
+                        logger.info(f"[TELEGRAM] Enviando resultado de operação: {resultado_operacao}")
+                        resultado_envio = enviar_resultado_operacion(
+                            strategy_name=active_signal_data['strategy'],
+                            operacion_num=monitoring_operations_count,
+                            resultado=resultado_operacao,
+                            total_operaciones=PERSISTENCIA_OPERACOES
+                        )
+                        
+                        if resultado_envio:
+                            logger.info(f"[TELEGRAM] Resultado de operação enviado com sucesso: {resultado_operacao}")
+                        else:
+                            logger.warning(f"[TELEGRAM] Falha ao enviar resultado de operação: {resultado_operacao}")
+                    else:
+                        logger.warning("[TELEGRAM] Telegram não está ativo, não foi possível enviar resultado")
                 except Exception as e:
-                    logger.error(f"[TELEGRAM] Error al enviar resultado: {e}")
+                    logger.error(f"[TELEGRAM] Erro ao enviar resultado: {e}")
+                    logger.error(f"[TELEGRAM] Traceback: {traceback.format_exc()}")
         else:
             logger.warning(f"[STATE] Nueva operación: {current_operation_id} - Resultado no capturado - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
         
@@ -570,6 +600,15 @@ def inicializar_supabase():
         print(f"FAIL Erro ao conectar com Supabase: {e}")
         return None
 
+def verificar_saude_supabase(supabase):
+    """Verifica se a conexão com Supabase está saudável"""
+    try:
+        response = supabase.table('tunder_bot_logs').select('id').limit(1).execute()
+        return response.data is not None
+    except Exception as e:
+        logger.error(f"[HEALTH_CHECK] Erro na verificação de saúde do Supabase: {e}")
+        return False
+
 def inicializar_telegram_bot():
     """Inicializa el bot de Telegram"""
     global telegram_activo
@@ -579,20 +618,76 @@ def inicializar_telegram_bot():
         return False
     
     try:
+        # Verificar se as variáveis de ambiente estão configuradas
+        token = os.getenv('TELEGRAM_BOT_TOKEN')
+        chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        
+        if not token or not chat_id:
+            print(f"❌ Configuração de Telegram incompleta: Token={bool(token)}, Chat ID={bool(chat_id)}")
+            logger.error(f"[TELEGRAM] Configuração incompleta: Token={bool(token)}, Chat ID={bool(chat_id)}")
+            telegram_activo = False
+            return False
+            
+        # Inicializar o Telegram com as variáveis verificadas
         if inicializar_telegram():
             telegram_activo = True
             print("✅ Bot de Telegram inicializado correctamente")
+            logger.info("[TELEGRAM] Bot inicializado com sucesso")
             return True
         else:
             telegram_activo = False
             print("❌ Error al inicializar bot de Telegram")
+            logger.error("[TELEGRAM] Falha ao inicializar bot")
             return False
     except Exception as e:
         print(f"❌ Error en inicialización de Telegram: {e}")
+        logger.error(f"[TELEGRAM] Erro na inicialização: {e}")
         telegram_activo = False
         return False
 
 # ===== FUNÇÕES DE CONTROLE SIMPLIFICADO =====
+
+def verificar_status_telegram():
+    """Verifica o status do Telegram e tenta reinicializar se necessário"""
+    global telegram_activo
+    
+    if not TELEGRAM_DISPONIBLE:
+        return False
+    
+    if not telegram_activo:
+        logger.info("[TELEGRAM] Telegram não está ativo, tentando inicializar...")
+        return inicializar_telegram_bot()
+    
+    return True
+
+def enviar_resultado_operacao_seguro(resultado: str):
+    """Envia o resultado de uma operação via Telegram de forma segura
+    
+    Args:
+        resultado: Resultado da operação ('WIN' ou 'LOSS')
+    """
+    if not telegram_activo:
+        logger.warning("[TELEGRAM] Telegram não está ativo, não é possível enviar resultado")
+        return False
+    
+    try:
+        # Converter para o formato esperado pela função
+        resultado_formatado = "V" if resultado == "WIN" else "L"
+        
+        logger.info(f"[TELEGRAM] Enviando resultado de operação: {resultado}")
+        resultado_envio = enviar_resultado_operacion("WWL", monitoring_operations_count, resultado_formatado, PERSISTENCIA_OPERACOES)
+        
+        if resultado_envio:
+            logger.info("[TELEGRAM] Resultado de operação enviado com sucesso")
+            return True
+        else:
+            logger.warning("[TELEGRAM] Falha ao enviar resultado de operação")
+            return False
+    except Exception as e:
+        logger.error(f"[TELEGRAM] Erro ao enviar resultado de operação: {e}")
+        logger.error(f"[TELEGRAM] Traceback: {traceback.format_exc()}")
+        return False
+
 def check_strategy_timeout():
     """Verifica timeout da estratégia (5 minutos)"""
     global active_strategy, strategy_start_time
@@ -636,8 +731,8 @@ def validar_integridade_historico(historico: List[str]) -> bool:
             logger.error("[DATA_INTEGRITY] Histórico vazio")
             return False
             
-        # CORREÇÃO CRÍTICA: Aceitar formato real do banco
-        valid_values = {'WIN', 'LOSS'}  # MUDOU de {'V', 'D'}
+        # Verificar se contém apenas valores válidos
+        valid_values = {'V', 'D'}  # Formato padrão usado em todo o código
         invalid_values = [val for val in historico if val not in valid_values]
         if invalid_values:
             logger.error(f"[DATA_INTEGRITY] Valores inválidos encontrados: {set(invalid_values)}")
@@ -649,7 +744,7 @@ def validar_integridade_historico(historico: List[str]) -> bool:
             return False
             
         # Verificar distribuição básica
-        win_rate = (historico.count('WIN') / len(historico)) * 100  # MUDOU de 'V'
+        win_rate = (historico.count('V') / len(historico)) * 100
         if win_rate == 0 or win_rate == 100:
             logger.warning(f"[DATA_INTEGRITY] Distribuição suspeita: {win_rate}% WINs")
             return False
@@ -668,6 +763,11 @@ def buscar_operacoes_historico(supabase):
         tuple: (historico, timestamps, latest_operation_id)
     """
     try:
+        # Verificar saúde da conexão antes de prosseguir
+        if not verificar_saude_supabase(supabase):
+            logger.error("[HEALTH_CHECK] Conexão com Supabase não está saudável")
+            return [], [], None
+            
         # NOVO: Tentar ambas as tabelas para debug
         tables_to_try = ['tunder_bot_logs', 'scalping_accumulator_bot_logs']
         
@@ -732,6 +832,11 @@ def obter_resultado_operacao_atual(supabase, operation_id: str) -> str:
 def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_level: float) -> int:
     """Cria registro na tabela strategy_results_tracking e retorna o ID serial"""
     try:
+        # Verificar saúde da conexão antes de criar registro
+        if not verificar_saude_supabase(supabase):
+            logger.error("[HEALTH_CHECK] Conexão com Supabase não está saudável - não criando registro")
+            return None
+            
         data = {
             'strategy_name': strategy_name,
             'strategy_confidence': confidence_level,
@@ -756,6 +861,11 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
 def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
     """Cria registro na tabela strategy_results_tracking linkado com signal_id"""
     try:
+        # Verificar saúde da conexão antes de criar registro linkado
+        if not verificar_saude_supabase(supabase):
+            logger.error("[HEALTH_CHECK] Conexão com Supabase não está saudável - não criando registro linkado")
+            return None
+            
         # Usar campos que existem na tabela e evitar duplicações
         data = {
             'signal_id': signal_id,
@@ -785,6 +895,11 @@ def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confide
 def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: List[str]) -> bool:
     """Finaliza registro de rastreamento com os resultados das operações"""
     try:
+        # Verificar saúde da conexão antes de finalizar registro
+        if not verificar_saude_supabase(supabase):
+            logger.error("[HEALTH_CHECK] Conexão com Supabase não está saudável - não finalizando registro")
+            return False
+            
         # Mapear resultados para as colunas corretas
         operation_1_result = resultados[0] if len(resultados) > 0 else None
         operation_2_result = resultados[1] if len(resultados) > 1 else None
@@ -1012,7 +1127,10 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
             'execution_time_ms': 0
         }
         
-        response = supabase.table('radar_de_apalancamiento_signals').insert(signal_record).execute()
+        response = supabase.table('radar_de_apalancamiento_signals').upsert(
+            signal_record,
+            on_conflict='bot_name'
+        ).execute()
         
         if response.data:
             logger.info(f"[SIGNAL_SENT] ✅ Sinal enviado: {signal_data['strategy']}")
@@ -1029,6 +1147,11 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
 def enviar_sinal_supabase_corrigido(supabase, signal_data: Dict) -> int:
     """Envia sinal e retorna o signal_id para linking"""
     try:
+        # Verificar saúde da conexão antes de enviar sinal
+        if not verificar_saude_supabase(supabase):
+            logger.error("[HEALTH_CHECK] Conexão com Supabase não está saudável - não enviando sinal")
+            return None
+            
         signal_record = {
             'bot_name': BOT_NAME,
             'is_safe_to_operate': signal_data['should_operate'],
@@ -1046,7 +1169,10 @@ def enviar_sinal_supabase_corrigido(supabase, signal_data: Dict) -> int:
             'execution_time_ms': 0
         }
         
-        response = supabase.table('radar_de_apalancamiento_signals').insert(signal_record).execute()
+        response = supabase.table('radar_de_apalancamiento_signals').upsert(
+            signal_record,
+            on_conflict='bot_name'
+        ).execute()
         
         if response.data and len(response.data) > 0:
             signal_id = response.data[0]['id']
@@ -1112,6 +1238,14 @@ def gerar_status_sistema() -> Dict:
 def executar_ciclo_analise_simplificado(supabase) -> Dict: 
     """Ciclo com máquina de estados - ANALYZING/MONITORING (VERSÃO CORRIGIDA)"""
     try: 
+        # Verificar saúde da conexão no início do ciclo
+        if not verificar_saude_supabase(supabase):
+            logger.error("[HEALTH_CHECK] Conexão com Supabase não está saudável - abortando ciclo")
+            return {
+                'status': 'CONNECTION_ERROR',
+                'message': 'Conexão com banco não está saudável'
+            }
+            
         global bot_current_state, active_signal_data 
         
         logger.info(f"[CICLO] === CICLO ESTADO: {bot_current_state} ===") 
@@ -1229,9 +1363,15 @@ def main_loop():
     if telegram_iniciado:
         # Enviar mensaje de inicio del sistema
         try:
-            enviar_mensaje_sistema("🚀 Radar Analisis Bot iniciado - Quantum+ activo", "SUCCESS")
-        except:
-            pass
+            logger.info("[TELEGRAM] Enviando mensagem de início do sistema...")
+            resultado = enviar_mensaje_sistema("🚀 Radar Analisis Bot iniciado - Quantum+ activo", "SUCCESS")
+            if resultado:
+                logger.info("[TELEGRAM] Mensagem de início enviada com sucesso")
+            else:
+                logger.warning("[TELEGRAM] Falha ao enviar mensagem de início")
+        except Exception as e:
+            logger.error(f"[TELEGRAM] Erro ao enviar mensagem de início: {e}")
+            logger.error(f"[TELEGRAM] Traceback: {traceback.format_exc()}")
     
     # Resetar estado inicial
     reset_bot_state()
@@ -1293,9 +1433,15 @@ def main_loop():
         # Enviar mensaje de finalización via Telegram
         if telegram_activo:
             try:
-                enviar_mensaje_sistema("🛑 Sistema detenido por el usuario", "WARNING")
-            except:
-                pass
+                logger.info("[TELEGRAM] Enviando mensagem de finalização...")
+                resultado = enviar_mensaje_sistema("🛑 Sistema detenido por el usuario", "WARNING")
+                if resultado:
+                    logger.info("[TELEGRAM] Mensagem de finalização enviada com sucesso")
+                else:
+                    logger.warning("[TELEGRAM] Falha ao enviar mensagem de finalização")
+            except Exception as e:
+                logger.error(f"[TELEGRAM] Erro ao enviar mensagem de finalização: {e}")
+                logger.error(f"[TELEGRAM] Traceback: {traceback.format_exc()}")
         
     except Exception as e:
         logger.error(f"[MAIN] ERROR CRÍTICO: {e}")
