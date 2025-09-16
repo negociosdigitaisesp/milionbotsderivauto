@@ -38,7 +38,6 @@ OPERACOES_MINIMAS = 4  # Requisito mínimo para Precision Surge Pattern
 PADRAO_NAO_ENCONTRADO = 0
 PADRAO_ENCONTRADO = 1
 PRIMEIRA_OPERACAO_REGISTRADA = 2
-SEGUNDA_OPERACAO_REGISTRADA = 3
 
 def retry_supabase_operation(max_retries=3, delay=2):
     def decorator(func):
@@ -240,45 +239,32 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 @retry_supabase_operation()
 def enviar_para_strategy_execution_logs(supabase: Client, signal_data: Dict) -> Optional[int]:
-    """Envía el resultado de la operación después del patrón a la tabla strategy_execution_logs."""
+    """Envia dados completos para strategy_execution_logs após completar as 2 operações."""
     try:
-        # Mapea el resultado de la operación al formato esperado por la tabla
-        resultado_operacion = signal_data.get('resultado_operacion')
-        operation_1_result = signal_data.get('operation_1_result')
-        operation_2_result = signal_data.get('operation_2_result')
-        final_result = signal_data.get('final_result')
-        
-        if not operation_1_result or not final_result:
-            logger.warning(f"Resultado de la operación incompleto: op1={operation_1_result}, final={final_result}")
-            return None
-        
-        # Crea el registro para la tabla strategy_execution_logs
         record = {
-            'bot_name': BOT_NAME,  # Campo existe ✅
-            'strategy_name': signal_data.get('strategy', 'Precision Surge Pattern'),  # Campo existe ✅
-            'pattern_detected_at': signal_data.get('pattern_detected_at'),  # Campo existe ✅
-            'confidence_level': signal_data.get('confidence', 93.5),  # Campo existe ✅
-            'trigger_type': 'PRECISION_SURGE',  # Campo existe ✅
-            'operation_1_result': signal_data.get('operation_1_result'),  # Campo existe ✅
-            'operation_1_completed_at': signal_data.get('operation_1_completed_at'),  # Campo existe ✅
-            'operation_2_result': signal_data.get('operation_2_result'),  # Campo existe ✅
-            'operation_2_completed_at': signal_data.get('operation_2_completed_at'),  # Campo existe ✅
-            'final_result': signal_data.get('final_result'),  # Campo existe ✅
-            'status': 'COMPLETED',  # Campo existe ✅
-            'completed_at': datetime.now().isoformat()  # Campo existe ✅
+            'bot_name': BOT_NAME,
+            'strategy_name': signal_data.get('strategy', 'Precision Surge Pattern'),
+            'pattern_detected_at': signal_data.get('pattern_detected_at'),
+            'confidence_level': signal_data.get('confidence', 93.5),
+            'trigger_type': 'PRECISION_SURGE',
+            'operation_1_result': signal_data.get('operation_1_result'),
+            'operation_1_completed_at': signal_data.get('operation_1_completed_at'),
+            'operation_2_result': signal_data.get('operation_2_result'),
+            'operation_2_completed_at': signal_data.get('operation_2_completed_at'),
+            'final_result': signal_data.get('final_result'),
+            'status': 'COMPLETED',
+            'completed_at': datetime.now().isoformat()
         }
         
         response = supabase.table('strategy_execution_logs').insert(record).execute()
         
-        if response.data and len(response.data) > 0:
+        if response.data:
             record_id = response.data[0]['id']
-            logger.info(f"Resultado enviado con éxito a strategy_execution_logs. ID: {record_id}")
+            logger.info(f"Registro completo enviado a strategy_execution_logs. ID: {record_id}")
             return record_id
-        else:
-            logger.error("Falla al enviar resultado a strategy_execution_logs: Respuesta vacía")
-            return None
+        return None
     except Exception as e:
-        logger.error(f"Falla al enviar resultado a strategy_execution_logs: {e}", exc_info=True)
+        logger.error(f"Error al enviar a strategy_execution_logs: {e}")
         return None
 
 
@@ -320,9 +306,12 @@ def main_loop():
                 time.sleep(ANALISE_INTERVALO)
                 continue
 
-            # Analiza siempre, pero solo actualiza el ID si hay nuevas operaciones
-            resultado_analise = analisar_estrategia_precision_surge_pattern(historico)
             is_new_operation = (latest_id != last_processed_id)
+            
+            # PASSO 1: MODIFICAR A LÓGICA PRINCIPAL - Pular análise quando rastreando
+            if padrao_estado != PADRAO_NAO_ENCONTRADO:
+                # Quando estiver rastreando, NÃO analisa novos padrões
+                print(f"🔍 Rastreando operações... Estado: {padrao_estado}")
             
             # Rastreo de las dos operaciones después del patrón
             if padrao_estado == PADRAO_ENCONTRADO and is_new_operation:
@@ -384,8 +373,8 @@ def main_loop():
                 else:
                     print(f"⚠️ Envío parcial - Signal: {signal_id}, Strategy: {strategy_log_id}")
                 
-                # Reset para próximo ciclo
-                padrao_estado = SEGUNDA_OPERACAO_REGISTRADA
+                # PASSO 3: ELIMINAR ESTADO REDUNDANTE - Reset direto para PADRAO_NAO_ENCONTRADO
+                padrao_estado = PADRAO_NAO_ENCONTRADO
                 last_processed_id = latest_id
                 last_update_time = current_time
                 
@@ -396,41 +385,40 @@ def main_loop():
                 operation_2_completed_at = None
                 pattern_detected_at = None
             
-            # Siempre envía actualizaciones a Supabase cada 5 segundos
-            should_update = (current_time - last_update_time >= ANALISE_INTERVALO)
-            
-            if resultado_analise['should_operate'] and padrao_estado == PADRAO_NAO_ENCONTRADO:
-                print(f"\n🎯 {resultado_analise['reason']}")
-                print(f"📊 Últimas 5 operaciones: {historico[:5]}")
-                signal_id = enviar_sinal_supabase(supabase, resultado_analise)
-                if signal_id:
-                    print(f"✅ Patrón detectado - Señal enviada con ID: {signal_id}")
-                    padrao_estado = PADRAO_ENCONTRADO  # Marca que encontramos el patrón
-                    padrao_id = latest_id  # Guarda el ID donde se encontró el patrón
-                    pattern_detected_at = datetime.now().isoformat()  # Timestamp del patrón
-                    last_processed_id = latest_id  # Actualiza para evitar duplicados
-                    last_update_time = current_time
+            # PASSO 2: REORGANIZAR O FLUXO - SÓ analisa quando não estiver rastreando
+            elif padrao_estado == PADRAO_NAO_ENCONTRADO:
+                # SÓ AQUI analisa novos padrões
+                resultado_analise = analisar_estrategia_precision_surge_pattern(historico)
+                should_update = (current_time - last_update_time >= ANALISE_INTERVALO)
+                
+                if resultado_analise['should_operate']:
+                    print(f"\n🎯 {resultado_analise['reason']}")
+                    print(f"📊 Últimas 5 operaciones: {historico[:5]}")
+                    signal_id = enviar_sinal_supabase(supabase, resultado_analise)
+                    if signal_id:
+                        print(f"✅ Patrón detectado - Señal enviada con ID: {signal_id}")
+                        padrao_estado = PADRAO_ENCONTRADO  # Detectou padrão, muda estado
+                        padrao_id = latest_id  # Guarda el ID donde se encontró el patrón
+                        pattern_detected_at = datetime.now().isoformat()  # Timestamp del patrón
+                        last_processed_id = latest_id  # Actualiza para evitar duplicados
+                        last_update_time = current_time
+                    else:
+                        print("❌ Error al enviar señal")
+                elif should_update or is_new_operation:
+                    # Envía actualizaciones regulares incluso sin patrón
+                    print(f"⏳ {resultado_analise['reason']}")
+                    print(f"📊 Últimas 5 operaciones: {historico[:5]}")
+                    signal_id = enviar_sinal_supabase(supabase, resultado_analise)
+                    if signal_id:
+                        print(f"✅ Actualización enviada con ID: {signal_id}")
+                        last_update_time = current_time
+                        if is_new_operation:
+                            last_processed_id = latest_id
+                    else:
+                        print("❌ Error al enviar actualización")
                 else:
-                    print("❌ Error al enviar señal")
-            elif should_update or is_new_operation:
-                # Envía actualizaciones regulares incluso sin patrón
-                if padrao_estado == SEGUNDA_OPERACAO_REGISTRADA:
-                    # Reset después de completar ciclo
-                    padrao_estado = PADRAO_NAO_ENCONTRADO
-                    
-                print(f"⏳ {resultado_analise['reason']}")
-                print(f"📊 Últimas 5 operaciones: {historico[:5]}")
-                signal_id = enviar_sinal_supabase(supabase, resultado_analise)
-                if signal_id:
-                    print(f"✅ Actualización enviada con ID: {signal_id}")
-                    last_update_time = current_time
-                    if is_new_operation:
-                        last_processed_id = latest_id
-                else:
-                    print("❌ Error al enviar actualización")
-            else:
-                print(f"⏳ {resultado_analise['reason']}")
-                print(f"📊 Últimas 5 operaciones: {historico[:5]}")
+                    print(f"⏳ {resultado_analise['reason']}")
+                    print(f"📊 Últimas 5 operaciones: {historico[:5]}")
             
             time.sleep(ANALISE_INTERVALO)
             

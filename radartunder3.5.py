@@ -182,50 +182,49 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 @retry_supabase_operation()
 def enviar_para_strategy_execution_logs(supabase: Client, signal_data: Dict) -> Optional[int]:
-    """Envia o resultado da operação após o padrão LLL para a tabela strategy_execution_logs."""
+    """Envia para strategy_execution_logs quando padrão for detectado."""
     try:
-        # Mapeia o resultado da operação para o formato esperado pela tabela
-        resultado_operacion = signal_data.get('resultado_operacion')
-        operation_1_result = None
-        final_result = None
-        
-        if resultado_operacion == "GANADA":
-            operation_1_result = "WIN"
-            final_result = "WIN"
-        elif resultado_operacion == "PERDIDA":
-            operation_1_result = "LOSS"
-            final_result = "LOSS"
-        
-        if not operation_1_result or not final_result:
-            logger.warning(f"Resultado da operação não mapeável: {resultado_operacion}")
-            return None
-        
-        # Cria o registro para a tabela strategy_execution_logs
         record = {
             'bot_name': BOT_NAME,
             'strategy_name': signal_data.get('strategy', 'Quantum+ (Modo LLL Puro)'),
             'confidence_level': signal_data.get('confidence', 0),
             'trigger_type': 'LLL',
             'pattern_detected_at': datetime.now().isoformat(),
-            'operation_1_result': operation_1_result,
-            'operation_1_completed_at': datetime.now().isoformat(),
-            'final_result': final_result,
-            'status': 'COMPLETED',
-            'completed_at': datetime.now().isoformat()
+            'status': 'WAITING'
         }
         
         response = supabase.table('strategy_execution_logs').insert(record).execute()
         
-        if response.data and len(response.data) > 0:
+        if response.data:
             record_id = response.data[0]['id']
-            logger.info(f"Resultado enviado com sucesso para strategy_execution_logs. ID: {record_id}")
+            logger.info(f"Padrão registrado em strategy_execution_logs. ID: {record_id}")
             return record_id
-        else:
-            logger.error("Falha ao enviar resultado para strategy_execution_logs: Resposta vazia")
-            return None
-    except Exception as e:
-        logger.error(f"Falha ao enviar resultado para strategy_execution_logs: {e}", exc_info=True)
         return None
+    except Exception as e:
+        logger.error(f"Erro ao registrar padrão em strategy_execution_logs: {e}")
+        return None
+
+@retry_supabase_operation()
+def atualizar_resultado_strategy_logs(supabase: Client, record_id: int, resultado: str) -> bool:
+    """Atualiza resultado na strategy_execution_logs."""
+    try:
+        final_result = "WIN" if resultado == "GANADA" else "LOSS"
+        now = datetime.now().isoformat()
+        
+        response = supabase.table('strategy_execution_logs').update({
+            'operation_1_result': final_result,
+            'operation_1_completed_at': now,
+            'final_result': final_result,
+            'pattern_success': resultado == "GANADA",
+            'status': 'COMPLETED',
+            'completed_at': now
+        }).eq('id', record_id).execute()
+        
+        logger.info(f"Resultado {resultado} atualizado em strategy_execution_logs ID: {record_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar resultado: {e}")
+        return False
 
 def main_loop():
     logger.info("=== INICIANDO TUNDER BOT COM ESTRATÉGIA LLL SIMPLIFICADA ===")
@@ -247,6 +246,7 @@ def main_loop():
     last_update_time = 0  # Controle para atualizações regulares
     padrao_estado = PADRAO_NAO_ENCONTRADO  # Estado inicial do rastreamento de padrão
     padrao_id = None  # ID da operação onde o padrão foi encontrado
+    strategy_log_id = None  # ID do registro na strategy_execution_logs
     ultima_operacao = None  # Última operação analisada
 
     while True:
@@ -275,20 +275,22 @@ def main_loop():
                 # Envia o resultado para o Supabase (tabela radar_de_apalancamiento_signals)
                 signal_id = enviar_sinal_supabase(supabase, resultado_analise)
                 
-                # Envia o resultado para a tabela strategy_execution_logs
-                strategy_log_id = enviar_para_strategy_execution_logs(supabase, resultado_analise)
+                # Atualiza o resultado na strategy_execution_logs
+                if strategy_log_id:
+                    resultado_atualizado = atualizar_resultado_strategy_logs(supabase, strategy_log_id, resultado_operacao)
+                    if resultado_atualizado:
+                        print(f"✅ Resultado {resultado_operacao} atualizado em strategy_execution_logs ID: {strategy_log_id}")
+                    else:
+                        print(f"❌ Erro ao atualizar resultado em strategy_execution_logs ID: {strategy_log_id}")
                 
-                if signal_id and strategy_log_id:
-                    print(f"✅ Resultado enviado con ID: {signal_id} y registrado en strategy_execution_logs con ID: {strategy_log_id}")
-                elif signal_id and not strategy_log_id:
-                    print(f"✅ Resultado enviado con ID: {signal_id}, pero falló el registro en strategy_execution_logs")
-                elif not signal_id and strategy_log_id:
-                    print(f"✅ Registrado en strategy_execution_logs con ID: {strategy_log_id}, pero falló el envío del señal")
+                if signal_id:
+                    print(f"✅ Resultado enviado con ID: {signal_id}")
                 else:
                     print("❌ Error al enviar resultado")
                 
                 # Marca como registrado independentemente do sucesso
                 padrao_estado = PADRAO_RESULTADO_REGISTRADO
+                strategy_log_id = None  # Reset para próximo padrão
                 last_processed_id = latest_id
                 last_update_time = current_time
             
@@ -299,8 +301,14 @@ def main_loop():
                 print(f"\n🎯 {resultado_analise['reason']}")
                 print(f"📊 Últimas 3 operaciones: {historico[:3]}")
                 signal_id = enviar_sinal_supabase(supabase, resultado_analise)
+                
+                # Registra o padrão detectado na strategy_execution_logs
+                strategy_log_id = enviar_para_strategy_execution_logs(supabase, resultado_analise)
+                
                 if signal_id:
                     print(f"✅ Señal enviada con ID: {signal_id}")
+                    if strategy_log_id:
+                        print(f"✅ Padrón registrado en strategy_execution_logs con ID: {strategy_log_id}")
                     padrao_estado = PADRAO_ENCONTRADO  # Marca que encontramos o padrão
                     padrao_id = latest_id  # Guarda o ID onde o padrão foi encontrado
                     last_processed_id = latest_id  # Atualiza para evitar duplicatas
