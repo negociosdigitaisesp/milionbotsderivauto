@@ -113,16 +113,68 @@ def analisar_estrategia_precision_surge_pattern(historico: List[str]) -> Dict:
     
     # GATILLO: Exactamente 4 o 5 WINs consecutivos
     if wins_consecutivos == 4 or wins_consecutivos == 5:
-        logger.info(f"[{strategy_name}] PATRÓN DETECTADO! {wins_consecutivos} WINs consecutivos. Activando señal.")
+        logger.info(f"[{strategy_name}] PATRÓN DETECTADO! {wins_consecutivos} WINs consecutivos. Verificando filtros...")
+        
+        # FILTRO 1: Verificar se há 2 ou mais losses nas últimas 15 operações
+        ultimas_15 = historico[:15] if len(historico) >= 15 else historico
+        losses_nas_15 = ultimas_15.count('LOSS')
+        
+        logger.info(f"[{strategy_name}] Losses nas últimas {len(ultimas_15)} operações: {losses_nas_15}")
+        
+        if losses_nas_15 >= 2:
+            logger.info(f"[{strategy_name}] FILTRO 1 REJEITADO! {losses_nas_15} losses ≥ 2 nas últimas 15 operações. Não operando.")
+            return {
+                'should_operate': False,
+                'reason': f"Padrão detectado mas Filtro 1 rejeitado ({losses_nas_15} losses ≥ 2 nas últimas 15 ops)",
+                'last_operations': historico[:5],
+                'pattern_details': {
+                    'trigger': f'{wins_consecutivos}_WINS',
+                    'consecutive_wins': wins_consecutivos,
+                    'filter_1_passed': False,
+                    'losses_in_15': losses_nas_15
+                }
+            }
+        
+        # FILTRO 2: Verificar se há losses consecutivos nas últimas 10 operações
+        ultimas_10 = historico[:10] if len(historico) >= 10 else historico
+        losses_consecutivos = 0
+        for op in ultimas_10:
+            if op == 'LOSS':
+                losses_consecutivos += 1
+            else:
+                break
+        
+        logger.info(f"[{strategy_name}] Losses consecutivos nas últimas {len(ultimas_10)} operações: {losses_consecutivos}")
+        
+        if losses_consecutivos > 0:
+            logger.info(f"[{strategy_name}] FILTRO 2 REJEITADO! {losses_consecutivos} losses consecutivos nas últimas 10 operações. Não operando.")
+            return {
+                'should_operate': False,
+                'reason': f"Padrão detectado mas Filtro 2 rejeitado ({losses_consecutivos} losses consecutivos nas últimas 10 ops)",
+                'last_operations': historico[:5],
+                'pattern_details': {
+                    'trigger': f'{wins_consecutivos}_WINS',
+                    'consecutive_wins': wins_consecutivos,
+                    'filter_2_passed': False,
+                    'consecutive_losses_in_10': losses_consecutivos
+                }
+            }
+        
+        # Se passou por todos os filtros, ativa o sinal
+        logger.info(f"[{strategy_name}] TODOS OS FILTROS APROVADOS! Ativando sinal.")
         return {
             'should_operate': True,
             'strategy': strategy_name,
             'confidence': 93.5,
-            'reason': f"Patrón Precision Surge: {wins_consecutivos} WINs consecutivos",
+            'reason': f"Patrón Precision Surge: {wins_consecutivos} WINs consecutivos + Filtros OK",
             'pattern_details': {
                 'trigger': f'{wins_consecutivos}_WINS',
                 'consecutive_wins': wins_consecutivos,
-                'momentum_confirmed': True
+                'momentum_confirmed': True,
+                'filter_1_passed': True,
+                'filter_2_passed': True,
+                'losses_in_15': losses_nas_15,
+                'consecutive_losses_in_10': losses_consecutivos
             },
             'last_operations': historico[:5]
         }
