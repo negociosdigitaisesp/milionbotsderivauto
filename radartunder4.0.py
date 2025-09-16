@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-radartunder1.5 - Sistema de Trading com Estratégia Quantum+ MODIFICADA
+radartunder4.0 - Sistema de Trading com Estratégia LL+ (2 Losses + Filtro)
 Estratégia implementada:
-- Quantum+ (Modo LLL Simplificado)
+- LL+ (2 Losses Consecutivos + Filtro de 4+ losses em 6 operações)
 """
 import os
 import time
@@ -20,7 +20,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s',
     handlers=[
-        logging.FileHandler('radartunder1.5_operations.log', encoding='utf-8'),
+        logging.FileHandler('radartunder4.0_operations.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 for lib in ['httpx', 'httpcore', 'supabase', 'postgrest']:
     logging.getLogger(lib).setLevel(logging.WARNING)
 
-BOT_NAME = 'radartunder1.5'
+BOT_NAME = 'radartunder4.0'
 ANALISE_INTERVALO = 5
 OPERACOES_HISTORICO = 35
-OPERACOES_MINIMAS = 3  # Requisito mínimo para LLL
+OPERACOES_MINIMAS = 6  # Requisito mínimo para LL+ (precisa de 6 operações para análise)
 
 # Estados de rastreamento de padrão
 PADRAO_NAO_ENCONTRADO = 0
@@ -89,69 +89,75 @@ def buscar_operacoes_historico(supabase: Client) -> Tuple[List[str], List[str], 
         # CORREÇÃO DE ROBUSTEZ: Garante que a função sempre retorne a tupla de 3 valores.
         return [], [], None
 
-def analisar_estrategia_simplificada_lll(historico: List[str]) -> Dict:
-    """VERSÃO COM FILTRO: Analisa padrão LLL + filtro de losses nas últimas 20 operações."""
-    strategy_name = "Quantum+ (Modo LLL Puro com Filtro)"
+def analisar_estrategia_ll_plus(historico: List[str]) -> Dict:
+    """ESTRATÉGIA LL+: 2 Losses consecutivos + ≥4 losses nas últimas 6 operações."""
+    strategy_name = "LL+ (2 Losses + Filtro 4/6)"
     
     if len(historico) < OPERACOES_MINIMAS:
         return {
             'should_operate': False,
             'reason': f"Datos insuficientes ({len(historico)}/{OPERACOES_MINIMAS})",
-            'last_operations': historico[:3] if len(historico) > 0 else []
+            'last_operations': historico[:6] if len(historico) > 0 else []
         }
 
-    # CORREÇÃO: O gatilho LLL deve ser verificado em ordem cronológica (mais antiga -> mais recente)
-    # Como o histórico vem em ordem DESC (mais recente primeiro), precisamos inverter para verificar
-    ultimas_3_cronologica = list(reversed(historico[:3]))
-    gatilho_lll = ['LOSS', 'LOSS', 'LOSS']
+    # PASSO 1: Verifica se as 2 operações mais recentes são LL (em ordem cronológica)
+    # Como o histórico vem em ordem DESC (mais recente primeiro), as 2 primeiras são as mais recentes
+    ultimas_2 = historico[:2]
+    ultimas_2_cronologica = list(reversed(ultimas_2))  # Inverte para ordem cronológica
+    gatilho_ll = ['LOSS', 'LOSS']
     
-    # PASSO 1: Verifica se as 3 operações mais recentes (em ordem cronológica) são LLL
-    logger.info(f"[{strategy_name}] Verificando padrão: {' -> '.join(ultimas_3_cronologica)} (ordem cronológica)")
-    if ultimas_3_cronologica == gatilho_lll:
-        logger.info(f"[{strategy_name}] Padrão LLL detectado! Verificando filtro das últimas 20 operações...")
+    logger.info(f"[{strategy_name}] Verificando padrão LL: {' -> '.join(ultimas_2_cronologica)} (ordem cronológica)")
+    
+    if ultimas_2_cronologica == gatilho_ll:
+        logger.info(f"[{strategy_name}] Padrão LL detectado! Verificando filtro das últimas 6 operações...")
         
-        # PASSO 2: Aplica o filtro das últimas 20 operações
-        ultimas_20 = historico[:20] if len(historico) >= 20 else historico
-        losses_nas_20 = ultimas_20.count('LOSS')
+        # PASSO 2: Aplica o filtro das últimas 6 operações
+        ultimas_6 = historico[:6]
+        losses_nas_6 = ultimas_6.count('LOSS')
         
-        logger.info(f"[{strategy_name}] Losses nas últimas {len(ultimas_20)} operações: {losses_nas_20}")
+        logger.info(f"[{strategy_name}] Losses nas últimas 6 operações: {losses_nas_6}")
+        logger.info(f"[{strategy_name}] Últimas 6 ops: {' -> '.join(reversed(ultimas_6))} (cronológica)")
         
-        if losses_nas_20 <= 6:
-            logger.info(f"[{strategy_name}] FILTRO APROVADO! {losses_nas_20} losses ≤ 6. Ativando sinal.")
+        if losses_nas_6 >= 4:
+            logger.info(f"[{strategy_name}] FILTRO APROVADO! {losses_nas_6} losses ≥ 4. Ativando sinal.")
             return {
                 'should_operate': True,
                 'strategy': strategy_name,
-                'confidence': 0,
-                'reason': f"Patrón LLL + Filtro OK ({losses_nas_20}/20 losses)",
+                'confidence': 71.3,  # 71,3% de expectativa conforme especificado
+                'reason': f"Patrón LL + Filtro OK ({losses_nas_6}/6 losses ≥ 4) - P(Win)=71.3%",
                 'pattern_details': {
-                    'trigger': 'LLL',
-                    'losses_in_20': losses_nas_20,
-                    'filter_passed': True
+                    'trigger': 'LL',
+                    'losses_in_6': losses_nas_6,
+                    'filter_passed': True,
+                    'win_probability': 71.3
                 },
-                'last_operations': historico[:3]
+                'last_operations': ultimas_6
             }
         else:
-            logger.info(f"[{strategy_name}] FILTRO REJEITADO! {losses_nas_20} losses > 6. Não operando.")
+            logger.info(f"[{strategy_name}] FILTRO REJEITADO! {losses_nas_6} losses < 4. Não operando.")
             return {
                 'should_operate': False,
-                'reason': f"LLL detectado mas filtro rejeitado ({losses_nas_20}/20 losses > 6)",
-                'last_operations': historico[:3],
+                'reason': f"LL detectado mas filtro rejeitado ({losses_nas_6}/6 losses < 4)",
+                'last_operations': ultimas_6,
                 'pattern_details': {
-                    'trigger': 'LLL',
-                    'losses_in_20': losses_nas_20,
+                    'trigger': 'LL',
+                    'losses_in_6': losses_nas_6,
                     'filter_passed': False
                 }
             }
     
-    # Se não é LLL, retorna aguardando
-    ultimas_ops = historico[:3]
+    # Se não é LL, retorna aguardando
+    ultimas_ops = historico[:6]
     # CORREÇÃO: Inverte a ordem para mostrar da mais antiga para mais recente (cronológica)
     ultimas_ops_cronologica = list(reversed(ultimas_ops))
     padrao_atual = ''.join(['L' if op == 'LOSS' else 'W' if op == 'WIN' else 'X' for op in ultimas_ops_cronologica])
     
+    # Verifica quantos losses há nas últimas 6 para informar o progresso
+    losses_atuais = ultimas_ops.count('LOSS')
+    
     return {
         'should_operate': False,
-        'reason': f"Esperando patrón LLL. Patrón actual: {padrao_atual} (cronológico: {' -> '.join(ultimas_ops_cronologica)})",
+        'reason': f"Esperando patrón LL. Actual: {padrao_atual[-2:]} ({losses_atuais}/6 losses)",
         'last_operations': ultimas_ops
     }
 
@@ -186,9 +192,9 @@ def enviar_para_strategy_execution_logs(supabase: Client, signal_data: Dict) -> 
     try:
         record = {
             'bot_name': BOT_NAME,
-            'strategy_name': signal_data.get('strategy', 'Quantum+ (Modo LLL Puro)'),
-            'confidence_level': signal_data.get('confidence', 0),
-            'trigger_type': 'LLL',
+            'strategy_name': signal_data.get('strategy', 'LL+ (2 Losses + Filtro 4/6)'),
+            'confidence_level': signal_data.get('confidence', 71.3),
+            'trigger_type': 'LL',
             'pattern_detected_at': datetime.now().isoformat(),
             'status': 'WAITING'
         }
@@ -227,18 +233,19 @@ def atualizar_resultado_strategy_logs(supabase: Client, record_id: int, resultad
         return False
 
 def main_loop():
-    logger.info("=== INICIANDO TUNDER BOT COM ESTRATÉGIA LLL SIMPLIFICADA ===")
+    logger.info("=== INICIANDO TUNDER BOT 4.0 COM ESTRATÉGIA LL+ ===") 
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
         logger.critical("Falha fatal ao conectar com Supabase. Encerrando.")
         return
 
     logger.info("Bot inicializado com sucesso.")
-    print("\n🚀 TUNDER BOT (MODO LLL COM FILTRO) ACTIVO")
-    print("🎯 Estrategia: Detectar 3 pérdidas (LLL) consecutivas + Filtro")
-    print("🔍 Filtro: Máximo 6 losses nas últimas 20 operações")
+    print("\n🚀 TUNDER BOT 4.0 (MODO LL+ COM FILTRO) ACTIVO")
+    print("🎯 Estrategia: Detectar 2 pérdidas (LL) consecutivas + Filtro")
+    print("🔍 Filtro: Mínimo 4 losses nas últimas 6 operações")
+    print("⚡ Expectativa: 71,3% chance de WIN")
     print("⏱️  Análisis cada 5 segundos.")
-    print("🔍 Rastreando resultado de la operación después del patrón LLL")
+    print("🔍 Rastreando resultado de la operación después del patrón LL")
     print("📊 Enviando resultados para strategy_execution_logs (final_result e operation_1)")
     print("\nPresione Ctrl+C para detener.\n")
 
@@ -260,14 +267,14 @@ def main_loop():
                 continue
 
             # Analisa sempre, mas só atualiza o ID se houver novas operações
-            resultado_analise = analisar_estrategia_simplificada_lll(historico)
+            resultado_analise = analisar_estrategia_ll_plus(historico)
             is_new_operation = (latest_id != last_processed_id)
             
-            # Rastreamento da próxima operação após o padrão LLL
+            # Rastreamento da próxima operação após o padrão LL
             if padrao_estado == PADRAO_ENCONTRADO and is_new_operation:
                 # Temos uma nova operação após encontrar o padrão
                 resultado_operacao = "GANADA" if historico[0] == "WIN" else "PERDIDA"
-                print(f"\n🔍 Resultado de la operación después del patrón LLL: {resultado_operacao}")
+                print(f"\n🔍 Resultado de la operación después del patrón LL: {resultado_operacao}")
                 
                 # Atualiza o resultado_analise com o resultado da operação
                 resultado_analise['resultado_operacion'] = resultado_operacao
@@ -299,7 +306,7 @@ def main_loop():
             
             if resultado_analise['should_operate']:
                 print(f"\n🎯 {resultado_analise['reason']}")
-                print(f"📊 Últimas 3 operaciones: {historico[:3]}")
+                print(f"📊 Últimas 6 operaciones: {historico[:6]}")
                 signal_id = enviar_sinal_supabase(supabase, resultado_analise)
                 
                 # Registra o padrão detectado na strategy_execution_logs
@@ -316,9 +323,9 @@ def main_loop():
                 else:
                     print("❌ Error al enviar señal")
             elif should_update or is_new_operation:
-                # Envia atualizações regulares mesmo sem padrão LLL
+                # Envia atualizações regulares mesmo sem padrão LL
                 print(f"⏳ {resultado_analise['reason']}")
-                print(f"📊 Últimas 3 operaciones: {historico[:3]}")
+                print(f"📊 Últimas 6 operaciones: {historico[:6]}")
                 signal_id = enviar_sinal_supabase(supabase, resultado_analise)
                 if signal_id:
                     print(f"✅ Actualización enviada con ID: {signal_id}")
@@ -329,7 +336,7 @@ def main_loop():
                     print("❌ Error al enviar actualización")
             else:
                 print(f"⏳ {resultado_analise['reason']}")
-                print(f"📊 Últimas 3 operaciones: {historico[:3]}")
+                print(f"📊 Últimas 6 operaciones: {historico[:6]}")
             
             time.sleep(ANALISE_INTERVALO)
             
