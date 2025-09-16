@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Radar Analisis Scalping Bot - Sistema de Trading com 3 Estratégias de Alta Assertividade
+"""Tunder Bot - Sistema de Trading com Estratégia WWL
 Sistema integrado com rastreamento automático de resultados no Supabase
 
-Estratégias implementadas:
-- MICRO-BURST: 95.5% assertividade
-- PRECISION SURGE: 93.5% assertividade  
-- QUANTUM MATRIX: 91.5% assertividade
+Estratégia implementada:
+- WWL: Estratégia Win-Win-Loss com 78.6% de assertividade
 
-Sistema consolidado: 94.51% assertividade a cada 6 operações
+Gatilhos:
+- Padrão WWL nas últimas 3 operações
+- Máximo 5 derrotas nas últimas 20 operações
 """
 
 import os
@@ -27,6 +26,39 @@ from dataclasses import dataclass, field
 # from threading import Lock  # REMOVIDO - threading órfão não utilizado
 from functools import wraps
 
+# NUEVAS IMPORTACIONES PARA TELEGRAM
+try:
+    # Primeiro tenta importar normalmente
+    from telegram_notifier import (
+        inicializar_telegram,
+        enviar_alerta_patron,
+        enviar_resultado_operacion,
+        enviar_finalizacion_estrategia,
+        enviar_mensaje_sistema
+    )
+    TELEGRAM_DISPONIBLE = True
+except ImportError:
+    try:
+        # Se falhar, tenta adicionar o diretório atual ao path
+        import sys
+        import os
+        # Adiciona o diretório atual ao path
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from telegram_notifier import (
+            inicializar_telegram,
+            enviar_alerta_patron,
+            enviar_resultado_operacion,
+            enviar_finalizacion_estrategia,
+            enviar_mensaje_sistema
+        )
+        TELEGRAM_DISPONIBLE = True
+    except ImportError:
+        print("⚠️ Módulo telegram_notifier no encontrado - funcionando sin notificaciones")
+        TELEGRAM_DISPONIBLE = False
+
+# Variable global para controlar si Telegram está activo
+telegram_activo = False
+
 # Carregar variáveis de ambiente
 load_dotenv()
 
@@ -35,18 +67,17 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('scalping_bot_debug.log', encoding='utf-8'),
+        logging.FileHandler('tunder_bot_debug.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # Reduzir logs de bibliotecas externas
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('supabase').setLevel(logging.WARNING)
-logging.getLogger('postgrest').setLevel(logging.WARNING)
-logging.getLogger('urllib3').setLevel(logging.WARNING)
+# Silenciar logs detalhados de bibliotecas externas, mostrando apenas erros críticos.
+external_libs = ['httpx', 'httpcore', 'supabase', 'postgrest', 'urllib3', 'hpack', 'h2', 'requests']
+for lib in external_libs:
+    logging.getLogger(lib).setLevel(logging.ERROR)
 
 # ===== DECORATOR RETRY PARA OPERAÇÕES SUPABASE =====
 def retry_supabase_operation(max_retries=3, delay=2):
@@ -83,12 +114,13 @@ def retry_supabase_operation(max_retries=3, delay=2):
     return decorator
 
 # Configurações
-BOT_NAME = 'Scalping Bot Dev'
+BOT_NAME = 'Tunder Bot'  # <-- NOME MANTIDO CONFORME SOLICITADO
 ANALISE_INTERVALO = 5  # segundos entre análises
-OPERACOES_MINIMAS = 20  # operações mínimas para análise
-OPERACOES_HISTORICO = 30  # operações para buscar no histórico
+# A estratégia WWL precisa de no mínimo 20 operações para análise de saldo.
+OPERACOES_MINIMAS = 20
+OPERACOES_HISTORICO = 25 # Buscamos 25 para uma margem de segurança.
 PERSISTENCIA_TIMEOUT = 300  # 5 minutos timeout
-PERSISTENCIA_OPERACOES = 2  # 2 operações para reset
+PERSISTENCIA_OPERACOES = 1  # A Regra 3 (Saída) dita que o bot para após 1 operação.
 
 # ===== SISTEMA DE GERENCIAMENTO DE ESTADO =====
 # Estados da máquina de estados
@@ -109,19 +141,34 @@ monitoring_results = []  # Lista para armazenar resultados das operações em te
 # ===== FUNÇÕES DE GERENCIAMENTO DE ESTADO =====
 
 def reset_bot_state(supabase=None):
-    """Reseta o bot para o estado ANALYZING"""
+    """Reseta el bot para el estado ANALYZING CON NOTIFICACIÓN TELEGRAM"""
     global bot_current_state, monitoring_operations_count
     global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id, monitoring_results
     
-    logger.info("[STATE] Resetando estado para ANALYZING")
+    logger.info("[STATE] Reseteando estado para ANALYZING")
     
-    # Finalizar rastreamento se necessário
+    # NUEVA INTEGRACIÓN: ENVIAR FINALIZACIÓN VIA TELEGRAM
+    if telegram_activo and active_signal_data and len(monitoring_results) > 0:
+        try:
+            # Verificar si fue éxito completo (todas las operaciones WIN)
+            exito_completo = all(resultado == 'V' for resultado in monitoring_results)
+            
+            enviar_finalizacion_estrategia(
+                strategy_name=active_signal_data['strategy'],
+                resultados=monitoring_results,
+                exito=exito_completo
+            )
+            logger.info(f"[TELEGRAM] Finalización de estrategia enviada")
+        except Exception as e:
+            logger.error(f"[TELEGRAM] Error al enviar finalización: {e}")
+    
+    # Finalizar rastreamento si necesario
     if supabase and active_tracking_id and len(monitoring_results) >= PERSISTENCIA_OPERACOES:
         sucesso = finalizar_registro_de_rastreamento(supabase, active_tracking_id, monitoring_results)
         if sucesso:
-            logger.info(f"[TRACKING] Rastreamento {active_tracking_id} finalizado com resultados: {monitoring_results}")
+            logger.info(f"[TRACKING] Rastreamento {active_tracking_id} finalizado con resultados: {monitoring_results}")
         else:
-            logger.error(f"[TRACKING] Falha ao finalizar rastreamento {active_tracking_id}")
+            logger.error(f"[TRACKING] Fallo al finalizar rastreamento {active_tracking_id}")
     
     bot_current_state = BotState.ANALYZING
     monitoring_operations_count = 0
@@ -133,21 +180,21 @@ def reset_bot_state(supabase=None):
     monitoring_results = []
 
 def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supabase):
-    """Ativa o estado MONITORING com envio e linking corretos"""
+    """Ativa el estado MONITORING con envío y linking corretos, CON NOTIFICACIÓN TELEGRAM"""
     global bot_current_state, monitoring_operations_count
     global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id, monitoring_results
     
     try:
-        logger.info(f"[STATE] Ativando estado MONITORING - Sinal: {signal_data['strategy']}")
+        logger.info(f"[STATE] Activando estado MONITORING - Señal: {signal_data['strategy']}")
         
-        # 1. ENVIAR SINAL PRIMEIRO
+        # 1. ENVIAR SEÑAL PRIMERO
         signal_id = enviar_sinal_supabase_corrigido(supabase, signal_data)
         
         if not signal_id:
-            logger.error(f"[TRACKING] Falha ao enviar sinal - abortando ativação do monitoramento")
+            logger.error(f"[TRACKING] Fallo al enviar señal - abortando activación del monitoreo")
             return False
         
-        # 2. CRIAR REGISTRO DE RASTREAMENTO LINKADO
+        # 2. CREAR REGISTRO DE RASTREAMENTO LINKADO
         tracking_id = criar_registro_de_rastreamento_linkado(
             supabase,
             signal_data['strategy'],
@@ -156,7 +203,7 @@ def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supab
         )
         
         if tracking_id:
-            # 3. ATIVAR ESTADO DE MONITORAMENTO
+            # 3. ACTIVAR ESTADO DE MONITOREO
             bot_current_state = BotState.MONITORING
             monitoring_operations_count = 0
             last_operation_id_when_signal = latest_operation_id
@@ -167,18 +214,26 @@ def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supab
             active_tracking_id = tracking_id
             monitoring_results = []
             
-            logger.info(f"[TRACKING] Sistema completo ativo - Signal ID: {signal_id}, Tracking ID: {tracking_id}")
+            # NUEVA INTEGRACIÓN: ENVIAR ALERTA DE TELEGRAM
+            if telegram_activo:
+                try:
+                    enviar_alerta_patron(signal_data)
+                    logger.info(f"[TELEGRAM] Alerta de patrón enviada para {signal_data['strategy']}")
+                except Exception as e:
+                    logger.error(f"[TELEGRAM] Error al enviar alerta: {e}")
+            
+            logger.info(f"[TRACKING] Sistema completo activo - Signal ID: {signal_id}, Tracking ID: {tracking_id}")
             return True
         else:
-            logger.error(f"[TRACKING] Falha ao criar rastreamento - mantendo estado ANALYZING")
+            logger.error(f"[TRACKING] Fallo al crear rastreamento - manteniendo estado ANALYZING")
             return False
             
     except Exception as e:
-        logger.error(f"[TRACKING_ERROR] Erro na ativação completa: {e}")
+        logger.error(f"[TRACKING_ERROR] Error en la activación completa: {e}")
         return False
 
 def check_new_operations(supabase, current_operation_id: str) -> bool:
-    """Verifica novas operações e captura resultado automaticamente"""
+    """Verifica nuevas operaciones y captura resultado automáticamente CON NOTIFICACIÓN TELEGRAM"""
     global monitoring_operations_count, last_operation_id_when_signal, last_checked_operation_id, monitoring_results
 
     if last_operation_id_when_signal is None:
@@ -187,29 +242,32 @@ def check_new_operations(supabase, current_operation_id: str) -> bool:
     if last_checked_operation_id is None:
         last_checked_operation_id = last_operation_id_when_signal
         
-    # Se o ID atual é diferente do último verificado, houve nova operação
+    # Si el ID actual es diferente del último verificado, hubo nueva operación
     if current_operation_id != last_checked_operation_id:
         monitoring_operations_count += 1
         last_checked_operation_id = current_operation_id
         
-        # NOVO: Capturar resultado automaticamente
+        # NUEVO: Capturar resultado automáticamente
         resultado_operacao = obter_resultado_operacao_atual(supabase, current_operation_id)
         
         if resultado_operacao:
             monitoring_results.append(resultado_operacao)
+            logger.info(f"[STATE] Nueva operación: {current_operation_id} - Resultado: {resultado_operacao} - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
             
-            # Log em espanhol baseado no progresso
-            mensaje_progreso = determinar_mensaje_estado_espanol(
-                monitoring_operations_count,
-                PERSISTENCIA_OPERACOES,
-                active_signal_data.get('strategy', 'PRECISION_SURGE'),
-                active_signal_data.get('confidence', 93.5)
-            )
-            
-            logger.info(f"[PROGRESS_ES] {mensaje_progreso}")
-            logger.info(f"[STATE] Nova operação: {current_operation_id} - Resultado: {resultado_operacao} - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
+            # NUEVA INTEGRACIÓN: ENVIAR RESULTADO VIA TELEGRAM
+            if telegram_activo and active_signal_data:
+                try:
+                    enviar_resultado_operacion(
+                        strategy_name=active_signal_data['strategy'],
+                        operacion_num=monitoring_operations_count,
+                        resultado=resultado_operacao,
+                        total_operaciones=PERSISTENCIA_OPERACOES
+                    )
+                    logger.info(f"[TELEGRAM] Resultado de operación enviado: {resultado_operacao}")
+                except Exception as e:
+                    logger.error(f"[TELEGRAM] Error al enviar resultado: {e}")
         else:
-            logger.warning(f"[STATE] Nova operação: {current_operation_id} - Resultado não capturado - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
+            logger.warning(f"[STATE] Nueva operación: {current_operation_id} - Resultado no capturado - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
         
         return True
 
@@ -228,9 +286,14 @@ def should_reset_to_analyzing() -> bool:
         logger.info(f"[STATE] Limite de operações atingido: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
         return True
     
-    # Verificar timeout
-    if monitoring_start_time and (time.time() - monitoring_start_time) > PERSISTENCIA_TIMEOUT:
-        logger.info(f"[STATE] Timeout atingido: {PERSISTENCIA_TIMEOUT}s")
+    # NOVO: Timeout mais agressivo (2 minutos)
+    if monitoring_start_time and (time.time() - monitoring_start_time) > 120:  # 2 min em vez de 5
+        logger.warning(f"[STATE] Timeout de segurança atingido: 120s")
+        return True
+    
+    # NOVO: Verificação de sanidade - se monitoring_start_time é None mas estado é MONITORING
+    if monitoring_start_time is None and bot_current_state == BotState.MONITORING:
+        logger.error(f"[STATE] Estado inconsistente detectado - forçando reset")
         return True
     
     return False
@@ -250,54 +313,8 @@ def get_state_info() -> dict:
         'active_signal': active_signal_data
     }
 
-def determinar_mensaje_estado_espanol(should_operate: bool, operations_count: int, total_operations: int, strategy_name: str, confidence: float, reason: str = "") -> str:
-    """
-    Determina a mensagem correta em espanhol baseada no estado atual
-    
-    Args:
-        should_operate: Se deve operar (padrão encontrado)
-        operations_count: Número de operações completadas após o padrão
-        total_operations: Total de operações necessárias (sempre 2)
-        strategy_name: Nome da estratégia
-        confidence: Nível de confiança
-        reason: Razão original (para casos de rejeição)
-    
-    Returns:
-        str: Mensagem em espanhol apropriada para o estado atual
-    """
-    
-    # Se NÃO deve operar (padrão rejeitado), usar mensagem de rejeição
-    if not should_operate:
-        # Traduzir mensagens de rejeição para espanhol
-        if "Gatillo no cumplido" in reason:
-            return reason  # Já está em espanhol
-        elif "Muchos LOSSes" in reason:
-            return reason  # Já está em espanhol
-        elif "LOSSes consecutivos" in reason:
-            return reason  # Já está em espanhol
-        else:
-            return "Esperando el patrón. No activar aún."
-    
-    # Se DEVE operar (patrão encontrado), usar mensagens progressivas
-    if operations_count == 0:
-        # Padrão recém encontrado - primeira mensagem
-        return MENSAJES_SISTEMA['patron_inicial']
-    
-    elif operations_count == 1:
-        # Primeira operação completada - resta 1
-        return MENSAJES_SISTEMA['patron_resta_uma']
-    
-    elif operations_count >= 2:
-        # Padrão finalizado - aguardar próximo
-        return MENSAJES_SISTEMA['patron_finalizado']
-    
-    else:
-        # Fallback - caso inesperado
-        return f"Patrón {strategy_name} - {operations_count}/{total_operations} operaciones"
-
 # Mensagens padronizadas do sistema em espanhol
 MENSAJES_SISTEMA = {
-    # Mensagens existentes
     'aguardando_dados': "Esperando datos suficientes...",
     'aguardando_padrao': "Esperando el patrón. No activar aún.",
     'estrategia_ativa': "Estrategia {strategy} activa - esperando {ops} operaciones",
@@ -313,13 +330,7 @@ MENSAJES_SISTEMA = {
     'seguro_operar': "Seguro para operar",
     'teste_sistema': "TESTE - Sistema funcionando correctamente",
     'conexao_falhou': "Error de conexión con Supabase",
-    'operacao_completada': "Operación completada con éxito",
-    
-    # NOVAS MENSAGENS EM ESPANHOL LATINO-AMERICANO
-    'patron_inicial': "PATRÓN ENCONTRADO, ACTIVAR BOT AHORA",
-    'patron_entre_operaciones': "Patrón Encontrado - Entre nas 2 próximas Operaciones",
-    'patron_resta_uma': "Patrón Encontrado - Resta apenas 1 operación",
-    'patron_finalizado': "Patrón Finalizado - Espere la Próxima"
+    'operacao_completada': "Operación completada con éxito"
 }
 
 # ===== SISTEMA DE MÉTRICAS E VALIDAÇÃO =====
@@ -559,26 +570,27 @@ def inicializar_supabase():
         print(f"FAIL Erro ao conectar com Supabase: {e}")
         return None
 
-def testar_tabelas_supabase(supabase):
-    """Testa acesso às tabelas corretas"""
-    tabelas = {
-        'scalping_accumulator_bot_logs': 'Logs de operações',
-        'strategy_results_tracking': 'Rastreamento de estratégias',
-        'radar_de_apalancamiento_signals': 'Sinais do radar'
-    }
+def inicializar_telegram_bot():
+    """Inicializa el bot de Telegram"""
+    global telegram_activo
     
-    print("🔍 Verificando tabelas...")
+    if not TELEGRAM_DISPONIBLE:
+        print("❌ Telegram no disponible - continuando sin notificaciones")
+        return False
     
-    for tabela, descricao in tabelas.items():
-        try:
-            response = supabase.table(tabela).select('id').limit(1).execute()
-            print(f"✅ {descricao}: OK")
-        except Exception as e:
-            print(f"❌ {descricao}: ERRO - {e}")
+    try:
+        if inicializar_telegram():
+            telegram_activo = True
+            print("✅ Bot de Telegram inicializado correctamente")
+            return True
+        else:
+            telegram_activo = False
+            print("❌ Error al inicializar bot de Telegram")
             return False
-    
-    print("✅ Todas as tabelas acessíveis!")
-    return True
+    except Exception as e:
+        print(f"❌ Error en inicialización de Telegram: {e}")
+        telegram_activo = False
+        return False
 
 # ===== FUNÇÕES DE CONTROLE SIMPLIFICADO =====
 def check_strategy_timeout():
@@ -624,8 +636,8 @@ def validar_integridade_historico(historico: List[str]) -> bool:
             logger.error("[DATA_INTEGRITY] Histórico vazio")
             return False
             
-        # Verificar se contém apenas valores válidos
-        valid_values = {'V', 'D'}
+        # CORREÇÃO CRÍTICA: Aceitar formato real do banco
+        valid_values = {'WIN', 'LOSS'}  # MUDOU de {'V', 'D'}
         invalid_values = [val for val in historico if val not in valid_values]
         if invalid_values:
             logger.error(f"[DATA_INTEGRITY] Valores inválidos encontrados: {set(invalid_values)}")
@@ -637,7 +649,7 @@ def validar_integridade_historico(historico: List[str]) -> bool:
             return False
             
         # Verificar distribuição básica
-        win_rate = (historico.count('V') / len(historico)) * 100
+        win_rate = (historico.count('WIN') / len(historico)) * 100  # MUDOU de 'V'
         if win_rate == 0 or win_rate == 100:
             logger.warning(f"[DATA_INTEGRITY] Distribuição suspeita: {win_rate}% WINs")
             return False
@@ -650,41 +662,49 @@ def validar_integridade_historico(historico: List[str]) -> bool:
         return False
 
 def buscar_operacoes_historico(supabase):
-    """Busca histórico de operações do Supabase
+    """Busca histórico de operações do Supabase da tabela do Tunder Bot.
     
     Returns:
         tuple: (historico, timestamps, latest_operation_id)
     """
     try:
-        response = supabase.table('scalping_accumulator_bot_logs') \
-            .select('id, profit_percentage, created_at') \
-            .order('created_at', desc=True) \
-            .limit(OPERACOES_HISTORICO) \
-            .execute()
+        # NOVO: Tentar ambas as tabelas para debug
+        tables_to_try = ['tunder_bot_logs', 'scalping_accumulator_bot_logs']
         
-        if not response.data:
-            logger.warning("[HISTORICO] Nenhuma operação encontrada")
-            return [], [], None
+        for table_name in tables_to_try:
+            logger.info(f"[HISTORICO] Tentando tabela: {table_name}")
+            try:
+                response = supabase.table(table_name) \
+                    .select('id, operation_result, timestamp') \
+                    .order('timestamp', desc=True) \
+                    .limit(OPERACOES_HISTORICO) \
+                    .execute()
+                
+                if response.data and len(response.data) > 0:
+                    logger.info(f"[HISTORICO] Sucesso na tabela: {table_name} ({len(response.data)} registros)")
+                    
+                    historico = [op['operation_result'] for op in response.data]
+                    timestamps = [op['timestamp'] for op in response.data]
+                    latest_operation_id = response.data[0]['id']
+                    
+                    # DEBUG dos dados encontrados
+                    logger.info(f"[HISTORICO] Primeiros 5 resultados: {historico[:5]}")
+                    logger.info(f"[HISTORICO] Tipos de resultado únicos: {set(historico)}")
+                    
+                    return historico, timestamps, latest_operation_id
+                else:
+                    logger.warning(f"[HISTORICO] Tabela {table_name} vazia ou sem dados")
+                    
+            except Exception as table_error:
+                logger.warning(f"[HISTORICO] Erro na tabela {table_name}: {table_error}")
+                continue
         
-        # Extrair resultados, timestamps e ID da operação mais recente
-        historico = []
-        timestamps = []
-        latest_operation_id = response.data[0]['id']  # Primeira operação (mais recente)
-        
-        for op in response.data:
-            profit_percentage = op.get('profit_percentage', 0)
-            resultado = 'V' if profit_percentage > 0 else 'D'
-            historico.append(resultado)
-            timestamps.append(op['created_at'])
-        
-        logger.info(f"[HISTORICO] {len(historico)} operações carregadas")
-        logger.debug(f"[HISTORICO] Sequência: {' '.join(historico[:10])}...")
-        logger.debug(f"[HISTORICO] ID operação mais recente: {latest_operation_id}")
-        
-        return historico, timestamps, latest_operation_id
+        # Se chegou aqui, nenhuma tabela funcionou
+        logger.error("[HISTORICO] Nenhuma tabela de operações foi encontrada")
+        return [], [], None
         
     except Exception as e:
-        logger.error(f"[HISTORICO_ERROR] Erro ao buscar operações: {e}")
+        logger.error(f"[HISTORICO_ERROR] Erro geral: {e}")
         return [], [], None
 
 def obter_resultado_operacao_atual(supabase, operation_id: str) -> str:
@@ -714,22 +734,17 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
     try:
         data = {
             'strategy_name': strategy_name,
-            'strategy_confidence': confidence_level,  # CORRETO: strategy_confidence
+            'strategy_confidence': confidence_level,
             'bot_name': BOT_NAME,
-            'status': 'ACTIVE'  # CORRETO: status (não tracking_status)
+            'status': 'ACTIVE'
         }
         
-        # CORREÇÃO CRÍTICA: Remover .select('id') que causa erro
         response = supabase.table('strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
-            record_id = response.data[0].get('id')
-            if record_id:
-                logger.info(f"[TRACKING] Registro criado com ID: {record_id} para {strategy_name}")
-                return record_id
-            else:
-                logger.error(f"[TRACKING] ID não encontrado na resposta para {strategy_name}")
-                return None
+            record_id = response.data[0]['id']
+            logger.info(f"[TRACKING] Registro criado com ID: {record_id} para {strategy_name}")
+            return record_id
         else:
             logger.error(f"[TRACKING] Falha ao criar registro para {strategy_name}")
             return None
@@ -741,16 +756,18 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
 def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
     """Cria registro na tabela strategy_results_tracking linkado com signal_id"""
     try:
+        # Usar campos que existem na tabela e evitar duplicações
         data = {
-            'signal_id': signal_id,  # NOVO: Link com a tabela de sinais
+            'signal_id': signal_id,
             'strategy_name': strategy_name,
-            'strategy_confidence': confidence_level,  # CORRETO: usar strategy_confidence
+            'strategy_confidence': confidence_level,
             'bot_name': BOT_NAME,
-            'status': 'ACTIVE',
-            'pattern_detected_at': datetime.now().isoformat()
+            'status': 'ACTIVE',  # Usar este em vez de tracking_status
+            'pattern_detected_at': datetime.now().isoformat(),
+            'operations_completed': 0,
+            'validation_complete': False
         }
         
-        # CORREÇÃO CRÍTICA: Remover .select('id') que causa erro
         response = supabase.table('strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
@@ -772,7 +789,7 @@ def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: Lis
         operation_1_result = resultados[0] if len(resultados) > 0 else None
         operation_2_result = resultados[1] if len(resultados) > 1 else None
         
-        # Determinar sucesso do padrão (True somente se ambos forem 'V')
+        # Determinar sucesso do padrão
         pattern_success = (resultados == ['V', 'V']) if len(resultados) == 2 else False
         
         # Dados para atualização - USAR NOMES CORRETOS DAS COLUNAS
@@ -874,239 +891,104 @@ def gerar_relatorio_eficacia(supabase) -> Dict:
         logger.error(f"[RELATORIO_ERROR] Erro ao gerar relatório: {e}")
         return {}
 
-# ===== IMPLEMENTAÇÃO DAS 3 ESTRATÉGIAS =====
+# ===== IMPLEMENTAÇÃO DA ESTRATÉGIA WWL =====
 
-# FUNÇÃO REMOVIDA: analisar_micro_burst() - Simplificação do sistema
-
-def analisar_precision_surge(historico: List[str]) -> Dict:
-    """PRECISION SURGE: Estratégia de precisão (93.5%)
+def analisar_estrategia_wwl(historico: List[str]) -> Dict: 
+    """ 
+    Tunder Bot - Estratégia WWL: Analisa o histórico de operações em busca 
+    do padrão WWL (Win-Win-Loss) nos últimos 3 resultados. 
+    Filtro: Máximo 7 derrotas nas últimas 20 operações. 
+    Assertividade Histórica: 78.6% 
+    """ 
+    strategy_name = "WWL" 
+    logger.debug(f"[{strategy_name}] Iniciando análise...") 
     
-    Gatilho: 2-4 WINs consecutivos
-    Filtros:
-    - Máximo 2 LOSSes nas últimas 8 operações
-    - LOSS deve estar isolado (WIN-LOSS-WIN)
-    - Sem mais de 1 LOSS nas últimas 5 operações
-    """
-    try:
-        start_time = time.time()
-        strategy_name = "PRECISION_SURGE"
+    # NOVO DEBUG DETALHADO 
+    logger.info(f"[{strategy_name}] Histórico recebido: {len(historico)} operações") 
+    logger.info(f"[{strategy_name}] Primeiras 5: {historico[:5]}") 
+    logger.info(f"[{strategy_name}] Verificando se >= 20 operações...") 
+    
+    try: 
+        # Verificar dados suficientes (mínimo 20 para análise de derrotas) 
+        if len(historico) < 20: 
+            logger.warning(f"[{strategy_name}] INSUFICIENTE: {len(historico)} < 20") 
+            return { 
+                'should_operate': False, 
+                'strategy': strategy_name, 
+                'confidence': 0, 
+                'reason': f"Datos insuficientes para {strategy_name} (necesario 20, encontrado {len(historico)})" 
+            } 
         
-        logger.debug(f"[{strategy_name}] Iniciando análise...")
+        logger.info(f"[{strategy_name}] Dados suficientes. Verificando gatilhos...") 
         
-        # Validação básica
-        if len(historico) < 15:
-            strategy_metrics[strategy_name].add_filter_rejection("dados_insuficientes")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['dados_insuficientes'].format(strategy=strategy_name)
-            }
+        # ===== REGRA 1: VERIFICAR PADRÃO WWL ===== 
+        # As 3 operações mais recentes devem ser Win-Win-Loss 
+        padrao_wwl = ['WIN', 'WIN', 'LOSS'] 
+        ultimas_3 = historico[:3] 
         
-        # Analisar operações - CORREÇÃO: usar historico[:15] ao invés de historico[-15:]
-        ultimas_15 = historico[:15]  # CORRIGIDO - pegar as 15 mais recentes do início
-        ultimas_8 = historico[:8]   # CORRIGIDO - pegar as 8 mais recentes do início
-        ultimas_5 = historico[:5]   # CORRIGIDO - pegar as 5 mais recentes do início
+        logger.info(f"[{strategy_name}] Verificando Gatilho 1 (WWL)") 
+        logger.info(f"[{strategy_name}] Sequência atual: {ultimas_3} vs {padrao_wwl}") 
         
-        logger.debug(f"[{strategy_name}] Últimas 15: {' '.join(ultimas_15)}")
+        if ultimas_3 != padrao_wwl: 
+            logger.info(f"[{strategy_name}] Padrão WWL não encontrado: {ultimas_3}") 
+            return { 
+                'should_operate': False, 
+                'strategy': strategy_name, 
+                'confidence': 0, 
+                'reason': f"Patrón {strategy_name} no encontrado: {ultimas_3}" 
+            } 
         
-        # GATILHO: 2-4 WINs consecutivos
-        wins_consecutivos = 0
-        for resultado in ultimas_15:
-            if resultado == 'V':
-                wins_consecutivos += 1
-            else:
-                break
+        logger.info(f"[{strategy_name}] GATILHO DETECTADO! Verificando filtros...") 
         
-        if wins_consecutivos < 2 or wins_consecutivos > 25:
-            strategy_metrics[strategy_name].add_filter_rejection("gatilho_nao_atendido")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['gatilho_nao_atendido'].format(strategy=strategy_name, wins=wins_consecutivos)
-            }
+        # ===== REGRA 2: CONTAR DERROTAS NAS ÚLTIMAS 20 OPERAÇÕES ===== 
+        ultimas_20 = historico[:20] 
+        total_derrotas = ultimas_20.count('LOSS') 
         
-        # FILTRO 1: Máximo 2 LOSSes nas últimas 8 operações
-        losses_ultimas_8 = ultimas_8.count('D')
-        if losses_ultimas_8 > 2:
-            strategy_metrics[strategy_name].add_filter_rejection("muitos_losses")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['muitos_losses'].format(strategy=strategy_name, losses=losses_ultimas_8, total=8)
-            }
+        logger.info(f"[{strategy_name}] Analisando derrotas nas últimas 20 operações") 
+        logger.info(f"[{strategy_name}] REGRA 2 - Contagem de derrotas nas últimas 20 operações") 
+        logger.info(f"[{strategy_name}] Total de derrotas encontradas: {total_derrotas}") 
+        logger.info(f"[{strategy_name}] Critério máximo permitido: 5 derrotas") 
         
-        # FILTRO 2: Máximo 1 LOSS nas últimas 5 operações
-        losses_ultimas_5 = ultimas_5.count('D')
-        if losses_ultimas_5 > 1:
-            strategy_metrics[strategy_name].add_filter_rejection("muitos_losses_recentes")
-            return {
-                'should_operate': False,
-                'strategy': strategy_name,
-                'confidence': 0,
-                'reason': MENSAJES_SISTEMA['muitos_losses'].format(strategy=strategy_name, losses=losses_ultimas_5, total=5)
-            }
+        # Critério: Derrotas <= 5 
+        if total_derrotas > 5: 
+            logger.info(f"[{strategy_name}] ❌ REGRA 2 FALHOU: Muitas derrotas ({total_derrotas} > 5)") 
+            return { 
+                'should_operate': False, 
+                'strategy': strategy_name, 
+                'confidence': 0, 
+                'reason': f"Muitas derrotas: {total_derrotas}/20 operações (máximo: 5)" 
+            } 
         
-        # FILTRO 3: LOSS deve estar isolado (WIN-LOSS-WIN)
-        if 'D' in ultimas_15:
-            loss_positions = [i for i, x in enumerate(ultimas_15) if x == 'D']
-            for pos in loss_positions:
-                win_antes = pos > 0 and ultimas_15[pos-1] == 'V'
-                win_depois = pos < len(ultimas_15)-1 and ultimas_15[pos+1] == 'V'
-                
-                if not (win_antes and win_depois):
-                    strategy_metrics[strategy_name].add_filter_rejection("loss_nao_isolado")
-                    return {
-                        'should_operate': False,
-                        'strategy': strategy_name,
-                        'confidence': 0,
-                        'reason': MENSAJES_SISTEMA['loss_nao_isolado'].format(strategy=strategy_name)
-                    }
+        logger.info(f"[{strategy_name}] ✅ REGRA 2 APROVADA: Derrotas dentro do limite ({total_derrotas} <= 5)") 
         
-        # FILTRO 4: Sem LOSSes consecutivos
-        for i in range(len(ultimas_15) - 1):
-            if ultimas_15[i] == 'D' and ultimas_15[i+1] == 'D':
-                strategy_metrics[strategy_name].add_filter_rejection("losses_consecutivos")
-                return {
-                    'should_operate': False,
-                    'strategy': strategy_name,
-                    'confidence': 0,
-                    'reason': MENSAJES_SISTEMA['losses_consecutivos_proibido'].format(strategy=strategy_name)
-                }
+        # ===== RESULTADO FINAL: TODAS AS REGRAS APROVADAS ===== 
+        logger.info(f"[{strategy_name}] 🎯 === PADRÃO WWL COMPLETO DETECTADO ===") 
+        logger.info(f"[{strategy_name}] ✅ REGRA 1: Padrão WWL confirmado") 
+        logger.info(f"[{strategy_name}] ✅ REGRA 2: Derrotas adequadas ({total_derrotas}/5)") 
+        logger.info(f"[{strategy_name}] 🔥 SINAL DE ENTRADA ATIVADO - Assertividade: 78.6%") 
         
-        # Calcular confiança
-        confidence = 93.5
+        return { 
+            'should_operate': True, 
+            'strategy': strategy_name, 
+            'confidence': 78.6, 
+            'reason': f"Padrão WWL detectado com {total_derrotas} derrotas (≤5)", 
+            'pattern_details': { 
+                'trigger': 'WWL', 
+                'total_derrotas_20_ops': total_derrotas, 
+                'ultimas_3': ultimas_3 
+            } 
+        } 
         
-        # Ajustes de confiança
-        if wins_consecutivos >= 3:
-            confidence += 1.0
-        
-        if losses_ultimas_8 == 0:
-            confidence += 2.0
-        elif losses_ultimas_8 == 1:
-            confidence += 1.0
-        
-        if losses_ultimas_5 == 0:
-            confidence += 1.5
-        
-        # Registrar métricas
-        exec_time = time.time() - start_time
-        strategy_metrics[strategy_name].add_execution_time(exec_time)
-        strategy_metrics[strategy_name].add_success()
-        
-        logger.info(f"[{strategy_name}] ✅ PADRÃO ENCONTRADO! Confiança: {confidence:.1f}%")
-        
-        return {
-            'should_operate': True,
-            'strategy': strategy_name,
-            'confidence': confidence,
-            'reason': MENSAJES_SISTEMA['patron_encontrado'].format(strategy=strategy_name, confidence=confidence),
-            'pattern_details': {
-                'wins_consecutivos': wins_consecutivos,
-                'losses_ultimas_8': losses_ultimas_8,
-                'losses_ultimas_5': losses_ultimas_5,
-                'sequencia_analisada': ' '.join(ultimas_15)
-            }
-        }
-        
-    except Exception as e:
-        strategy_metrics[strategy_name].add_error()
-        logger.error(f"[{strategy_name}] ERRO: {e}")
-        return {
-            'should_operate': False,
-            'strategy': strategy_name,
-            'confidence': 0,
-            'reason': MENSAJES_SISTEMA['erro_execucao'].format(strategy=strategy_name)
+    except Exception as e: 
+        logger.error(f"[{strategy_name}] ERRO CRÍTICO: {e}") 
+        logger.error(f"[{strategy_name}] Traceback: {traceback.format_exc()}") 
+        return { 
+            'should_operate': False, 
+            'strategy': strategy_name, 
+            'confidence': 0, 
+            'reason': f"Erro na execução da estratégia: {str(e)}" 
         }
 
-# FUNÇÃO REMOVIDA: analisar_quantum_matrix_EXATO_REFINADO() - Simplificação do sistema
-
-# ===== SISTEMA DE ANÁLISE CONSOLIDADA =====
-
-def executar_analise_precision_surge_unico(historico: List[str]) -> Dict:
-    """PRECISION SURGE - Estratégia única simplificada"""
-    try:
-        logger.info("[PRECISION_SURGE] === EXECUTANDO ESTRATÉGIA ÚNICA ===")
-        
-        # Validação básica
-        if len(historico) < 15:
-            return {
-                'should_operate': False,
-                'strategy': 'PRECISION_SURGE',
-                'confidence': 0,
-                'reason': 'Datos insuficientes'
-            }
-        
-        # Analisar sequências
-        ultimas_15 = historico[:15]
-        ultimas_10 = historico[:10]
-        
-        # GATILHO: 4-5 WINs consecutivos
-        wins_consecutivos = 0
-        for op in ultimas_15:
-            if op == 'V':
-                wins_consecutivos += 1
-            else:
-                break
-        
-        if not (4 <= wins_consecutivos <= 5):
-            return {
-                'should_operate': False,
-                'strategy': 'PRECISION_SURGE',
-                'confidence': 0,
-                'reason': f'Gatillo no cumplido: {wins_consecutivos} WINs (requiere 4-5)'
-            }
-        
-        # FILTRO 1: Máximo 2 LOSSes nas últimas 15
-        losses_15 = ultimas_15.count('D')
-        if losses_15 > 2:
-            return {
-                'should_operate': False,
-                'strategy': 'PRECISION_SURGE',
-                'confidence': 0,
-                'reason': f'Muchos LOSSes: {losses_15}/15 (máx 2)'
-            }
-        
-        # FILTRO 2: Sem LOSSes consecutivos nas últimas 10
-        for i in range(len(ultimas_10) - 1):
-            if ultimas_10[i] == 'D' and ultimas_10[i+1] == 'D':
-                return {
-                    'should_operate': False,
-                    'strategy': 'PRECISION_SURGE',
-                    'confidence': 0,
-                    'reason': 'LOSSes consecutivos detectados'
-                }
-        
-        # APROVADO - Calcular confiança
-        confidence = 93.5
-        if wins_consecutivos == 5:
-            confidence += 1.5
-        if losses_15 == 0:
-            confidence += 2.0
-        elif losses_15 == 1:
-            confidence += 1.0
-        
-        logger.info(f"[PRECISION_SURGE] ✅ PADRÃO ENCONTRADO! {confidence}%")
-        
-        return {
-            'should_operate': True,
-            'strategy': 'PRECISION_SURGE',
-            'confidence': confidence,
-            'reason': f'Patron Encontrado, Activar Bot Ahora! - PRECISION_SURGE ({confidence}%)',
-            'wins_consecutivos': wins_consecutivos,
-            'losses_ultimas_15': losses_15
-        }
-        
-    except Exception as e:
-        logger.error(f"[PRECISION_SURGE] ERRO: {e}")
-        return {
-            'should_operate': False,
-            'strategy': 'PRECISION_SURGE',
-            'confidence': 0,
-            'reason': f'Error en la ejecución: {e}'
-        }
 
 # ===== SISTEMA DE ENVIO DE SINAIS =====
 
@@ -1130,7 +1012,7 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
             'execution_time_ms': 0
         }
         
-        response = supabase.table('radar_de_apalancamiento_signals').upsert(signal_record, on_conflict='bot_name').execute()
+        response = supabase.table('radar_de_apalancamiento_signals').insert(signal_record).execute()
         
         if response.data:
             logger.info(f"[SIGNAL_SENT] ✅ Sinal enviado: {signal_data['strategy']}")
@@ -1145,41 +1027,30 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
 
 @retry_supabase_operation(max_retries=3, delay=2)
 def enviar_sinal_supabase_corrigido(supabase, signal_data: Dict) -> int:
-    """Envia sinal com mensagem em espanhol correta baseada no estado"""
+    """Envia sinal e retorna o signal_id para linking"""
     try:
-        # Determinar mensagem baseada no estado atual
-        operations_count = monitoring_operations_count if bot_current_state == BotState.MONITORING else 0
-        mensaje_espanol = determinar_mensaje_estado_espanol(
-            signal_data['should_operate'],  # NOVO: passar se deve operar
-            operations_count,
-            PERSISTENCIA_OPERACOES,
-            signal_data['strategy'],
-            signal_data['confidence'],
-            signal_data.get('reason', '')  # NOVO: passar a razão original
-        )
-        
         signal_record = {
             'bot_name': BOT_NAME,
             'is_safe_to_operate': signal_data['should_operate'],
-            'reason': mensaje_espanol,  # USAR MENSAGEM EM ESPANHOL
+            'reason': signal_data['reason'],
             'strategy_used': signal_data['strategy'],
             'strategy_confidence': signal_data['confidence'],
             'losses_in_last_10_ops': signal_data.get('losses_ultimas_15', 0),
             'wins_in_last_5_ops': min(5, signal_data.get('wins_consecutivos', 0)),
             'historical_accuracy': signal_data['confidence'] / 100.0,
             'pattern_found_at': datetime.now().isoformat() if signal_data['should_operate'] else None,
-            'operations_after_pattern': operations_count,
+            'operations_after_pattern': 0,
             'auto_disable_after_ops': 2,
             'available_strategies': 1,
-            'filters_applied': '[]',
+            'filters_applied': [],
             'execution_time_ms': 0
         }
         
-        response = supabase.table('radar_de_apalancamiento_signals').upsert(signal_record, on_conflict='bot_name').select('id').execute()
+        response = supabase.table('radar_de_apalancamiento_signals').insert(signal_record).execute()
         
         if response.data and len(response.data) > 0:
             signal_id = response.data[0]['id']
-            logger.info(f"[SIGNAL_SENT] Sinal enviado com ID: {signal_id} - Mensaje: {mensaje_espanol}")
+            logger.info(f"[SIGNAL_SENT] Sinal enviado com ID: {signal_id}")
             return signal_id
         else:
             logger.error(f"[SIGNAL_ERROR] Resposta vazia")
@@ -1205,26 +1076,22 @@ def gerar_status_sistema() -> Dict:
             'metrics_summary': {}
         }
         
-        # Status das estratégias
-        for strategy_name, metrics in strategy_metrics.items():
-            status['strategies'][strategy_name] = {
-                'confidence_level': metrics.confidence_level,
-                'total_executions': metrics.total_executions,
-                'success_rate': metrics.get_success_rate(),
-                'average_time': metrics.get_average_time(),
-                'error_count': metrics.error_count,
-                'last_execution': metrics.last_execution_time
-            }
+        # Status da estratégia Vigilância de Regime
+        status['strategies']['Vigilância de Regime'] = {
+            'confidence_level': 75.32,
+            'total_executions': 0,
+            'success_rate': 0.0,
+            'average_time': 0.0,
+            'error_count': 0,
+            'last_execution': None
+        }
         
         # Resumo das métricas
-        total_executions = sum([m.total_executions for m in strategy_metrics.values()])
-        avg_success_rate = sum([m.get_success_rate() for m in strategy_metrics.values()]) / len(strategy_metrics)
-        
         status['metrics_summary'] = {
-            'total_executions': total_executions,
-            'average_success_rate': avg_success_rate,
+            'total_executions': 0,
+            'average_success_rate': 0.0,
             'system_uptime': time.time(),
-            'strategies_count': len(strategy_metrics)
+            'strategies_count': 1
         }
         
         return status
@@ -1242,128 +1109,97 @@ def gerar_status_sistema() -> Dict:
 
 # ===== LOOP PRINCIPAL DO BOT =====
 
-def executar_ciclo_analise_simplificado(supabase) -> Dict:
-    """Ciclo com máquina de estados - ANALYZING/MONITORING"""
-    try:
-        global bot_current_state
+def executar_ciclo_analise_simplificado(supabase) -> Dict: 
+    """Ciclo com máquina de estados - ANALYZING/MONITORING (VERSÃO CORRIGIDA)"""
+    try: 
+        global bot_current_state, active_signal_data 
         
-        logger.info(f"[CICLO] === CICLO ESTADO: {bot_current_state} ===")
+        logger.info(f"[CICLO] === CICLO ESTADO: {bot_current_state} ===") 
         
-        # Buscar histórico (sempre necessário para verificar novas operações)
-        historico, timestamps, latest_operation_id = buscar_operacoes_historico(supabase)
+        historico, timestamps, latest_operation_id = buscar_operacoes_historico(supabase) 
         
-        if not historico:
-            return {
-                'status': 'NO_DATA',
-                'message': 'Aguardando dados'
-            }
+        # NOVO DEBUG CRÍTICO 
+        logger.info(f"[DEBUG] Histórico recebido: {len(historico)} operações") 
+        if historico: 
+            logger.info(f"[DEBUG] Primeiras 10 operações: {historico[:10]}") 
+            logger.info(f"[DEBUG] Últimas 5 operações: {historico[-5:]}") 
+        logger.info(f"[DEBUG] Latest operation ID: {latest_operation_id}") 
         
-        # LÓGICA DA MÁQUINA DE ESTADOS
-        resultado_ciclo = None
-        
-        if bot_current_state == BotState.ANALYZING:
-            # ESTADO ANALYZING: Buscar por padrões
-            logger.info("[STATE] Estado ANALYZING - Buscando padrões")
+        if not historico: 
+            dados_sem_historico = { 
+                'should_operate': False, 
+                'reason': 'Aguardando dados...', 
+                'strategy': 'N/A', 
+                'confidence': 0 
+            } 
+            enviar_sinal_supabase_corrigido(supabase, dados_sem_historico) 
+            return { 
+                'status': 'NO_DATA', 
+                'message': 'Aguardando dados' 
+            } 
+ 
+        # NOVO: Validar dados antes de analisar 
+        if not validar_integridade_historico(historico): 
+            logger.error("[DEBUG] Validação de integridade FALHOU") 
+            return {'status': 'VALIDATION_ERROR', 'message': 'Dados inválidos'} 
+        else: 
+            logger.info("[DEBUG] Validação de integridade PASSOU") 
+
+        if bot_current_state == BotState.ANALYZING: 
+            logger.info("[STATE] Estado ANALYZING - Buscando padrões") 
+            logger.info(f"[DEBUG] Chamando analisar_estrategia_wwl com {len(historico)} operações") 
             
-            # Executar análise PRECISION SURGE
-            resultado_ciclo = executar_analise_precision_surge_unico(historico)
+            resultado_analise = analisar_estrategia_wwl(historico) 
             
-            # Se encontrou padrão, ativar estado MONITORING e armazenar resultado
-            if resultado_ciclo['should_operate']:
-                sucesso = activate_monitoring_state(resultado_ciclo, latest_operation_id, supabase)
-                if sucesso:
-                    logger.info(f"[STATE_CHANGE] ANALYZING → MONITORING (padrão encontrado)")
-                else:
-                    logger.error(f"[STATE_ERROR] Falha na ativação do monitoramento")
-                    resultado_ciclo['should_operate'] = False
-                    resultado_ciclo['reason'] = "Erro ao ativar monitoramento"
-                logger.info(f"[STATE_CHANGE] ANALYZING → MONITORING (padrão encontrado)")
-                
+            # NOVO DEBUG DA ANÁLISE 
+            logger.info(f"[DEBUG] Resultado da análise: {resultado_analise}") 
+            
+            if resultado_analise['should_operate']: 
+                logger.info(f"[DEBUG] PADRÃO ENCONTRADO! Ativando monitoramento...") 
+                sucesso_ativacao = activate_monitoring_state(resultado_analise, latest_operation_id, supabase) 
+                if not sucesso_ativacao: 
+                    logger.error("Falha ao ativar o estado de monitoramento.") 
+                    sinal_de_falha = {**resultado_analise, 'should_operate': False, 'reason': 'Erro interno ao ativar o sinal'} 
+                    enviar_sinal_supabase_corrigido(supabase, sinal_de_falha) 
+            else: 
+                logger.info("[DEBUG] Nenhum padrão encontrado. Enviando status de espera.") 
+                enviar_sinal_supabase_corrigido(supabase, resultado_analise)
+
         elif bot_current_state == BotState.MONITORING:
-            # ESTADO MONITORING: Usar sinal armazenado e verificar condições de reset
             logger.info(f"[STATE] Estado MONITORING - Operações: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
             
-            # Verificar se houve novas operações
-            nova_operacao = check_new_operations(supabase, latest_operation_id)
-            if nova_operacao:
-                logger.info(f"[MONITORING] Nova operação detectada: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES} - Resultados coletados: {monitoring_results}")
+            # 1. Verificar se novas operações ocorreram
+            check_new_operations(supabase, latest_operation_id)
             
-            # Verificar se deve resetar para ANALYZING
+            # 2. Verificar se o monitoramento deve terminar
             if should_reset_to_analyzing():
-                # Criar resultado de finalização
-                resultado_ciclo = {
-                    'should_operate': False,
-                    'reason': f"Estrategia {active_signal_data['strategy']} completada - {monitoring_operations_count} operaciones",
-                    'strategy': active_signal_data['strategy'],
-                    'confidence': active_signal_data['confidence'],
-                    'losses_ultimas_15': active_signal_data.get('losses_ultimas_15', 0),
-                    'wins_consecutivos': active_signal_data.get('wins_consecutivos', 0)
-                }
-                
-                reset_bot_state(supabase)
                 logger.info("[STATE_CHANGE] MONITORING → ANALYZING (monitoramento concluído)")
-            else:
-                # Usar o sinal armazenado como resultado do ciclo atual
-                remaining_ops = PERSISTENCIA_OPERACOES - monitoring_operations_count
-                resultado_ciclo = {
-                    'should_operate': True,  # Manter sinal ativo
-                    'reason': f"Patron encontrado: {active_signal_data['strategy']} - esperando {remaining_ops} operaciones",
-                    'strategy': active_signal_data['strategy'],
-                    'confidence': active_signal_data['confidence'],
-                    'losses_ultimas_15': active_signal_data.get('losses_ultimas_15', 0),
-                    'wins_consecutivos': active_signal_data.get('wins_consecutivos', 0)
+                resultado_final = {
+                    'should_operate': False,
+                    'reason': f"Estrategia {active_signal_data.get('strategy')} completada. Resultados: {monitoring_results}",
+                    'strategy': active_signal_data.get('strategy'),
+                    'confidence': 0  # Confiança zerada pois o ciclo acabou
                 }
-        
-        # ENVIO CENTRALIZADO PARA SUPABASE (final do ciclo)
-        if resultado_ciclo:
-            # Determinar mensagem em espanhol baseada no estado atual
-            operations_count = monitoring_operations_count if bot_current_state == BotState.MONITORING else 0
-            mensaje_espanol = determinar_mensaje_estado_espanol(
-                resultado_ciclo['should_operate'],  # NOVO: passar se deve operar
-                operations_count,
-                PERSISTENCIA_OPERACOES,
-                resultado_ciclo['strategy'],
-                resultado_ciclo['confidence'],
-                resultado_ciclo['reason']  # NOVO: passar a razão original
-            )
-            
-            # Construir payload com mensagem em espanhol
-            dados_supabase = {
-                'bot_name': BOT_NAME,
-                'is_safe_to_operate': resultado_ciclo['should_operate'],
-                'reason': mensaje_espanol,  # MENSAGEM EM ESPANHOL BASEADA NO ESTADO
-                'strategy_used': resultado_ciclo['strategy'],
-                'strategy_confidence': resultado_ciclo['confidence'],
-                'losses_in_last_10_ops': resultado_ciclo.get('losses_ultimas_15', 0),
-                'wins_in_last_5_ops': min(5, resultado_ciclo.get('wins_consecutivos', 0)),
-                'historical_accuracy': resultado_ciclo['confidence'] / 100.0,
-                'pattern_found_at': datetime.now().isoformat(),
-                'operations_after_pattern': operations_count,
-                'auto_disable_after_ops': PERSISTENCIA_OPERACOES,
-                'available_strategies': 1,
-                'filters_applied': '{precision_surge_only}',
-                'execution_time_ms': 0
-            }
-            
-            # ENVIO PARA SUPABASE (sempre, independente do estado)
-            try:
-                response = supabase.table('radar_de_apalancamiento_signals').upsert(dados_supabase, on_conflict='bot_name').execute()
-                
-                if response.data:
-                    logger.info(f"[SIGNAL_SENT] ✅ Mensaje en español enviado: {mensaje_espanol}")
-                    resultado_ciclo['signal_sent'] = True
-                else:
-                    logger.error(f"[SIGNAL_ERROR] ❌ Falha no envio do sinal")
-                    resultado_ciclo['signal_sent'] = False
-            except Exception as e:
-                logger.error(f"[SIGNAL_ERROR] ❌ Erro ao enviar sinal: {e}")
-                resultado_ciclo['signal_sent'] = False
-        
+                enviar_sinal_supabase_corrigido(supabase, resultado_final)
+                reset_bot_state(supabase)  # Finaliza o rastreamento no DB
+            else:
+                # 3. Se o monitoramento continua, REENVIAR o sinal ATIVO
+                logger.info("[MONITORING] Mantendo sinal ativo.")
+                remaining_ops = PERSISTENCIA_OPERACOES - monitoring_operations_count
+                # Usamos os dados do sinal que foram salvos quando o padrão foi encontrado
+                sinal_ativo_para_reenvio = {
+                    'should_operate': True,
+                    'reason': f"Patrón encontrado: {active_signal_data.get('strategy')} - esperando {remaining_ops} op.",
+                    'strategy': active_signal_data.get('strategy'),
+                    'confidence': active_signal_data.get('confidence'),
+                    'pattern_details': active_signal_data.get('pattern_details', {})
+                }
+                enviar_sinal_supabase_corrigido(supabase, sinal_ativo_para_reenvio)
+
         return {
-            'status': 'COMPLETED',
-            'resultado': resultado_ciclo
+            'status': 'COMPLETED'
         }
-        
+
     except Exception as e:
         logger.error(f"[CICLO_ERROR] Erro: {e}")
         logger.error(f"[CICLO_ERROR] Traceback: {traceback.format_exc()}")
@@ -1376,7 +1212,7 @@ def main_loop():
     """Loop principal do bot com máquina de estados"""
     logger.info("[MAIN] === INICIANDO RADAR ANALISIS SCALPING BOT COM ESTADOS ===")
     logger.info("[MAIN] Sistema com máquina de estados: ANALYZING/MONITORING")
-    logger.info("[MAIN] Estratégia: PRECISION SURGE (93.5%)")
+    logger.info("[MAIN] Estratégia: Vigilância de Regime (75.32%)")
     logger.info(f"[MAIN] Persistência: {PERSISTENCIA_OPERACOES} operações ou {PERSISTENCIA_TIMEOUT}s")
     
     # Inicializar Supabase
@@ -1386,10 +1222,16 @@ def main_loop():
         print("FAIL Erro crítico na conexão com Supabase")
         return
     
-    # Verificar tabelas necessárias
-    if not testar_tabelas_supabase(supabase):
-        print("❌ Erro nas tabelas - abortando")
-        return
+    # NUEVA INTEGRACIÓN: INICIALIZAR TELEGRAM
+    print("\n📱 Inicializando Bot de Telegram...")
+    telegram_iniciado = inicializar_telegram_bot()
+    
+    if telegram_iniciado:
+        # Enviar mensaje de inicio del sistema
+        try:
+            enviar_mensaje_sistema("🚀 Radar Analisis Bot iniciado - Quantum+ activo", "SUCCESS")
+        except:
+            pass
     
     # Resetar estado inicial
     reset_bot_state()
@@ -1399,8 +1241,9 @@ def main_loop():
     print("📊 Sistema de gerenciamento de estado implementado")
     print("🔄 Estados: ANALYZING (busca padrões) → MONITORING (mantém sinal)")
     print("⏱️  Análise a cada 5 segundos")
-    print("🎯 Estratégia: PRECISION SURGE (93.5%)")
-    print("🔍 Gatilho: 4-5 WINs consecutivos")
+    print("🎯 Estratégia: Vigilância de Regime (75.32%)")
+    print(f"📱 Telegram: {'✅ ACTIVO' if telegram_activo else '❌ INACTIVO'}")
+    print("🔍 Gatilho: WWL com filtros de saldo positivo ou negativo")
     print(f"⚡ Persistência: {PERSISTENCIA_OPERACOES} operações")
     print("\nPressione Ctrl+C para parar\n")
     
@@ -1422,29 +1265,13 @@ def main_loop():
             message = resultado_ciclo.get('message', '')
             
             if status == 'COMPLETED':
-                resultado = resultado_ciclo['resultado']
-                
-                if resultado['should_operate']:
-                    # Sinal encontrado - mudou para MONITORING
-                    print(f"\n🎯 {resultado['reason']}")
-                    print(f"🔄 Estado alterado: ANALYZING → MONITORING")
-                    logger.info(f"[MAIN] SINAL ENVIADO: {resultado['strategy']} - {resultado['confidence']:.1f}%")
-                    
+                # Exibir status baseado no estado atual do bot
+                if bot_current_state == BotState.ANALYZING:
+                    print(f"🔍 Analisando padrões... (Ciclo {ciclo_count})")
                 elif bot_current_state == BotState.MONITORING:
-                    # Estado MONITORING ativo
-                    monitoring_info = resultado.get('monitoring_info', {})
-                    ops_count = monitoring_info.get('operations_count', 0)
-                    ops_limit = monitoring_info.get('operations_limit', PERSISTENCIA_OPERACOES)
-                    
-                    print(f"👁️ {resultado['reason']} [{ops_count}/{ops_limit}]")
-                    
-                    # Verificar se completou o monitoramento
-                    if "completada" in resultado['reason']:
-                        print(f"✅ Monitoramento finalizado - Voltando para ANALYZING")
-                        
-                else:
-                    # Estado ANALYZING - sem padrão
-                    print(f"🔍 {resultado['reason']}")
+                    remaining_ops = PERSISTENCIA_OPERACOES - monitoring_operations_count
+                    strategy_name = active_signal_data.get('strategy', 'N/A') if active_signal_data else 'N/A'
+                    print(f"👁️ Monitorando {strategy_name} - {monitoring_operations_count}/{PERSISTENCIA_OPERACOES} ops (restam {remaining_ops})")
                     
             elif status == 'NO_DATA':
                 print(f"📊 {message}")
@@ -1456,138 +1283,353 @@ def main_loop():
             time.sleep(ANALISE_INTERVALO)
             
     except KeyboardInterrupt:
-        logger.info("[MAIN] Bot interrompido pelo usuário")
-        print("\n🛑 Bot interrompido pelo usuário")
+        logger.info("[MAIN] Bot interrumpido por el usuario")
+        print("\n🛑 Bot interrumpido por el usuario")
         print(f"📊 Estado final: {bot_current_state}")
         if bot_current_state == BotState.MONITORING:
-            print(f"⚡ Operações monitoradas: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
-        print("🔄 Sistema com estados finalizado")
+            print(f"⚡ Operações monitoreadas: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
+        print("🔄 Sistema con estados finalizado")
+        
+        # Enviar mensaje de finalización via Telegram
+        if telegram_activo:
+            try:
+                enviar_mensaje_sistema("🛑 Sistema detenido por el usuario", "WARNING")
+            except:
+                pass
         
     except Exception as e:
-        logger.error(f"[MAIN] ERRO CRÍTICO: {e}")
+        logger.error(f"[MAIN] ERROR CRÍTICO: {e}")
         logger.error(f"[MAIN] Traceback: {traceback.format_exc()}")
-        print(f"\n💥 ERRO CRÍTICO: {e}")
+        print(f"\n💥 ERROR CRÍTICO: {e}")
+        
+        # Enviar error crítico via Telegram
+        if telegram_activo:
+            try:
+                enviar_mensaje_sistema(f"💥 Error crítico: {str(e)[:100]}", "ERROR")
+            except:
+                pass
         
     finally:
         logger.info("[MAIN] === FINALIZANDO RADAR ANALISIS SCALPING BOT COM ESTADOS ===")
-        print("\n👋 Radar Analisis Scalping Bot com Estados finalizado")
+        print("\n👋 Radar Analisis Scalping Bot con Estados finalizado")
 
 # ===== FUNÇÕES DE TESTE E VALIDAÇÃO =====
 
 def testar_conexao_supabase():
     """Testa conexão com Supabase"""
     try:
-        print("🔍 Testando conexão com Supabase...")
+        print("🔍 Probando conexión con Supabase...")
         supabase = inicializar_supabase()
         
         if not supabase:
-            print("❌ FALHA na conexão com Supabase")
+            print("❌ FALLA en la conexión con Supabase")
             return False
         
         # Testar consulta simples
         response = supabase.table('scalping_accumulator_bot_logs').select('*').limit(1).execute()
         
         if response.data is not None:
-            print("✅ Conexão com Supabase OK")
-            print(f"📊 Tabela 'scalping_accumulator_bot_logs' acessível")
+            print("✅ Conexión con Supabase OK")
+            print(f"📊 Tabla 'scalping_accumulator_bot_logs' accesible")
             return True
         else:
-            print("❌ FALHA ao acessar tabela 'scalping_accumulator_bot_logs'")
+            print("❌ FALLA al acceder a la tabla 'scalping_accumulator_bot_logs'")
             return False
             
     except Exception as e:
-        print(f"❌ ERRO na conexão: {e}")
+        print(f"❌ ERROR en la conexión: {e}")
         return False
 
-def testar_estrategias():
-    """Testa as 3 estratégias com dados simulados"""
+def testar_estrategia_wwl():
+    """Testa a estratégia WWL com dados simulados"""
     try:
-        print("\n🧪 Testando estratégias com dados simulados...")
+        print("\n🧪 Probando estrategia WWL con datos simulados...")
         
-        # Dados de teste que devem ativar as estratégias
-        historico_teste = ['V', 'V', 'V', 'D', 'V', 'V', 'D', 'V', 'V', 'V', 'D', 'V', 'V', 'V', 'V', 'D', 'V', 'V', 'V', 'V']
+        # Teste 1: Padrão WWL com saldo positivo (deve aprovar)
+        historico_teste_1 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 17
+        print(f"📊 Teste 1 - Padrão WWL com saldo positivo: {' '.join(historico_teste_1[:10])}...")
         
-        print(f"📊 Histórico de teste: {' '.join(historico_teste[:15])}")
+        resultado_1 = analisar_estrategia_wwl(historico_teste_1)
+        print(f"🎯 Resultado: {resultado_1['should_operate']} - {resultado_1['confidence']:.2f}%")
+        print(f"📝 Razón: {resultado_1['reason']}")
         
-        # Testar MICRO-BURST
-        resultado_micro = analisar_micro_burst(historico_teste)
-        print(f"🎯 MICRO-BURST: {resultado_micro['should_operate']} - {resultado_micro['confidence']:.1f}%")
+        # Teste 2: Padrão incorreto (não WWL) (deve rejeitar)
+        historico_teste_2 = ['WIN', 'LOSS', 'WIN'] + ['WIN'] * 17
+        print(f"\n📊 Teste 2 - Padrão incorreto (não WWL): {' '.join(historico_teste_2[:10])}...")
         
-        # Testar PRECISION SURGE
-        resultado_precision = analisar_precision_surge(historico_teste)
-        print(f"🎯 PRECISION SURGE: {resultado_precision['should_operate']} - {resultado_precision['confidence']:.1f}%")
+        resultado_2 = analisar_estrategia_wwl(historico_teste_2)
+        print(f"🎯 Resultado: {resultado_2['should_operate']} - {resultado_2['confidence']:.2f}%")
+        print(f"📝 Razón: {resultado_2['reason']}")
         
-        # Testar QUANTUM MATRIX
-        resultado_quantum = analisar_quantum_matrix_EXATO_REFINADO(historico_teste)
-        print(f"🎯 QUANTUM MATRIX: {resultado_quantum['should_operate']} - {resultado_quantum['confidence']:.1f}%")
+        # Teste 3: Dados insuficientes
+        historico_teste_3 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 5
+        print(f"\n📊 Teste 3 - Dados insuficientes: {' '.join(historico_teste_3)}")
         
-        # Testar análise consolidada
-        resultado_consolidado = executar_analise_consolidada(historico_teste)
-        print(f"\n🏆 MELHOR ESTRATÉGIA: {resultado_consolidado['strategy']} - {resultado_consolidado['confidence']:.1f}%")
+        resultado_3 = analisar_estrategia_wwl(historico_teste_3)
+        print(f"🎯 Resultado: {resultado_3['should_operate']} - {resultado_3['confidence']:.2f}%")
+        print(f"📝 Razón: {resultado_3['reason']}")
         
-        print("✅ Teste das estratégias concluído")
+        print("\n✅ Prueba de la estrategia WWL completada")
         return True
         
     except Exception as e:
-        print(f"❌ ERRO no teste das estratégias: {e}")
+        print(f"❌ ERROR en la prueba de la estrategia: {e}")
+        return False
+
+def testar_nova_estrategia():
+    """Função de teste dedicada para a estratégia WWL."""
+    print("\n🧪 Probando la nueva estrategia WWL...")
+
+    # Cenário 1: Deve ativar com padrão WWL e saldo adequado
+    historico_gatilho1 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 17
+    print("\n--- Testando padrão WWL com saldo positivo ---")
+    resultado1 = analisar_estrategia_wwl(historico_gatilho1)
+    if resultado1['should_operate']:
+        print(f"✅ SUCESSO: Padrão WWL ativado corretamente.")
+        print(f"   Razón: {resultado1['reason']}")
+    else:
+        print(f"❌ FALHA: Padrão WWL não foi ativado.")
+        print(f"   Razón: {resultado1['reason']}")
+
+    # Cenário 2: Não deve ativar (padrão incorreto)
+    historico_gatilho2 = ['WIN', 'LOSS', 'WIN'] + ['WIN'] * 17
+    print("\n--- Testando padrão incorreto (não WWL) ---")
+    resultado2 = analisar_estrategia_wwl(historico_gatilho2)
+    if not resultado2['should_operate']:
+        print(f"✅ SUCESSO: Padrão incorreto rejeitado corretamente.")
+        print(f"   Razón: {resultado2['reason']}")
+    else:
+        print(f"❌ FALHA: Padrão incorreto foi ativado incorretamente.")
+        print(f"   Razón: {resultado2['reason']}")
+
+    # Cenário 3: Não deve ativar (saldo insuficiente)
+    historico_falha = ['WIN', 'WIN', 'LOSS'] + ['LOSS'] * 17
+    print("\n--- Testando cenário com saldo insuficiente ---")
+    resultado3 = analisar_estrategia_wwl(historico_falha)
+    if not resultado3['should_operate']:
+        print(f"✅ SUCESSO: O padrão não foi ativado devido ao saldo negativo, como esperado.")
+        print(f"   Razón: {resultado3['reason']}")
+    else:
+        print(f"❌ FALHA: O padrão foi ativado incorretamente.")
+        print(f"   Razón: {resultado3['reason']}")
+
+def testar_estrategia_wwl_local():
+    """Testa a estratégia WWL com dados controlados - VERSÃO ATUALIZADA"""
+    print("\n=== TESTE ESTRATÉGIA WWL - FILTRO DE DERROTAS ===")
+    
+    # Teste 1: WWL com poucas derrotas (DEVE ATIVAR)
+    print("\n--- Teste 1: WWL com 5 derrotas (DEVE ATIVAR) ---")
+    # Padrão WWL + 5 derrotas nas 20 operações = APROVADO
+    historico_teste1 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 5
+    
+    resultado1 = analisar_estrategia_wwl(historico_teste1)
+    print(f"Resultado: {resultado1['should_operate']}")
+    print(f"Confiança: {resultado1['confidence']}")
+    print(f"Razão: {resultado1['reason']}")
+    
+    # Teste 2: WWL com exatamente 5 derrotas (DEVE ATIVAR)
+    print("\n--- Teste 2: WWL com exatamente 5 derrotas (DEVE ATIVAR) ---")
+    # Padrão WWL + 5 derrotas nas 20 operações = APROVADO
+    historico_teste2 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 12 + ['LOSS'] * 5
+    
+    resultado2 = analisar_estrategia_wwl(historico_teste2)
+    print(f"Resultado: {resultado2['should_operate']}")
+    print(f"Confiança: {resultado2['confidence']}")
+    print(f"Razão: {resultado2['reason']}")
+    
+    # Teste 3: WWL com 6 derrotas (NÃO DEVE ATIVAR)
+    print("\n--- Teste 3: WWL com 6 derrotas (NÃO DEVE ATIVAR) ---")
+    # Padrão WWL + 6 derrotas nas 20 operações = REJEITADO
+    historico_teste3 = ['WIN', 'WIN', 'LOSS'] + ['WIN'] * 11 + ['LOSS'] * 6
+    
+    resultado3 = analisar_estrategia_wwl(historico_teste3)
+    print(f"Resultado: {resultado3['should_operate']}")
+    print(f"Confiança: {resultado3['confidence']}")
+    print(f"Razão: {resultado3['reason']}")
+    
+    # Teste 4: Padrão errado (NÃO DEVE ATIVAR)
+    print("\n--- Teste 4: Padrão WLL em vez de WWL ---")
+    historico_teste4 = ['WIN', 'LOSS', 'LOSS'] + ['WIN'] * 15 + ['LOSS'] * 2
+    
+    resultado4 = analisar_estrategia_wwl(historico_teste4)
+    print(f"Resultado: {resultado4['should_operate']}")
+    print(f"Confiança: {resultado4['confidence']}")
+    print(f"Razão: {resultado4['reason']}")
+    
+    # Validar resultados
+    if (resultado1['should_operate'] and
+        resultado2['should_operate'] and
+        not resultado3['should_operate'] and
+        not resultado4['should_operate']):
+        print("\n✅ TODOS OS TESTES WWL PASSARAM!")
+        return True
+    else:
+        print("\n❌ ALGUNS TESTES WWL FALHARAM!")
         return False
 
 def executar_testes_completos():
     """Executa bateria completa de testes"""
-    print("🔬 === EXECUTANDO TESTES COMPLETOS ===")
+    print("🔬 === EXECUTANDO TESTES COMPLETOS - TUNDER BOT WWL ===")
     
     # Teste 1: Conexão Supabase
     teste1 = testar_conexao_supabase()
     
-    # Teste 2: Estratégias
-    teste2 = testar_estrategias()
+    # Teste 2: Estratégia WWL
+    teste2 = testar_estrategia_wwl()
     
     # Resultado final
     if teste1 and teste2:
         print("\n✅ TODOS OS TESTES PASSARAM")
-        print("🚀 Sistema pronto para execução")
+        print("🚀 Tunder Bot WWL pronto para execução")
         return True
     else:
         print("\n❌ ALGUNS TESTES FALHARAM")
-        print("🔧 Verifique a configuração antes de executar")
+        print("🔧 Verifique la configuración antes de ejecutar")
         return False
 
 # ===== PONTO DE ENTRADA =====
 
+def testar_deteccao_padroes_local():
+    """Testa detecção de padrões com dados controlados localmente"""
+    print("\n=== TESTE DE DETECÇÃO DE PADRÕES ===")
+    
+    # Teste 1: 7 vitórias consecutivas e zero perdas nas últimas 15 (deve aprovar)
+    print("\n--- Teste 1: 7 vitórias consecutivas sem perdas recentes (DEVE ATIVAR) ---")
+    historico_teste1 = ['WIN'] * 7 + ['LOSS', 'WIN', 'WIN', 'WIN', 'WIN', 'WIN', 'WIN', 'WIN']
+    
+    resultado1 = analisar_estrategia_quantum_plus(historico_teste1)
+    print(f"Resultado: {resultado1['should_operate']}")
+    print(f"Confiança: {resultado1['confidence']}")
+    print(f"Razão: {resultado1['reason']}")
+    
+    # Teste 2: 9 vitórias consecutivas mas com perdas recentes (deve rejeitar)
+    print("\n--- Teste 2: 9 vitórias mas com perdas recentes (NÃO DEVE ATIVAR) ---")
+    historico_teste2 = ['WIN'] * 9 + ['LOSS', 'WIN', 'WIN', 'LOSS', 'WIN', 'WIN', 'WIN', 'WIN']
+    
+    resultado2 = analisar_estrategia_quantum_plus(historico_teste2)
+    print(f"Resultado: {resultado2['should_operate']}")
+    print(f"Confiança: {resultado2['confidence']}")
+    print(f"Razão: {resultado2['reason']}")
+    
+    # Teste 3: Dados insuficientes
+    print("\n--- Teste 3: Dados Insuficientes (NÃO DEVE ATIVAR) ---")
+    historico_teste3 = ['WIN'] * 5 + ['LOSS', 'WIN', 'WIN']  # Operações insuficientes
+    
+    resultado3 = analisar_estrategia_quantum_plus(historico_teste3)
+    print(f"Resultado: {resultado3['should_operate']}")
+    print(f"Confiança: {resultado3['confidence']}")
+    print(f"Razão: {resultado3['reason']}")
+    
+    # Validar resultados
+    if resultado1['should_operate'] and not resultado2['should_operate'] and not resultado3['should_operate']:
+        print("\n✅ TODOS OS TESTES PASSARAM!")
+        return True
+    else:
+        print("\n❌ ALGUNS TESTES FALHARAM!")
+        return False
+
+
+def probar_telegram():
+    """Prueba la integración de Telegram (versión síncrona - OBSOLETA)"""
+    print("⚠️ Esta función está obsoleta. Use 'python radar_tunder_new.py telegram' para probar con la versión asíncrona.")
+    return False
+
+async def probar_telegram_async():
+    """Prueba la integración de Telegram de forma asíncrona y segura."""
+    print("🧪 === PROBANDO INTEGRACIÓN DE TELEGRAM ===")
+    
+    # Inicializa o bot UMA VEZ
+    if not inicializar_telegram():
+        print("❌ Error al inicializar Telegram")
+        return False
+
+    print("✅ Telegram inicializado correctamente")
+    
+    # Dados de prueba
+    test_signal = {
+        'strategy': 'Bot - Tunder Bot', 'confidence': 72.0,
+        'reason': 'Prueba de patrón detectado', 'should_operate': True
+    }
+    
+    try:
+        print("📤 Enviando alerta de prueba...")
+        await enviar_alerta_patron(test_signal)
+        print("✅ Alerta enviada correctamente")
+
+        print("📤 Enviando resultado de prueba...")
+        await enviar_resultado_operacion("Bot - Tunder Bot", 1, "V", 1)
+        print("✅ Resultado enviado correctamente")
+
+        print("📤 Enviando finalización de prueba...")
+        await enviar_finalizacion_estrategia("Bot - Tunder Bot", ["V"], True)
+        print("✅ Finalización enviada correctamente")
+
+        print("🎉 ¡Todas las pruebas de Telegram exitosas!")
+        return True
+
+    except Exception as e:
+        logger.error(f"[TELEGRAM] Error en las pruebas asíncronas: {e}")
+        print("❌ Error en las pruebas de Telegram")
+        return False
+
+
 if __name__ == "__main__":
     import sys
+    import asyncio # Importe asyncio aqui
     
-    # Verificar argumentos da linha de comando
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "test":
+        # Comando de teste
+        testar_nova_estrategia()
+    elif len(sys.argv) > 1 and sys.argv[1].lower() == "telegram":
+        # Comando para probar Telegram
+        # Usa asyncio.run para gerenciar o loop corretamente
+        asyncio.run(probar_telegram_async())
+    elif len(sys.argv) > 1:
         comando = sys.argv[1].lower()
         
-        if comando == "test":
-            # Executar testes
+        if comando == "testlocal":
+            # NOVO comando para testar sem banco
+            testar_deteccao_padroes_local()
+        elif comando == "testwwl":
+            # Testar estratégia WWL específica
+            testar_estrategia_wwl_local()
+        elif comando == "testall":
+            # Executar testes completos
             executar_testes_completos()
         elif comando == "status":
             # Mostrar status
             imprimir_status_detalhado()
         elif comando == "help":
             # Mostrar ajuda
-            print("\n📖 RADAR ANALISIS SCALPING BOT - Ajuda")
+            print("\n📖 TUNDER BOT WWL - Ajuda")
             print("="*50)
-            print("Uso: python radar_analisis_scalping_bot.py [comando]")
+            print("Uso: python radar_tunder_new.py [comando]")
             print("\nComandos disponíveis:")
             print("  (sem comando) - Executar bot principal")
-            print("  test         - Executar testes do sistema")
+            print("  test         - Testar nova estratégia WWL")
+            print("  telegram     - Probar integración de Telegram")
+            print("  testlocal    - Testar detecção de padrões localmente")
+            print("  testwwl      - Testar estratégia WWL específica")
+            print("  testall      - Executar testes completos do sistema")
             print("  status       - Mostrar status detalhado")
             print("  help         - Mostrar esta ajuda")
-            print("\n🎯 Estratégias implementadas:")
-            print("  • MICRO-BURST: 95.5% assertividade")
-            print("  • PRECISION SURGE: 93.5% assertividade")
-            print("  • QUANTUM MATRIX: 91.5% assertividade")
-            print("\n📊 Sistema consolidado: 94.51% assertividade")
+            print("\n🎯 Estratégia implementada:")
+            print("  • WWL: 78.6% assertividade com análise de saldo")
+            print("\n📊 Gatilhos: Padrão WWL nas últimas 3 operações e saldo >= -$5.00 nas últimas 20 operações")
         else:
             print(f"❌ Comando desconhecido: {comando}")
-            print("Use 'python radar_analisis_scalping_bot.py help' para ver comandos disponíveis")
+            print("Use 'python radar_tunder_new.py help' para ver comandos disponíveis")
     else:
-         # Executar bot principal
-         main_loop()
+        # Executar bot principal
+        print("🚀 Iniciando Tunder Bot WWL com integração Telegram automática...")
+        
+        # Inicializar Telegram
+        print("\n📱 Inicializando Bot de Telegram...")
+        inicializar_telegram_bot() # Esta função já trata o sucesso/falha
+        
+        # Executar bot principal
+        print("🤖 Iniciando bot principal...")
+        main_loop()
 
 def main():
     """Função principal - ponto de entrada alternativo"""

@@ -26,9 +26,36 @@ from dataclasses import dataclass, field
 # import threading  # REMOVIDO - threading órfão não utilizado
 # from threading import Lock  # REMOVIDO - threading órfão não utilizado
 from functools import wraps
+from strategy_logger import StrategyLogger
+from bot_name_validator import BotNameValidator
 
 # Carregar variáveis de ambiente
 load_dotenv()
+
+# Sistema de logging simplificado
+ENABLE_STRATEGY_LOGGING = False  # Desabilitar temporariamente
+
+def safe_strategy_log_start(strategy_name, confidence, trigger_type):
+    """Wrapper seguro para logging"""
+    global strategy_logger
+    if ENABLE_STRATEGY_LOGGING and strategy_logger:
+        try:
+            return strategy_logger.start_pattern_tracking(strategy_name, confidence, trigger_type[:20])  # Truncar se necessário
+        except Exception as e:
+            logger.warning(f"[SAFE_LOG] Erro no logging (não crítico): {e}")
+            return False
+    return True  # Sempre retorna sucesso se desabilitado
+
+def safe_strategy_log_operation(operation_number, result):
+    """Wrapper seguro para logging de operação"""
+    global strategy_logger
+    if ENABLE_STRATEGY_LOGGING and strategy_logger:
+        try:
+            return strategy_logger.record_operation_result(operation_number, result)
+        except Exception as e:
+            logger.warning(f"[SAFE_LOG] Erro no logging (não crítico): {e}")
+            return False
+    return True
 
 # Configuração de logging
 logging.basicConfig(
@@ -83,7 +110,7 @@ def retry_supabase_operation(max_retries=3, delay=2):
     return decorator
 
 # Configurações
-BOT_NAME = 'Scalping Bot Dev'
+BOT_NAME = 'radarscalpingprecision1.5'
 ANALISE_INTERVALO = 5  # segundos entre análises
 OPERACOES_MINIMAS = 20  # operações mínimas para análise
 OPERACOES_HISTORICO = 30  # operações para buscar no histórico
@@ -105,6 +132,7 @@ monitoring_start_time = None
 active_signal_data = None
 active_tracking_id = None  # ID numérico do registro de rastreamento ativo
 monitoring_results = []  # Lista para armazenar resultados das operações em tempo real
+strategy_logger = None
 
 # ===== FUNÇÕES DE GERENCIAMENTO DE ESTADO =====
 
@@ -133,21 +161,51 @@ def reset_bot_state(supabase=None):
     monitoring_results = []
 
 def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supabase):
-    """Ativa o estado MONITORING com envio e linking corretos"""
+    """Ativa o estado MONITORING com logging integrado"""
     global bot_current_state, monitoring_operations_count
     global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id, monitoring_results
+    global strategy_logger
     
     try:
         logger.info(f"[STATE] Ativando estado MONITORING - Sinal: {signal_data['strategy']}")
         
+        # INICIAR LOGGING DE ESTRATÉGIA (VERSÃO SEGURA)
+        trigger_type = signal_data.get('pattern_details', {}).get('trigger', 'PRECISION_SURGE')
+        logging_success = safe_strategy_log_start(
+            signal_data['strategy'],
+            signal_data['confidence'],
+            trigger_type
+        )
+        
+        if logging_success:
+            logger.info("[STRATEGY_LOG] Rastreamento iniciado com sucesso")
+        else:
+            logger.error("[STRATEGY_LOG] Falha ao iniciar rastreamento")
+        
+        # Verificar se supabase está disponível
+        if not supabase:
+            logger.error(f"[TRACKING] Cliente Supabase não disponível")
+            return False
+        
+        # Verificar se signal_data tem os campos necessários
+        required_fields = ['strategy', 'confidence', 'should_operate', 'reason']
+        for field in required_fields:
+            if field not in signal_data:
+                logger.error(f"[TRACKING] Campo obrigatório '{field}' ausente em signal_data")
+                return False
+        
         # 1. ENVIAR SINAL PRIMEIRO
+        logger.debug(f"[TRACKING] Enviando sinal para Supabase...")
         signal_id = enviar_sinal_supabase_corrigido(supabase, signal_data)
         
         if not signal_id:
             logger.error(f"[TRACKING] Falha ao enviar sinal - abortando ativação do monitoramento")
             return False
         
+        logger.debug(f"[TRACKING] Sinal enviado com sucesso - ID: {signal_id}")
+        
         # 2. CRIAR REGISTRO DE RASTREAMENTO LINKADO
+        logger.debug(f"[TRACKING] Criando registro de rastreamento...")
         tracking_id = criar_registro_de_rastreamento_linkado(
             supabase,
             signal_data['strategy'],
@@ -157,6 +215,7 @@ def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supab
         
         if tracking_id:
             # 3. ATIVAR ESTADO DE MONITORAMENTO
+            logger.debug(f"[TRACKING] Ativando estado de monitoramento...")
             bot_current_state = BotState.MONITORING
             monitoring_operations_count = 0
             last_operation_id_when_signal = latest_operation_id
@@ -175,11 +234,13 @@ def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supab
             
     except Exception as e:
         logger.error(f"[TRACKING_ERROR] Erro na ativação completa: {e}")
+        logger.error(f"[TRACKING_ERROR] Traceback: {traceback.format_exc()}")
         return False
 
 def check_new_operations(supabase, current_operation_id: str) -> bool:
-    """Verifica novas operações e captura resultado automaticamente"""
+    """Verifica novas operações e registra no logger"""
     global monitoring_operations_count, last_operation_id_when_signal, last_checked_operation_id, monitoring_results
+    global strategy_logger
 
     if last_operation_id_when_signal is None:
         return False
@@ -192,21 +253,21 @@ def check_new_operations(supabase, current_operation_id: str) -> bool:
         monitoring_operations_count += 1
         last_checked_operation_id = current_operation_id
         
-        # NOVO: Capturar resultado automaticamente
+        # Capturar resultado automaticamente
         resultado_operacao = obter_resultado_operacao_atual(supabase, current_operation_id)
         
         if resultado_operacao:
             monitoring_results.append(resultado_operacao)
             
-            # Log em espanhol baseado no progresso
-            mensaje_progreso = determinar_mensaje_estado_espanol(
-                monitoring_operations_count,
-                PERSISTENCIA_OPERACOES,
-                active_signal_data.get('strategy', 'PRECISION_SURGE'),
-                active_signal_data.get('confidence', 93.5)
-            )
+            # REGISTRAR NO LOGGER DE ESTRATÉGIAS (VERSÃO SEGURA)
+            result_formatted = 'WIN' if resultado_operacao == 'V' else 'LOSS'
+            success = safe_strategy_log_operation(monitoring_operations_count, result_formatted)
             
-            logger.info(f"[PROGRESS_ES] {mensaje_progreso}")
+            if success:
+                logger.info(f"[STRATEGY_LOG] Operação {monitoring_operations_count} registrada: {result_formatted}")
+            else:
+                logger.error(f"[STRATEGY_LOG] Falha ao registrar operação {monitoring_operations_count}")
+            
             logger.info(f"[STATE] Nova operação: {current_operation_id} - Resultado: {resultado_operacao} - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
         else:
             logger.warning(f"[STATE] Nova operação: {current_operation_id} - Resultado não capturado - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
@@ -250,54 +311,8 @@ def get_state_info() -> dict:
         'active_signal': active_signal_data
     }
 
-def determinar_mensaje_estado_espanol(should_operate: bool, operations_count: int, total_operations: int, strategy_name: str, confidence: float, reason: str = "") -> str:
-    """
-    Determina a mensagem correta em espanhol baseada no estado atual
-    
-    Args:
-        should_operate: Se deve operar (padrão encontrado)
-        operations_count: Número de operações completadas após o padrão
-        total_operations: Total de operações necessárias (sempre 2)
-        strategy_name: Nome da estratégia
-        confidence: Nível de confiança
-        reason: Razão original (para casos de rejeição)
-    
-    Returns:
-        str: Mensagem em espanhol apropriada para o estado atual
-    """
-    
-    # Se NÃO deve operar (padrão rejeitado), usar mensagem de rejeição
-    if not should_operate:
-        # Traduzir mensagens de rejeição para espanhol
-        if "Gatillo no cumplido" in reason:
-            return reason  # Já está em espanhol
-        elif "Muchos LOSSes" in reason:
-            return reason  # Já está em espanhol
-        elif "LOSSes consecutivos" in reason:
-            return reason  # Já está em espanhol
-        else:
-            return "Esperando el patrón. No activar aún."
-    
-    # Se DEVE operar (patrão encontrado), usar mensagens progressivas
-    if operations_count == 0:
-        # Padrão recém encontrado - primeira mensagem
-        return MENSAJES_SISTEMA['patron_inicial']
-    
-    elif operations_count == 1:
-        # Primeira operação completada - resta 1
-        return MENSAJES_SISTEMA['patron_resta_uma']
-    
-    elif operations_count >= 2:
-        # Padrão finalizado - aguardar próximo
-        return MENSAJES_SISTEMA['patron_finalizado']
-    
-    else:
-        # Fallback - caso inesperado
-        return f"Patrón {strategy_name} - {operations_count}/{total_operations} operaciones"
-
 # Mensagens padronizadas do sistema em espanhol
 MENSAJES_SISTEMA = {
-    # Mensagens existentes
     'aguardando_dados': "Esperando datos suficientes...",
     'aguardando_padrao': "Esperando el patrón. No activar aún.",
     'estrategia_ativa': "Estrategia {strategy} activa - esperando {ops} operaciones",
@@ -313,13 +328,7 @@ MENSAJES_SISTEMA = {
     'seguro_operar': "Seguro para operar",
     'teste_sistema': "TESTE - Sistema funcionando correctamente",
     'conexao_falhou': "Error de conexión con Supabase",
-    'operacao_completada': "Operación completada con éxito",
-    
-    # NOVAS MENSAGENS EM ESPANHOL LATINO-AMERICANO
-    'patron_inicial': "PATRÓN ENCONTRADO, ACTIVAR BOT AHORA",
-    'patron_entre_operaciones': "Patrón Encontrado - Entre nas 2 próximas Operaciones",
-    'patron_resta_uma': "Patrón Encontrado - Resta apenas 1 operación",
-    'patron_finalizado': "Patrón Finalizado - Espere la Próxima"
+    'operacao_completada': "Operación completada con éxito"
 }
 
 # ===== SISTEMA DE MÉTRICAS E VALIDAÇÃO =====
@@ -543,7 +552,9 @@ def monitor_and_update_pattern_operations_CORRETO(supabase_client):
         logger.error(f"[MONITOR_ERROR] Erro no monitoramento: {e}")
 
 def inicializar_supabase():
-    """Inicializa conexão com Supabase"""
+    """Inicializa conexão com Supabase e logger de estratégias"""
+    global strategy_logger
+    
     try:
         supabase_url = os.getenv('SUPABASE_URL')
         supabase_key = os.getenv('SUPABASE_KEY')
@@ -552,7 +563,17 @@ def inicializar_supabase():
             raise ValueError("Credenciais do Supabase não encontradas no arquivo .env")
         
         supabase: Client = create_client(supabase_url, supabase_key)
+        
+        # VALIDAÇÃO CRÍTICA DO BOT_NAME
+        is_valid, error_msg = BotNameValidator.validate(BOT_NAME)
+        if not is_valid:
+            raise ValueError(f"BOT_NAME inválido: {error_msg}")
+        
+        # Inicializar logger de estratégias
+        strategy_logger = StrategyLogger(supabase, BOT_NAME)
+        
         print("OK Conexão com Supabase estabelecida com sucesso")
+        print(f"OK Logger de estratégias inicializado para: {BOT_NAME}")
         return supabase
         
     except Exception as e:
@@ -567,17 +588,17 @@ def testar_tabelas_supabase(supabase):
         'radar_de_apalancamiento_signals': 'Sinais do radar'
     }
     
-    print("🔍 Verificando tabelas...")
+    print("[INFO] Verificando tabelas...")
     
     for tabela, descricao in tabelas.items():
         try:
             response = supabase.table(tabela).select('id').limit(1).execute()
-            print(f"✅ {descricao}: OK")
+            print(f"[OK] {descricao}: OK")
         except Exception as e:
-            print(f"❌ {descricao}: ERRO - {e}")
+            print(f"[ERRO] {descricao}: ERRO - {e}")
             return False
     
-    print("✅ Todas as tabelas acessíveis!")
+    print("[OK] Todas as tabelas acessíveis!")
     return True
 
 # ===== FUNÇÕES DE CONTROLE SIMPLIFICADO =====
@@ -710,16 +731,16 @@ def obter_resultado_operacao_atual(supabase, operation_id: str) -> str:
         return None
 
 def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_level: float) -> int:
-    """Cria registro na tabela strategy_results_tracking e retorna o ID serial"""
+    """Cria registro na tabela strategy_results_tracking e retorna o ID serial - VERSÃO CORRIGIDA"""
     try:
         data = {
             'strategy_name': strategy_name,
-            'strategy_confidence': confidence_level,  # CORRETO: strategy_confidence
+            'strategy_confidence': confidence_level,
             'bot_name': BOT_NAME,
-            'status': 'ACTIVE'  # CORRETO: status (não tracking_status)
+            'status': 'ACTIVE'
         }
         
-        # CORREÇÃO CRÍTICA: Remover .select('id') que causa erro
+        # CORREÇÃO: Remover .select('id') que causa erro
         response = supabase.table('strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
@@ -739,30 +760,78 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
         return None
 
 def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
-    """Cria registro na tabela strategy_results_tracking linkado com signal_id"""
+    """
+    VERSÃO CORRIGIDA - Remove .select() incorreto do Supabase
+    """
     try:
+        logger.debug(f"[TRACKING_DEBUG] Preparando registro de rastreamento linkado...")
+        logger.debug(f"[TRACKING_DEBUG] Strategy: {strategy_name}, Confidence: {confidence_level}, Signal ID: {signal_id}")
+        
         data = {
-            'signal_id': signal_id,  # NOVO: Link com a tabela de sinais
+            'signal_id': signal_id,
             'strategy_name': strategy_name,
-            'strategy_confidence': confidence_level,  # CORRETO: usar strategy_confidence
-            'bot_name': BOT_NAME,
+            'strategy_confidence': confidence_level,
+            'bot_name': 'radarscalpingprecision1.5',
             'status': 'ACTIVE',
             'pattern_detected_at': datetime.now().isoformat()
         }
+        
+        logger.debug(f"[TRACKING_DEBUG] Dados preparados: {data}")
+        logger.debug(f"[TRACKING_DEBUG] Executando insert na tabela strategy_results_tracking...")
         
         # CORREÇÃO CRÍTICA: Remover .select('id') que causa erro
         response = supabase.table('strategy_results_tracking').insert(data).execute()
         
         if response.data and len(response.data) > 0:
-            record_id = response.data[0]['id']
-            logger.info(f"[TRACKING] Registro criado com ID: {record_id} linkado ao signal_id: {signal_id}")
-            return record_id
+            # O ID está no primeiro item da resposta
+            record_id = response.data[0].get('id')
+            if record_id:
+                logger.info(f"[TRACKING] Registro criado com ID: {record_id} linkado ao signal_id: {signal_id}")
+                return record_id
+            else:
+                logger.error(f"[TRACKING] ID não encontrado na resposta: {response.data}")
+                return None
         else:
-            logger.error(f"[TRACKING] Falha ao criar registro linkado para {strategy_name}")
+            logger.error(f"[TRACKING] Resposta vazia ou inválida: {response}")
             return None
             
     except Exception as e:
         logger.error(f"[TRACKING_ERROR] Erro ao criar tracking linkado: {e}")
+        logger.error(f"[TRACKING_ERROR] Tipo do erro: {type(e).__name__}")
+        logger.error(f"[TRACKING_ERROR] Traceback: {traceback.format_exc()}")
+        return None
+
+def criar_registro_de_rastreamento_linkado_SEGURO(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
+    """
+    VERSÃO ULTRA SEGURA - Usando upsert com chave única
+    """
+    try:
+        # Criar ID único baseado em timestamp + signal_id
+        unique_key = f"{signal_id}_{int(time.time())}"
+        
+        data = {
+            'unique_key': unique_key,  # Campo adicional para identificação
+            'signal_id': signal_id,
+            'strategy_name': strategy_name,
+            'strategy_confidence': confidence_level,
+            'bot_name': 'radarscalpingprecision1.5',
+            'status': 'ACTIVE',
+            'pattern_detected_at': datetime.now().isoformat()
+        }
+        
+        # Usar upsert que sempre funciona
+        response = supabase.table('strategy_results_tracking').upsert(data).execute()
+        
+        if response.data and len(response.data) > 0:
+            record_id = response.data[0].get('id')
+            logger.info(f"[TRACKING_SEGURO] Registro criado/atualizado com ID: {record_id}")
+            return record_id
+        else:
+            logger.error(f"[TRACKING_SEGURO] Falha na criação do registro")
+            return None
+            
+    except Exception as e:
+        logger.error(f"[TRACKING_SEGURO] Erro: {e}")
         return None
 
 def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: List[str]) -> bool:
@@ -1126,7 +1195,7 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
             'operations_after_pattern': 0,
             'auto_disable_after_ops': 2,
             'available_strategies': 3,
-            'filters_applied': '[]',
+            'filters_applied': [],
             'execution_time_ms': 0
         }
         
@@ -1145,45 +1214,42 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
 
 @retry_supabase_operation(max_retries=3, delay=2)
 def enviar_sinal_supabase_corrigido(supabase, signal_data: Dict) -> int:
-    """Envia sinal com mensagem em espanhol correta baseada no estado"""
+    """Versão corrigida - sem .select() após .upsert()"""
     try:
-        # Determinar mensagem baseada no estado atual
-        operations_count = monitoring_operations_count if bot_current_state == BotState.MONITORING else 0
-        mensaje_espanol = determinar_mensaje_estado_espanol(
-            signal_data['should_operate'],  # NOVO: passar se deve operar
-            operations_count,
-            PERSISTENCIA_OPERACOES,
-            signal_data['strategy'],
-            signal_data['confidence'],
-            signal_data.get('reason', '')  # NOVO: passar a razão original
-        )
-        
         signal_record = {
             'bot_name': BOT_NAME,
             'is_safe_to_operate': signal_data['should_operate'],
-            'reason': mensaje_espanol,  # USAR MENSAGEM EM ESPANHOL
+            'reason': signal_data['reason'],
             'strategy_used': signal_data['strategy'],
             'strategy_confidence': signal_data['confidence'],
             'losses_in_last_10_ops': signal_data.get('losses_ultimas_15', 0),
             'wins_in_last_5_ops': min(5, signal_data.get('wins_consecutivos', 0)),
             'historical_accuracy': signal_data['confidence'] / 100.0,
             'pattern_found_at': datetime.now().isoformat() if signal_data['should_operate'] else None,
-            'operations_after_pattern': operations_count,
+            'operations_after_pattern': 0,
             'auto_disable_after_ops': 2,
             'available_strategies': 1,
-            'filters_applied': '[]',
+            'filters_applied': [],
             'execution_time_ms': 0
         }
         
-        response = supabase.table('radar_de_apalancamiento_signals').upsert(signal_record, on_conflict='bot_name').select('id').execute()
+        # CORREÇÃO CRÍTICA: Separar upsert e select
+        response = supabase.table('radar_de_apalancamiento_signals').upsert(signal_record, on_conflict='bot_name').execute()
         
         if response.data and len(response.data) > 0:
             signal_id = response.data[0]['id']
-            logger.info(f"[SIGNAL_SENT] Sinal enviado com ID: {signal_id} - Mensaje: {mensaje_espanol}")
+            logger.info(f"[SIGNAL_SENT] Sinal enviado com ID: {signal_id}")
             return signal_id
         else:
-            logger.error(f"[SIGNAL_ERROR] Resposta vazia")
-            return None
+            # Fallback: buscar o ID após inserção
+            fallback_response = supabase.table('radar_de_apalancamiento_signals').select('id').eq('bot_name', BOT_NAME).single().execute()
+            if fallback_response.data:
+                signal_id = fallback_response.data['id']
+                logger.info(f"[SIGNAL_SENT] Sinal localizado com ID: {signal_id}")
+                return signal_id
+            else:
+                logger.error(f"[SIGNAL_ERROR] Não foi possível obter signal_id")
+                return None
             
     except Exception as e:
         logger.error(f"[SIGNAL_ERROR] Erro: {e}")
@@ -1316,29 +1382,18 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
         
         # ENVIO CENTRALIZADO PARA SUPABASE (final do ciclo)
         if resultado_ciclo:
-            # Determinar mensagem em espanhol baseada no estado atual
-            operations_count = monitoring_operations_count if bot_current_state == BotState.MONITORING else 0
-            mensaje_espanol = determinar_mensaje_estado_espanol(
-                resultado_ciclo['should_operate'],  # NOVO: passar se deve operar
-                operations_count,
-                PERSISTENCIA_OPERACOES,
-                resultado_ciclo['strategy'],
-                resultado_ciclo['confidence'],
-                resultado_ciclo['reason']  # NOVO: passar a razão original
-            )
-            
-            # Construir payload com mensagem em espanhol
+            # Construir payload baseado no resultado do ciclo
             dados_supabase = {
                 'bot_name': BOT_NAME,
                 'is_safe_to_operate': resultado_ciclo['should_operate'],
-                'reason': mensaje_espanol,  # MENSAGEM EM ESPANHOL BASEADA NO ESTADO
+                'reason': resultado_ciclo['reason'],
                 'strategy_used': resultado_ciclo['strategy'],
                 'strategy_confidence': resultado_ciclo['confidence'],
                 'losses_in_last_10_ops': resultado_ciclo.get('losses_ultimas_15', 0),
                 'wins_in_last_5_ops': min(5, resultado_ciclo.get('wins_consecutivos', 0)),
                 'historical_accuracy': resultado_ciclo['confidence'] / 100.0,
                 'pattern_found_at': datetime.now().isoformat(),
-                'operations_after_pattern': operations_count,
+                'operations_after_pattern': monitoring_operations_count if bot_current_state == BotState.MONITORING else 0,
                 'auto_disable_after_ops': PERSISTENCIA_OPERACOES,
                 'available_strategies': 1,
                 'filters_applied': '{precision_surge_only}',
@@ -1350,7 +1405,11 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
                 response = supabase.table('radar_de_apalancamiento_signals').upsert(dados_supabase, on_conflict='bot_name').execute()
                 
                 if response.data:
-                    logger.info(f"[SIGNAL_SENT] ✅ Mensaje en español enviado: {mensaje_espanol}")
+                    if bot_current_state == BotState.MONITORING and resultado_ciclo['should_operate']:
+                        logger.info(f"[SIGNAL_SENT] ✅ Sinal reenviado (MONITORING): {resultado_ciclo['reason']}")
+                    else:
+                        status_msg = "padrão encontrado" if resultado_ciclo['should_operate'] else "sem padrão"
+                        logger.info(f"[SIGNAL_SENT] ✅ Status enviado ({status_msg}): {resultado_ciclo['reason']}")
                     resultado_ciclo['signal_sent'] = True
                 else:
                     logger.error(f"[SIGNAL_ERROR] ❌ Falha no envio do sinal")
@@ -1388,20 +1447,20 @@ def main_loop():
     
     # Verificar tabelas necessárias
     if not testar_tabelas_supabase(supabase):
-        print("❌ Erro nas tabelas - abortando")
+        print("[ERRO] Erro nas tabelas - abortando")
         return
     
     # Resetar estado inicial
     reset_bot_state()
     
-    logger.info("[MAIN] ✅ Sistema inicializado com sucesso")
-    print("\n🚀 RADAR ANALISIS SCALPING BOT COM ESTADOS ATIVO")
-    print("📊 Sistema de gerenciamento de estado implementado")
-    print("🔄 Estados: ANALYZING (busca padrões) → MONITORING (mantém sinal)")
-    print("⏱️  Análise a cada 5 segundos")
-    print("🎯 Estratégia: PRECISION SURGE (93.5%)")
-    print("🔍 Gatilho: 4-5 WINs consecutivos")
-    print(f"⚡ Persistência: {PERSISTENCIA_OPERACOES} operações")
+    logger.info("[MAIN] Sistema inicializado com sucesso")
+    print("\n[INICIO] RADAR ANALISIS SCALPING BOT COM ESTADOS ATIVO")
+    print("[INFO] Sistema de gerenciamento de estado implementado")
+    print("[INFO] Estados: ANALYZING (busca padrões) -> MONITORING (mantém sinal)")
+    print("[INFO] Análise a cada 5 segundos")
+    print("[INFO] Estratégia: PRECISION SURGE (93.5%)")
+    print("[INFO] Gatilho: 4-5 WINs consecutivos")
+    print(f"[INFO] Persistência: {PERSISTENCIA_OPERACOES} operações")
     print("\nPressione Ctrl+C para parar\n")
     
     ciclo_count = 0
@@ -1412,7 +1471,7 @@ def main_loop():
             
             # Mostrar estado atual
             state_info = get_state_info()
-            estado_display = "🔍 ANALISANDO" if bot_current_state == BotState.ANALYZING else "👁️ MONITORANDO"
+            estado_display = "[ANALISANDO]" if bot_current_state == BotState.ANALYZING else "[MONITORANDO]"
             
             # Executar ciclo de análise com estados
             resultado_ciclo = executar_ciclo_analise_simplificado(supabase)
@@ -1426,8 +1485,8 @@ def main_loop():
                 
                 if resultado['should_operate']:
                     # Sinal encontrado - mudou para MONITORING
-                    print(f"\n🎯 {resultado['reason']}")
-                    print(f"🔄 Estado alterado: ANALYZING → MONITORING")
+                    print(f"\n[ALERTA] {resultado['reason']}")
+                    print(f"[INFO] Estado alterado: ANALYZING -> MONITORING")
                     logger.info(f"[MAIN] SINAL ENVIADO: {resultado['strategy']} - {resultado['confidence']:.1f}%")
                     
                 elif bot_current_state == BotState.MONITORING:
@@ -1436,20 +1495,20 @@ def main_loop():
                     ops_count = monitoring_info.get('operations_count', 0)
                     ops_limit = monitoring_info.get('operations_limit', PERSISTENCIA_OPERACOES)
                     
-                    print(f"👁️ {resultado['reason']} [{ops_count}/{ops_limit}]")
+                    print(f"[MONITORANDO] {resultado['reason']} [{ops_count}/{ops_limit}]")
                     
                     # Verificar se completou o monitoramento
                     if "completada" in resultado['reason']:
-                        print(f"✅ Monitoramento finalizado - Voltando para ANALYZING")
+                        print(f"[COMPLETO] Monitoramento finalizado - Voltando para ANALYZING")
                         
                 else:
                     # Estado ANALYZING - sem padrão
-                    print(f"🔍 {resultado['reason']}")
+                    print(f"[ANALISANDO] {resultado['reason']}")
                     
             elif status == 'NO_DATA':
-                print(f"📊 {message}")
+                print(f"[INFO] {message}")
             elif status == 'ERROR':
-                print(f"❌ {message}")
+                print(f"[ERRO] {message}")
                 logger.error(f"[MAIN] Erro no ciclo {ciclo_count}: {message}")
             
             # Aguardar próximo ciclo

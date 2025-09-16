@@ -3,15 +3,12 @@
 """
 Radar Analisis Scalping Bot - Sistema de Trading com 3 Estratégias de Alta Assertividade
 Sistema integrado com rastreamento automático de resultados no Supabase
-
 Estratégias implementadas:
-- MICRO-BURST: 95.5% assertividade
-- PRECISION SURGE: 93.5% assertividade  
-- QUANTUM MATRIX: 91.5% assertividade
-
+MICRO-BURST: 95.5% assertividade
+PRECISION SURGE: 93.5% assertividade
+QUANTUM MATRIX: 91.5% assertividade
 Sistema consolidado: 94.51% assertividade a cada 6 operações
 """
-
 import os
 import time
 import uuid
@@ -23,8 +20,8 @@ from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 import traceback
 from dataclasses import dataclass, field
-# import threading  # REMOVIDO - threading órfão não utilizado
-# from threading import Lock  # REMOVIDO - threading órfão não utilizado
+import threading
+from threading import Lock
 from functools import wraps
 
 # Carregar variáveis de ambiente
@@ -83,7 +80,7 @@ def retry_supabase_operation(max_retries=3, delay=2):
     return decorator
 
 # Configurações
-BOT_NAME = 'Scalping Bot Dev'
+BOT_NAME = 'Scalping Bot'
 ANALISE_INTERVALO = 5  # segundos entre análises
 OPERACOES_MINIMAS = 20  # operações mínimas para análise
 OPERACOES_HISTORICO = 30  # operações para buscar no histórico
@@ -100,117 +97,50 @@ class BotState:
 bot_current_state = BotState.ANALYZING
 monitoring_operations_count = 0
 last_operation_id_when_signal = None
-last_checked_operation_id = None
 monitoring_start_time = None
 active_signal_data = None
-active_tracking_id = None  # ID numérico do registro de rastreamento ativo
-monitoring_results = []  # Lista para armazenar resultados das operações em tempo real
 
 # ===== FUNÇÕES DE GERENCIAMENTO DE ESTADO =====
-
-def reset_bot_state(supabase=None):
+def reset_bot_state():
     """Reseta o bot para o estado ANALYZING"""
     global bot_current_state, monitoring_operations_count
-    global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id, monitoring_results
+    global last_operation_id_when_signal, monitoring_start_time, active_signal_data
     
     logger.info("[STATE] Resetando estado para ANALYZING")
-    
-    # Finalizar rastreamento se necessário
-    if supabase and active_tracking_id and len(monitoring_results) >= PERSISTENCIA_OPERACOES:
-        sucesso = finalizar_registro_de_rastreamento(supabase, active_tracking_id, monitoring_results)
-        if sucesso:
-            logger.info(f"[TRACKING] Rastreamento {active_tracking_id} finalizado com resultados: {monitoring_results}")
-        else:
-            logger.error(f"[TRACKING] Falha ao finalizar rastreamento {active_tracking_id}")
-    
     bot_current_state = BotState.ANALYZING
     monitoring_operations_count = 0
     last_operation_id_when_signal = None
-    last_checked_operation_id = None
     monitoring_start_time = None
     active_signal_data = None
-    active_tracking_id = None
-    monitoring_results = []
 
-def activate_monitoring_state(signal_data: dict, latest_operation_id: str, supabase):
-    """Ativa o estado MONITORING com envio e linking corretos"""
+def activate_monitoring_state(signal_data: dict, latest_operation_id: str):
+    """Ativa o estado MONITORING após encontrar um padrão"""
     global bot_current_state, monitoring_operations_count
-    global last_operation_id_when_signal, last_checked_operation_id, monitoring_start_time, active_signal_data, active_tracking_id, monitoring_results
+    global last_operation_id_when_signal, monitoring_start_time, active_signal_data
     
-    try:
-        logger.info(f"[STATE] Ativando estado MONITORING - Sinal: {signal_data['strategy']}")
-        
-        # 1. ENVIAR SINAL PRIMEIRO
-        signal_id = enviar_sinal_supabase_corrigido(supabase, signal_data)
-        
-        if not signal_id:
-            logger.error(f"[TRACKING] Falha ao enviar sinal - abortando ativação do monitoramento")
-            return False
-        
-        # 2. CRIAR REGISTRO DE RASTREAMENTO LINKADO
-        tracking_id = criar_registro_de_rastreamento_linkado(
-            supabase,
-            signal_data['strategy'],
-            signal_data['confidence'],
-            signal_id
-        )
-        
-        if tracking_id:
-            # 3. ATIVAR ESTADO DE MONITORAMENTO
-            bot_current_state = BotState.MONITORING
-            monitoring_operations_count = 0
-            last_operation_id_when_signal = latest_operation_id
-            last_checked_operation_id = latest_operation_id
-            monitoring_start_time = time.time()
-            active_signal_data = signal_data.copy()
-            active_signal_data['signal_id'] = signal_id
-            active_tracking_id = tracking_id
-            monitoring_results = []
-            
-            logger.info(f"[TRACKING] Sistema completo ativo - Signal ID: {signal_id}, Tracking ID: {tracking_id}")
-            return True
-        else:
-            logger.error(f"[TRACKING] Falha ao criar rastreamento - mantendo estado ANALYZING")
-            return False
-            
-    except Exception as e:
-        logger.error(f"[TRACKING_ERROR] Erro na ativação completa: {e}")
-        return False
+    logger.info(f"[STATE] Ativando estado MONITORING - Sinal: {signal_data['strategy']}")
+    bot_current_state = BotState.MONITORING
+    monitoring_operations_count = 0
+    last_operation_id_when_signal = latest_operation_id
+    monitoring_start_time = time.time()
+    active_signal_data = signal_data.copy()
 
-def check_new_operations(supabase, current_operation_id: str) -> bool:
-    """Verifica novas operações e captura resultado automaticamente"""
-    global monitoring_operations_count, last_operation_id_when_signal, last_checked_operation_id, monitoring_results
+def check_new_operations(current_operation_id: str) -> bool:
+    """Verifica se houve novas operações desde o sinal
+    
+    Returns:
+        bool: True se houve nova operação
+    """
+    global monitoring_operations_count, last_operation_id_when_signal
 
     if last_operation_id_when_signal is None:
         return False
-
-    if last_checked_operation_id is None:
-        last_checked_operation_id = last_operation_id_when_signal
         
-    # Se o ID atual é diferente do último verificado, houve nova operação
-    if current_operation_id != last_checked_operation_id:
+    # Se o ID atual é diferente do armazenado, houve nova operação
+    if current_operation_id != last_operation_id_when_signal:
         monitoring_operations_count += 1
-        last_checked_operation_id = current_operation_id
-        
-        # NOVO: Capturar resultado automaticamente
-        resultado_operacao = obter_resultado_operacao_atual(supabase, current_operation_id)
-        
-        if resultado_operacao:
-            monitoring_results.append(resultado_operacao)
-            
-            # Log em espanhol baseado no progresso
-            mensaje_progreso = determinar_mensaje_estado_espanol(
-                monitoring_operations_count,
-                PERSISTENCIA_OPERACOES,
-                active_signal_data.get('strategy', 'PRECISION_SURGE'),
-                active_signal_data.get('confidence', 93.5)
-            )
-            
-            logger.info(f"[PROGRESS_ES] {mensaje_progreso}")
-            logger.info(f"[STATE] Nova operação: {current_operation_id} - Resultado: {resultado_operacao} - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
-        else:
-            logger.warning(f"[STATE] Nova operação: {current_operation_id} - Resultado não capturado - Total: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
-        
+        last_operation_id_when_signal = current_operation_id
+        logger.info(f"[STATE] Nova operação detectada. Contador: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
         return True
 
     return False
@@ -222,22 +152,18 @@ def should_reset_to_analyzing() -> bool:
         bool: True se deve resetar
     """
     global monitoring_operations_count, monitoring_start_time
-    
+
     # Verificar se atingiu o limite de operações
     if monitoring_operations_count >= PERSISTENCIA_OPERACOES:
         logger.info(f"[STATE] Limite de operações atingido: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
         return True
-    
+
     # Verificar timeout
     if monitoring_start_time and (time.time() - monitoring_start_time) > PERSISTENCIA_TIMEOUT:
         logger.info(f"[STATE] Timeout atingido: {PERSISTENCIA_TIMEOUT}s")
         return True
-    
+
     return False
-
-
-
-
 
 def get_state_info() -> dict:
     """Retorna informações do estado atual"""
@@ -250,54 +176,8 @@ def get_state_info() -> dict:
         'active_signal': active_signal_data
     }
 
-def determinar_mensaje_estado_espanol(should_operate: bool, operations_count: int, total_operations: int, strategy_name: str, confidence: float, reason: str = "") -> str:
-    """
-    Determina a mensagem correta em espanhol baseada no estado atual
-    
-    Args:
-        should_operate: Se deve operar (padrão encontrado)
-        operations_count: Número de operações completadas após o padrão
-        total_operations: Total de operações necessárias (sempre 2)
-        strategy_name: Nome da estratégia
-        confidence: Nível de confiança
-        reason: Razão original (para casos de rejeição)
-    
-    Returns:
-        str: Mensagem em espanhol apropriada para o estado atual
-    """
-    
-    # Se NÃO deve operar (padrão rejeitado), usar mensagem de rejeição
-    if not should_operate:
-        # Traduzir mensagens de rejeição para espanhol
-        if "Gatillo no cumplido" in reason:
-            return reason  # Já está em espanhol
-        elif "Muchos LOSSes" in reason:
-            return reason  # Já está em espanhol
-        elif "LOSSes consecutivos" in reason:
-            return reason  # Já está em espanhol
-        else:
-            return "Esperando el patrón. No activar aún."
-    
-    # Se DEVE operar (patrão encontrado), usar mensagens progressivas
-    if operations_count == 0:
-        # Padrão recém encontrado - primeira mensagem
-        return MENSAJES_SISTEMA['patron_inicial']
-    
-    elif operations_count == 1:
-        # Primeira operação completada - resta 1
-        return MENSAJES_SISTEMA['patron_resta_uma']
-    
-    elif operations_count >= 2:
-        # Padrão finalizado - aguardar próximo
-        return MENSAJES_SISTEMA['patron_finalizado']
-    
-    else:
-        # Fallback - caso inesperado
-        return f"Patrón {strategy_name} - {operations_count}/{total_operations} operaciones"
-
 # Mensagens padronizadas do sistema em espanhol
 MENSAJES_SISTEMA = {
-    # Mensagens existentes
     'aguardando_dados': "Esperando datos suficientes...",
     'aguardando_padrao': "Esperando el patrón. No activar aún.",
     'estrategia_ativa': "Estrategia {strategy} activa - esperando {ops} operaciones",
@@ -313,13 +193,7 @@ MENSAJES_SISTEMA = {
     'seguro_operar': "Seguro para operar",
     'teste_sistema': "TESTE - Sistema funcionando correctamente",
     'conexao_falhou': "Error de conexión con Supabase",
-    'operacao_completada': "Operación completada con éxito",
-    
-    # NOVAS MENSAGENS EM ESPANHOL LATINO-AMERICANO
-    'patron_inicial': "PATRÓN ENCONTRADO, ACTIVAR BOT AHORA",
-    'patron_entre_operaciones': "Patrón Encontrado - Entre nas 2 próximas Operaciones",
-    'patron_resta_uma': "Patrón Encontrado - Resta apenas 1 operación",
-    'patron_finalizado': "Patrón Finalizado - Espere la Próxima"
+    'operacao_completada': "Operación completada con éxito"
 }
 
 # ===== SISTEMA DE MÉTRICAS E VALIDAÇÃO =====
@@ -360,12 +234,23 @@ class StrategyMetrics:
         return (self.successful_triggers / total * 100) if total > 0 else 0.0
 
 # Instâncias globais para métricas
-# REMOVIDO: strategy_metrics - Sistema simplificado usa apenas PRECISION_SURGE
+strategy_metrics = {
+    'PRECISION_SURGE': StrategyMetrics('PRECISION_SURGE')
+}
 
-# REMOVIDO: pattern_locked_state - Sistema simplificado não usa trava de padrão
+# Estado para trava de padrão
+pattern_locked_state = {
+    'is_locked': False,
+    'strategy_name': None,
+    'confidence': 0.0,
+    'detected_at': None,
+    'operations_count': 0,
+    'tracking_id': None,
+    'signal_data': {}
+}
 
-# Lock para thread safety - COMENTADO
-# _pattern_lock = threading.Lock()  # REMOVIDO - threading órfão não utilizado
+# Lock para thread safety
+_pattern_lock = threading.Lock()
 
 def activate_pattern_lock(strategy_name: str, confidence: float, signal_data: dict, tracking_id: str):
     """Versão simplificada sem threading complexo - SOLUÇÃO FINAL"""
@@ -435,7 +320,7 @@ def reset_pattern_lock_force():
         'tracking_id': None,
         'signal_data': {}
     })
-    
+
     if old_strategy:
         logger.info(f"[PATTERN_RESET] {old_strategy} resetada")
 
@@ -443,7 +328,10 @@ def check_pattern_lock_status():
     """Verifica status atual da trava"""
     return pattern_locked_state.copy()
 
-# REMOVIDO: active_strategy, strategy_start_time, operations_since_strategy - Sistema simplificado
+# Variáveis globais de controle de estratégia
+active_strategy = None
+strategy_start_time = None
+operations_since_strategy = 0
 
 def is_strategy_active():
     """Verifica se há estratégia ativa"""
@@ -559,27 +447,6 @@ def inicializar_supabase():
         print(f"FAIL Erro ao conectar com Supabase: {e}")
         return None
 
-def testar_tabelas_supabase(supabase):
-    """Testa acesso às tabelas corretas"""
-    tabelas = {
-        'scalping_accumulator_bot_logs': 'Logs de operações',
-        'strategy_results_tracking': 'Rastreamento de estratégias',
-        'radar_de_apalancamiento_signals': 'Sinais do radar'
-    }
-    
-    print("🔍 Verificando tabelas...")
-    
-    for tabela, descricao in tabelas.items():
-        try:
-            response = supabase.table(tabela).select('id').limit(1).execute()
-            print(f"✅ {descricao}: OK")
-        except Exception as e:
-            print(f"❌ {descricao}: ERRO - {e}")
-            return False
-    
-    print("✅ Todas as tabelas acessíveis!")
-    return True
-
 # ===== FUNÇÕES DE CONTROLE SIMPLIFICADO =====
 def check_strategy_timeout():
     """Verifica timeout da estratégia (5 minutos)"""
@@ -611,19 +478,13 @@ def check_operation_completion():
         return True
     return False
 
-# Código removido - sistema simplificado não necessita contagem complexa
-# Função removida - sistema simplificado não necessita monitoramento complexo
-
-# ===== SISTEMA SIMPLIFICADO DE CONTROLE =====
-# Usando apenas variáveis globais simples para controle de estratégias
-
 def validar_integridade_historico(historico: List[str]) -> bool:
     """Valida integridade dos dados de histórico"""
     try:
         if not historico:
             logger.error("[DATA_INTEGRITY] Histórico vazio")
             return False
-            
+        
         # Verificar se contém apenas valores válidos
         valid_values = {'V', 'D'}
         invalid_values = [val for val in historico if val not in valid_values]
@@ -687,49 +548,26 @@ def buscar_operacoes_historico(supabase):
         logger.error(f"[HISTORICO_ERROR] Erro ao buscar operações: {e}")
         return [], [], None
 
-def obter_resultado_operacao_atual(supabase, operation_id: str) -> str:
-    """Obtém o resultado da operação atual ('V' ou 'D')"""
+def criar_tracking_record(supabase, strategy_name: str, confidence_level: float, signal_id: str) -> str:
+    """Cria registro na tabela strategy_results_tracking"""
     try:
-        response = supabase.table('scalping_accumulator_bot_logs') \
-            .select('profit_percentage') \
-            .eq('id', operation_id) \
-            .single() \
-            .execute()
+        tracking_id = str(uuid.uuid4())
         
-        if response.data:
-            profit_percentage = response.data.get('profit_percentage', 0)
-            resultado = 'V' if profit_percentage > 0 else 'D'
-            logger.debug(f"[RESULTADO] Operação {operation_id}: {resultado} (profit: {profit_percentage})")
-            return resultado
-        else:
-            logger.warning(f"[RESULTADO] Operação {operation_id} não encontrada")
-            return None
-            
-    except Exception as e:
-        logger.error(f"[RESULTADO_ERROR] Erro ao obter resultado da operação {operation_id}: {e}")
-        return None
-
-def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_level: float) -> int:
-    """Cria registro na tabela strategy_results_tracking e retorna o ID serial"""
-    try:
         data = {
+            'tracking_id': tracking_id,
             'strategy_name': strategy_name,
-            'strategy_confidence': confidence_level,  # CORRETO: strategy_confidence
+            'strategy_confidence': confidence_level,
+            'pattern_found_at': datetime.now().isoformat(),
+            'signal_id': signal_id,
             'bot_name': BOT_NAME,
-            'status': 'ACTIVE'  # CORRETO: status (não tracking_status)
+            'status': 'ACTIVE'
         }
         
-        # CORREÇÃO CRÍTICA: Remover .select('id') que causa erro
         response = supabase.table('strategy_results_tracking').insert(data).execute()
         
-        if response.data and len(response.data) > 0:
-            record_id = response.data[0].get('id')
-            if record_id:
-                logger.info(f"[TRACKING] Registro criado com ID: {record_id} para {strategy_name}")
-                return record_id
-            else:
-                logger.error(f"[TRACKING] ID não encontrado na resposta para {strategy_name}")
-                return None
+        if response.data:
+            logger.info(f"[TRACKING] Registro criado: {tracking_id} para {strategy_name}")
+            return tracking_id
         else:
             logger.error(f"[TRACKING] Falha ao criar registro para {strategy_name}")
             return None
@@ -737,66 +575,6 @@ def criar_registro_de_rastreamento(supabase, strategy_name: str, confidence_leve
     except Exception as e:
         logger.error(f"[TRACKING_ERROR] Erro ao criar tracking: {e}")
         return None
-
-def criar_registro_de_rastreamento_linkado(supabase, strategy_name: str, confidence_level: float, signal_id: int) -> int:
-    """Cria registro na tabela strategy_results_tracking linkado com signal_id"""
-    try:
-        data = {
-            'signal_id': signal_id,  # NOVO: Link com a tabela de sinais
-            'strategy_name': strategy_name,
-            'strategy_confidence': confidence_level,  # CORRETO: usar strategy_confidence
-            'bot_name': BOT_NAME,
-            'status': 'ACTIVE',
-            'pattern_detected_at': datetime.now().isoformat()
-        }
-        
-        # CORREÇÃO CRÍTICA: Remover .select('id') que causa erro
-        response = supabase.table('strategy_results_tracking').insert(data).execute()
-        
-        if response.data and len(response.data) > 0:
-            record_id = response.data[0]['id']
-            logger.info(f"[TRACKING] Registro criado com ID: {record_id} linkado ao signal_id: {signal_id}")
-            return record_id
-        else:
-            logger.error(f"[TRACKING] Falha ao criar registro linkado para {strategy_name}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"[TRACKING_ERROR] Erro ao criar tracking linkado: {e}")
-        return None
-
-def finalizar_registro_de_rastreamento(supabase, record_id: int, resultados: List[str]) -> bool:
-    """Finaliza registro de rastreamento com os resultados das operações"""
-    try:
-        # Mapear resultados para as colunas corretas
-        operation_1_result = resultados[0] if len(resultados) > 0 else None
-        operation_2_result = resultados[1] if len(resultados) > 1 else None
-        
-        # Determinar sucesso do padrão (True somente se ambos forem 'V')
-        pattern_success = (resultados == ['V', 'V']) if len(resultados) == 2 else False
-        
-        # Dados para atualização - USAR NOMES CORRETOS DAS COLUNAS
-        update_data = {
-            'operation_1_result': operation_1_result,
-            'operation_2_result': operation_2_result,
-            'pattern_success': pattern_success,  # Esta coluna existe na tabela
-            'status': 'COMPLETED',
-            'completed_at': datetime.now().isoformat(),
-            'operations_completed': len(resultados)
-        }
-        
-        response = supabase.table('strategy_results_tracking').update(update_data).eq('id', record_id).execute()
-        
-        if response.data:
-            logger.info(f"[TRACKING] Registro {record_id} finalizado: {resultados} -> Sucesso: {pattern_success}")
-            return True
-        else:
-            logger.error(f"[TRACKING] Falha ao finalizar registro {record_id}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"[TRACKING_ERROR] Erro ao finalizar tracking {record_id}: {e}")
-        return False
 
 def consultar_eficacia_estrategia(supabase, strategy_name: str) -> Dict:
     """Consulta eficácia em tempo real de uma estratégia"""
@@ -875,9 +653,6 @@ def gerar_relatorio_eficacia(supabase) -> Dict:
         return {}
 
 # ===== IMPLEMENTAÇÃO DAS 3 ESTRATÉGIAS =====
-
-# FUNÇÃO REMOVIDA: analisar_micro_burst() - Simplificação do sistema
-
 def analisar_precision_surge(historico: List[str]) -> Dict:
     """PRECISION SURGE: Estratégia de precisão (93.5%)
     
@@ -1021,10 +796,7 @@ def analisar_precision_surge(historico: List[str]) -> Dict:
             'reason': MENSAJES_SISTEMA['erro_execucao'].format(strategy=strategy_name)
         }
 
-# FUNÇÃO REMOVIDA: analisar_quantum_matrix_EXATO_REFINADO() - Simplificação do sistema
-
 # ===== SISTEMA DE ANÁLISE CONSOLIDADA =====
-
 def executar_analise_precision_surge_unico(historico: List[str]) -> Dict:
     """PRECISION SURGE - Estratégia única simplificada"""
     try:
@@ -1109,7 +881,6 @@ def executar_analise_precision_surge_unico(historico: List[str]) -> Dict:
         }
 
 # ===== SISTEMA DE ENVIO DE SINAIS =====
-
 @retry_supabase_operation(max_retries=3, delay=2)
 def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
     try:
@@ -1130,7 +901,7 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
             'execution_time_ms': 0
         }
         
-        response = supabase.table('radar_de_apalancamiento_signals').upsert(signal_record, on_conflict='bot_name').execute()
+        response = supabase.table('radar_de_apalancamiento_signals').insert(signal_record).execute()
         
         if response.data:
             logger.info(f"[SIGNAL_SENT] ✅ Sinal enviado: {signal_data['strategy']}")
@@ -1143,56 +914,7 @@ def enviar_sinal_supabase(supabase, signal_data: Dict) -> bool:
         logger.error(f"[SIGNAL_ERROR] Erro: {e}")
         raise e
 
-@retry_supabase_operation(max_retries=3, delay=2)
-def enviar_sinal_supabase_corrigido(supabase, signal_data: Dict) -> int:
-    """Envia sinal com mensagem em espanhol correta baseada no estado"""
-    try:
-        # Determinar mensagem baseada no estado atual
-        operations_count = monitoring_operations_count if bot_current_state == BotState.MONITORING else 0
-        mensaje_espanol = determinar_mensaje_estado_espanol(
-            signal_data['should_operate'],  # NOVO: passar se deve operar
-            operations_count,
-            PERSISTENCIA_OPERACOES,
-            signal_data['strategy'],
-            signal_data['confidence'],
-            signal_data.get('reason', '')  # NOVO: passar a razão original
-        )
-        
-        signal_record = {
-            'bot_name': BOT_NAME,
-            'is_safe_to_operate': signal_data['should_operate'],
-            'reason': mensaje_espanol,  # USAR MENSAGEM EM ESPANHOL
-            'strategy_used': signal_data['strategy'],
-            'strategy_confidence': signal_data['confidence'],
-            'losses_in_last_10_ops': signal_data.get('losses_ultimas_15', 0),
-            'wins_in_last_5_ops': min(5, signal_data.get('wins_consecutivos', 0)),
-            'historical_accuracy': signal_data['confidence'] / 100.0,
-            'pattern_found_at': datetime.now().isoformat() if signal_data['should_operate'] else None,
-            'operations_after_pattern': operations_count,
-            'auto_disable_after_ops': 2,
-            'available_strategies': 1,
-            'filters_applied': '[]',
-            'execution_time_ms': 0
-        }
-        
-        response = supabase.table('radar_de_apalancamiento_signals').upsert(signal_record, on_conflict='bot_name').select('id').execute()
-        
-        if response.data and len(response.data) > 0:
-            signal_id = response.data[0]['id']
-            logger.info(f"[SIGNAL_SENT] Sinal enviado com ID: {signal_id} - Mensaje: {mensaje_espanol}")
-            return signal_id
-        else:
-            logger.error(f"[SIGNAL_ERROR] Resposta vazia")
-            return None
-            
-    except Exception as e:
-        logger.error(f"[SIGNAL_ERROR] Erro: {e}")
-        raise e
-
-# FUNÇÃO REMOVIDA: processar_e_enviar_sinal() - Simplificação do sistema
-
 # ===== SISTEMA DE MONITORAMENTO E STATUS =====
-
 def gerar_status_sistema() -> Dict:
     """Gera status completo do sistema"""
     try:
@@ -1238,10 +960,7 @@ def gerar_status_sistema() -> Dict:
             'error': str(e)
         }
 
-# FUNÇÃO REMOVIDA: imprimir_status_detalhado() - Simplificação do sistema
-
 # ===== LOOP PRINCIPAL DO BOT =====
-
 def executar_ciclo_analise_simplificado(supabase) -> Dict:
     """Ciclo com máquina de estados - ANALYZING/MONITORING"""
     try:
@@ -1259,110 +978,92 @@ def executar_ciclo_analise_simplificado(supabase) -> Dict:
             }
         
         # LÓGICA DA MÁQUINA DE ESTADOS
-        resultado_ciclo = None
-        
         if bot_current_state == BotState.ANALYZING:
             # ESTADO ANALYZING: Buscar por padrões
             logger.info("[STATE] Estado ANALYZING - Buscando padrões")
             
             # Executar análise PRECISION SURGE
-            resultado_ciclo = executar_analise_precision_surge_unico(historico)
+            resultado = executar_analise_precision_surge_unico(historico)
             
-            # Se encontrou padrão, ativar estado MONITORING e armazenar resultado
-            if resultado_ciclo['should_operate']:
-                sucesso = activate_monitoring_state(resultado_ciclo, latest_operation_id, supabase)
-                if sucesso:
-                    logger.info(f"[STATE_CHANGE] ANALYZING → MONITORING (padrão encontrado)")
+            # Se encontrou padrão, ativar estado MONITORING
+            if resultado['should_operate']:
+                activate_monitoring_state(resultado, latest_operation_id)
+                
+                # Enviar sinal para Supabase
+                dados_supabase = {
+                    'bot_name': BOT_NAME,
+                    'is_safe_to_operate': True,
+                    'reason': resultado['reason'],
+                    'strategy_used': resultado['strategy'],
+                    'strategy_confidence': resultado['confidence'],
+                    'losses_in_last_10_ops': resultado.get('losses_ultimas_15', 0),
+                    'wins_in_last_5_ops': min(5, resultado.get('wins_consecutivos', 0)),
+                    'historical_accuracy': resultado['confidence'] / 100.0,
+                    'pattern_found_at': datetime.now().isoformat(),
+                    'operations_after_pattern': 0,
+                    'auto_disable_after_ops': PERSISTENCIA_OPERACOES,
+                    'available_strategies': 1,
+                    'filters_applied': '{precision_surge_only}',
+                    'execution_time_ms': 0
+                }
+                
+                response = supabase.table('radar_de_apalancamiento_signals').insert(dados_supabase).execute()
+                
+                if response.data:
+                    logger.info(f"[SIGNAL_SENT] ✅ Sinal enviado: {resultado['reason']}")
+                    resultado['signal_sent'] = True
                 else:
-                    logger.error(f"[STATE_ERROR] Falha na ativação do monitoramento")
-                    resultado_ciclo['should_operate'] = False
-                    resultado_ciclo['reason'] = "Erro ao ativar monitoramento"
-                logger.info(f"[STATE_CHANGE] ANALYZING → MONITORING (padrão encontrado)")
+                    logger.error(f"[SIGNAL_ERROR] Falha no envio")
+                    resultado['signal_sent'] = False
+                    
+                return {
+                    'status': 'COMPLETED',
+                    'resultado': resultado
+                }
+            else:
+                # Não encontrou padrão - continuar analisando
+                return {
+                    'status': 'COMPLETED',
+                    'resultado': resultado
+                }
                 
         elif bot_current_state == BotState.MONITORING:
-            # ESTADO MONITORING: Usar sinal armazenado e verificar condições de reset
+            # ESTADO MONITORING: Monitorar operações sem analisar padrões
             logger.info(f"[STATE] Estado MONITORING - Operações: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES}")
             
             # Verificar se houve novas operações
-            nova_operacao = check_new_operations(supabase, latest_operation_id)
-            if nova_operacao:
-                logger.info(f"[MONITORING] Nova operação detectada: {monitoring_operations_count}/{PERSISTENCIA_OPERACOES} - Resultados coletados: {monitoring_results}")
+            check_new_operations(latest_operation_id)
             
             # Verificar se deve resetar para ANALYZING
             if should_reset_to_analyzing():
-                # Criar resultado de finalização
-                resultado_ciclo = {
-                    'should_operate': False,
-                    'reason': f"Estrategia {active_signal_data['strategy']} completada - {monitoring_operations_count} operaciones",
-                    'strategy': active_signal_data['strategy'],
-                    'confidence': active_signal_data['confidence'],
-                    'losses_ultimas_15': active_signal_data.get('losses_ultimas_15', 0),
-                    'wins_consecutivos': active_signal_data.get('wins_consecutivos', 0)
-                }
+                reset_bot_state()
+                logger.info("[STATE] Resetado para ANALYZING - Próximo ciclo buscará novos padrões")
                 
-                reset_bot_state(supabase)
-                logger.info("[STATE_CHANGE] MONITORING → ANALYZING (monitoramento concluído)")
+                # Retornar resultado indicando fim do monitoramento
+                return {
+                    'status': 'COMPLETED',
+                    'resultado': {
+                        'should_operate': False,
+                        'reason': f"Estrategia {active_signal_data['strategy']} completada - {monitoring_operations_count} operaciones",
+                        'strategy': active_signal_data['strategy'],
+                        'confidence': active_signal_data['confidence']
+                    }
+                }
             else:
-                # Usar o sinal armazenado como resultado do ciclo atual
+                # Continuar monitorando - manter sinal ativo
+                state_info = get_state_info()
                 remaining_ops = PERSISTENCIA_OPERACOES - monitoring_operations_count
-                resultado_ciclo = {
-                    'should_operate': True,  # Manter sinal ativo
-                    'reason': f"Patron encontrado: {active_signal_data['strategy']} - esperando {remaining_ops} operaciones",
-                    'strategy': active_signal_data['strategy'],
-                    'confidence': active_signal_data['confidence'],
-                    'losses_ultimas_15': active_signal_data.get('losses_ultimas_15', 0),
-                    'wins_consecutivos': active_signal_data.get('wins_consecutivos', 0)
-                }
-        
-        # ENVIO CENTRALIZADO PARA SUPABASE (final do ciclo)
-        if resultado_ciclo:
-            # Determinar mensagem em espanhol baseada no estado atual
-            operations_count = monitoring_operations_count if bot_current_state == BotState.MONITORING else 0
-            mensaje_espanol = determinar_mensaje_estado_espanol(
-                resultado_ciclo['should_operate'],  # NOVO: passar se deve operar
-                operations_count,
-                PERSISTENCIA_OPERACOES,
-                resultado_ciclo['strategy'],
-                resultado_ciclo['confidence'],
-                resultado_ciclo['reason']  # NOVO: passar a razão original
-            )
-            
-            # Construir payload com mensagem em espanhol
-            dados_supabase = {
-                'bot_name': BOT_NAME,
-                'is_safe_to_operate': resultado_ciclo['should_operate'],
-                'reason': mensaje_espanol,  # MENSAGEM EM ESPANHOL BASEADA NO ESTADO
-                'strategy_used': resultado_ciclo['strategy'],
-                'strategy_confidence': resultado_ciclo['confidence'],
-                'losses_in_last_10_ops': resultado_ciclo.get('losses_ultimas_15', 0),
-                'wins_in_last_5_ops': min(5, resultado_ciclo.get('wins_consecutivos', 0)),
-                'historical_accuracy': resultado_ciclo['confidence'] / 100.0,
-                'pattern_found_at': datetime.now().isoformat(),
-                'operations_after_pattern': operations_count,
-                'auto_disable_after_ops': PERSISTENCIA_OPERACOES,
-                'available_strategies': 1,
-                'filters_applied': '{precision_surge_only}',
-                'execution_time_ms': 0
-            }
-            
-            # ENVIO PARA SUPABASE (sempre, independente do estado)
-            try:
-                response = supabase.table('radar_de_apalancamiento_signals').upsert(dados_supabase, on_conflict='bot_name').execute()
                 
-                if response.data:
-                    logger.info(f"[SIGNAL_SENT] ✅ Mensaje en español enviado: {mensaje_espanol}")
-                    resultado_ciclo['signal_sent'] = True
-                else:
-                    logger.error(f"[SIGNAL_ERROR] ❌ Falha no envio do sinal")
-                    resultado_ciclo['signal_sent'] = False
-            except Exception as e:
-                logger.error(f"[SIGNAL_ERROR] ❌ Erro ao enviar sinal: {e}")
-                resultado_ciclo['signal_sent'] = False
-        
-        return {
-            'status': 'COMPLETED',
-            'resultado': resultado_ciclo
-        }
+                return {
+                    'status': 'COMPLETED',
+                    'resultado': {
+                        'should_operate': False,  # Não enviar novo sinal
+                        'reason': f"Estrategia {active_signal_data['strategy']} activa - esperando {remaining_ops} operaciones",
+                        'strategy': active_signal_data['strategy'],
+                        'confidence': active_signal_data['confidence'],
+                        'monitoring_info': state_info
+                    }
+                }
         
     except Exception as e:
         logger.error(f"[CICLO_ERROR] Erro: {e}")
@@ -1385,15 +1086,10 @@ def main_loop():
         logger.error("[MAIN] ERRO CRÍTICO: Não foi possível conectar ao Supabase")
         print("FAIL Erro crítico na conexão com Supabase")
         return
-    
-    # Verificar tabelas necessárias
-    if not testar_tabelas_supabase(supabase):
-        print("❌ Erro nas tabelas - abortando")
-        return
-    
+
     # Resetar estado inicial
     reset_bot_state()
-    
+
     logger.info("[MAIN] ✅ Sistema inicializado com sucesso")
     print("\n🚀 RADAR ANALISIS SCALPING BOT COM ESTADOS ATIVO")
     print("📊 Sistema de gerenciamento de estado implementado")
@@ -1403,9 +1099,9 @@ def main_loop():
     print("🔍 Gatilho: 4-5 WINs consecutivos")
     print(f"⚡ Persistência: {PERSISTENCIA_OPERACOES} operações")
     print("\nPressione Ctrl+C para parar\n")
-    
+
     ciclo_count = 0
-    
+
     try:
         while True:
             ciclo_count += 1
@@ -1473,7 +1169,6 @@ def main_loop():
         print("\n👋 Radar Analisis Scalping Bot com Estados finalizado")
 
 # ===== FUNÇÕES DE TESTE E VALIDAÇÃO =====
-
 def testar_conexao_supabase():
     """Testa conexão com Supabase"""
     try:
@@ -1500,30 +1195,22 @@ def testar_conexao_supabase():
         return False
 
 def testar_estrategias():
-    """Testa as 3 estratégias com dados simulados"""
+    """Testa as estratégias com dados simulados"""
     try:
         print("\n🧪 Testando estratégias com dados simulados...")
         
         # Dados de teste que devem ativar as estratégias
-        historico_teste = ['V', 'V', 'V', 'D', 'V', 'V', 'D', 'V', 'V', 'V', 'D', 'V', 'V', 'V', 'V', 'D', 'V', 'V', 'V', 'V']
+        historico_teste = ['V', 'V', 'V', 'V', 'V', 'D', 'V', 'V', 'D', 'V', 'V', 'V', 'D', 'V', 'V', 'D', 'V', 'V', 'V', 'V']
         
         print(f"📊 Histórico de teste: {' '.join(historico_teste[:15])}")
-        
-        # Testar MICRO-BURST
-        resultado_micro = analisar_micro_burst(historico_teste)
-        print(f"🎯 MICRO-BURST: {resultado_micro['should_operate']} - {resultado_micro['confidence']:.1f}%")
         
         # Testar PRECISION SURGE
         resultado_precision = analisar_precision_surge(historico_teste)
         print(f"🎯 PRECISION SURGE: {resultado_precision['should_operate']} - {resultado_precision['confidence']:.1f}%")
         
-        # Testar QUANTUM MATRIX
-        resultado_quantum = analisar_quantum_matrix_EXATO_REFINADO(historico_teste)
-        print(f"🎯 QUANTUM MATRIX: {resultado_quantum['should_operate']} - {resultado_quantum['confidence']:.1f}%")
-        
-        # Testar análise consolidada
-        resultado_consolidado = executar_analise_consolidada(historico_teste)
-        print(f"\n🏆 MELHOR ESTRATÉGIA: {resultado_consolidado['strategy']} - {resultado_consolidado['confidence']:.1f}%")
+        # Testar análise simplificada
+        resultado_simplificado = executar_analise_precision_surge_unico(historico_teste)
+        print(f"🎯 PRECISION SURGE (simplificado): {resultado_simplificado['should_operate']} - {resultado_simplificado['confidence']:.1f}%")
         
         print("✅ Teste das estratégias concluído")
         return True
@@ -1538,10 +1225,10 @@ def executar_testes_completos():
     
     # Teste 1: Conexão Supabase
     teste1 = testar_conexao_supabase()
-    
+
     # Teste 2: Estratégias
     teste2 = testar_estrategias()
-    
+
     # Resultado final
     if teste1 and teste2:
         print("\n✅ TODOS OS TESTES PASSARAM")
@@ -1552,8 +1239,45 @@ def executar_testes_completos():
         print("🔧 Verifique a configuração antes de executar")
         return False
 
-# ===== PONTO DE ENTRADA =====
+def imprimir_status_detalhado():
+    """Imprime status detalhado do sistema"""
+    try:
+        status = gerar_status_sistema()
+        
+        print("\n📊 === STATUS DETALHADO DO SISTEMA ===")
+        print(f"🕒 Timestamp: {status['timestamp']}")
+        print(f"🤖 Bot: {status['bot_name']}")
+        print(f"✅ Status: {status['system_status']}")
+        
+        print("\n🎯 ESTRATÉGIAS:")
+        for strategy_name, metrics in status['strategies'].items():
+            print(f"  • {strategy_name}:")
+            print(f"    - Execuções: {metrics['total_executions']}")
+            print(f"    - Taxa de sucesso: {metrics['success_rate']:.1f}%")
+            print(f"    - Tempo médio: {metrics['average_time']:.3f}s")
+            print(f"    - Erros: {metrics['error_count']}")
+        
+        print("\n🔒 TRAVA DE PADRÃO:")
+        lock_status = status['pattern_lock']
+        print(f"  - Ativa: {lock_status['is_locked']}")
+        if lock_status['is_locked']:
+            print(f"  - Estratégia: {lock_status['strategy_name']}")
+            print(f"  - Confiança: {lock_status['confidence']:.1f}%")
+            print(f"  - Operações: {lock_status['operations_count']}/2")
+        
+        print("\n📈 RESUMO:")
+        summary = status['metrics_summary']
+        print(f"  - Execuções totais: {summary['total_executions']}")
+        print(f"  - Taxa média de sucesso: {summary['average_success_rate']:.1f}%")
+        print(f"  - Estratégias ativas: {summary['strategies_count']}")
+        
+        return status
+        
+    except Exception as e:
+        print(f"❌ ERRO ao gerar status: {e}")
+        return None
 
+# ===== PONTO DE ENTRADA =====
 if __name__ == "__main__":
     import sys
     
