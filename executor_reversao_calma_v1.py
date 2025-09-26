@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-EXECUTOR MOMENTUM-CALMO - Bot de Trading Estratégico
+EXECUTOR REVERSIÓN-CALMA - Bot de Trading Estratégico
 
-Este script monitora operações de trading em tempo real e detecta padrões WW
-(2 vitórias consecutivas) durante condições específicas de mercado.
+Este script monitora operaciones de trading en tiempo real y detecta patrones LL
+(2 pérdidas consecutivas) durante condiciones específicas de mercado.
 
 Características:
-- Análise em tempo real das últimas 2 operações
-- Detecção de padrão WW em Baixa Atividade + Fechamento da Hora
-- Filtros baseados em regime de atividade UTC
-- Envio de sinais para Supabase
-- Logs simplificados e focados
+- Análisis en tiempo real de las últimas 2 operaciones
+- Detección de patrón LL en Baja Actividad + Apertura de Hora
+- Filtros basados en régimen de actividad UTC
+- Envío de señales a Supabase
+- Logs simplificados y enfocados
 
 Autor: Sistema de Trading Automatizado
-Versão: 3.5 - Momentum-Calmo
+Versión: 1.0 - Reversión-Calma
 """
 import os
 import time
@@ -31,7 +31,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s',
     handlers=[
-        logging.FileHandler('radartunder1.5_operations.log', encoding='utf-8'),
+        logging.FileHandler('executor_reversao_calma_v1_operations.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -40,10 +40,10 @@ logger = logging.getLogger(__name__)
 for lib in ['httpx', 'httpcore', 'supabase', 'postgrest']:
     logging.getLogger(lib).setLevel(logging.WARNING)
 
-BOT_NAME = 'executor_momentum_calmo_v1'
+BOT_NAME = 'executor_reversao_calma_v1'
 ANALISE_INTERVALO = 5
 OPERACOES_HISTORICO = 35
-OPERACOES_MINIMAS = 2  # Requisito mínimo para WW
+OPERACOES_MINIMAS = 2  # Requisito mínimo para LL
 
 # Constantes de regime de atividade (UTC)
 HORAS_BAIXA_ATIVIDADE_UTC = [3, 4, 5, 6, 7, 8, 9, 10]
@@ -52,7 +52,7 @@ HORAS_MEDIA_ATIVIDADE_UTC = [11, 12, 13, 14, 15, 16, 17, 18]
 
 
 def get_regime_atividade_utc(timestamp_str: str) -> str:
-    """Determina o regime de atividade baseado na hora UTC."""
+    """Determina el régimen de actividad basado en la hora UTC."""
     try:
         dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         hora_utc = dt.hour
@@ -64,22 +64,22 @@ def get_regime_atividade_utc(timestamp_str: str) -> str:
         else:
             return 'Alta Atividade'
     except Exception as e:
-        logger.warning(f"Erro ao processar timestamp {timestamp_str}: {e}")
+        logger.warning(f"Error al procesar timestamp {timestamp_str}: {e}")
         return 'Alta Atividade'  # Default seguro
 
 def get_padrao_intra_hora_utc(timestamp_str: str) -> str:
-    """Determina se estamos no período de fechamento da hora."""
+    """Determina si estamos en el período de apertura de la hora."""
     try:
         dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         minuto_utc = dt.minute
         
-        if 55 <= minuto_utc <= 59:
-            return 'Fechamento da Hora'
+        if 0 <= minuto_utc <= 5:
+            return 'Apertura de Hora'
         else:
-            return 'Outro Período'
+            return 'Otro Período'
     except Exception as e:
-        logger.warning(f"Erro ao processar timestamp {timestamp_str}: {e}")
-        return 'Outro Período'  # Default seguro
+        logger.warning(f"Error al procesar timestamp {timestamp_str}: {e}")
+        return 'Otro Período'  # Default seguro
 
 def retry_supabase_operation(max_retries=3, delay=2):
     def decorator(func):
@@ -90,10 +90,10 @@ def retry_supabase_operation(max_retries=3, delay=2):
                     return func(*args, **kwargs)
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        logger.warning(f"Tentativa {attempt + 1} falhou: {e}. Tentando novamente...")
+                        logger.warning(f"Intento {attempt + 1} falló: {e}. Intentando nuevamente...")
                         time.sleep(delay)
                     else:
-                        logger.error(f"Todas as {max_retries} tentativas para {func.__name__} falharam.")
+                        logger.error(f"Todos los {max_retries} intentos para {func.__name__} fallaron.")
                         raise e
         return wrapper
     return decorator
@@ -131,8 +131,8 @@ def buscar_operacoes_historico(supabase: Client) -> Tuple[List[str], List[str], 
         # CORRECCIÓN DE ROBUSTEZ: Garantiza que la función siempre retorne la tupla de 3 valores.
         return [], [], None
 
-def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: str) -> Dict:
-    """Verifica si las condiciones de la estrategia Momentum-Calmo fueron cumplidas."""
+def analisar_estrategia_reversion_calma(historico: List[str], ultimo_timestamp: str) -> Dict:
+    """Verifica si las condiciones de la estrategia Reversión-Calma fueron cumplidas."""
     
     # 1. Validación Mínima de Datos
     if len(historico) < OPERACOES_MINIMAS:
@@ -146,22 +146,22 @@ def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: s
     if regime != 'Baixa Atividade':
         return {'should_operate': False, 'reason': f'Filtro Rechazado: Régimen actual es {regime}'}
     
-    if periodo != 'Fechamento da Hora':
-        return {'should_operate': False, 'reason': f'Filtro Rechazado: Período no es Cierre'}
+    if periodo != 'Apertura de Hora':
+        return {'should_operate': False, 'reason': f'Filtro Rechazado: Período no es Apertura'}
 
-    # 4. Verificación del Gatillo WW
+    # 4. Verificación del Gatillo LL
     ultimas_2_cronologica = list(reversed(historico[:2]))
-    if ultimas_2_cronologica == ['WIN', 'WIN']:
+    if ultimas_2_cronologica == ['LOSS', 'LOSS']:
         return {
             'should_operate': True,
-            'strategy': 'Momentum-Calmo',
-            'reason': 'SEÑAL ACTIVA: WW | Baja + Cierre',
+            'strategy': 'Reversión-Calma',
+            'reason': 'SEÑAL ACTIVA: LL | Baja + Apertura',
             'last_operations': historico[:2]
         }
     
     # 5. Condición Estándar
     padrao_atual = ''.join(['W' if op == 'WIN' else 'L' for op in ultimas_2_cronologica])
-    return {'should_operate': False, 'reason': f'Esperando gatillo WW. Patrón actual: {padrao_atual}'}
+    return {'should_operate': False, 'reason': f'Esperando gatillo LL. Patrón actual: {padrao_atual}'}
 
 @retry_supabase_operation()
 def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
@@ -193,23 +193,23 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 
 def main_loop():
-    """Bucle principal del bot de análisis Momentum-Calmo."""
-    logger.info("=== INICIANDO EXECUTOR MOMENTUM-CALMO ===")
+    """Bucle principal del bot de análisis Reversión-Calma."""
+    logger.info("=== INICIANDO EXECUTOR REVERSIÓN-CALMA ===")
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
         logger.critical("Fallo fatal al conectar con Supabase. Cerrando.")
         return
 
     logger.info("Bot inicializado exitosamente.")
-    print("\n[INICIO] Iniciando bot EXECUTOR MOMENTUM-CALMO")
-    print("[INFO] Configuración: Análisis de las últimas 2 operaciones")
-    print("[INFO] Objetivo: Detectar patrón WW en Baja Actividad + Cierre de Hora")
+    print("\n[INICIO] Iniciando bot EXECUTOR REVERSIÓN-CALMA")
+    print("[INFO] Configuração: Análisis de las últimas 2 operaciones")
+    print("[INFO] Objetivo: Detectar patrón LL en Baja Actividad + Apertura de Hora")
     print("[INFO] Intervalo de análisis: 5 segundos")
     print("[INFO] Actualizaciones automáticas para Supabase")
     print("-" * 60)
     print("\nPresiona Ctrl+C para detener.\n")
 
-    last_update_time = 0  # Control para atualizações regulares
+    last_update_time = 0  # Control para actualizaciones regulares
 
     while True:
         try:
@@ -221,11 +221,11 @@ def main_loop():
                 time.sleep(ANALISE_INTERVALO)
                 continue
 
-            # Analisa a estratégia Momentum-Calmo
-            resultado_analise = analisar_estrategia_momentum_calmo(historico, timestamps[0])
+            # Analiza la estrategia Reversión-Calma
+            resultado_analise = analisar_estrategia_reversion_calma(historico, timestamps[0])
             
-            # A lógica de decisão é agora muito mais simples.
-            # Envia o sinal se as condições forem atendidas OU a cada 5 segundos para manter o status atualizado.
+            # La lógica de decisión es ahora mucho más simple.
+            # Envía la señal si las condiciones son cumplidas O cada 5 segundos para mantener el status actualizado.
             if resultado_analise['should_operate'] or (current_time - last_update_time >= ANALISE_INTERVALO):
                 if resultado_analise['should_operate']:
                     print(f"\n[SEÑAL] {resultado_analise['reason']}")
@@ -235,20 +235,20 @@ def main_loop():
                 signal_id = enviar_sinal_supabase(supabase, resultado_analise)
                 
                 if signal_id:
-                    print(f"[OK] Sinal/Atualização enviado com ID: {signal_id}")
+                    print(f"[OK] Señal/Actualización enviada con ID: {signal_id}")
                     last_update_time = current_time
                 else:
-                    print("[ERROR] Erro ao enviar sinal/atualização")
+                    print("[ERROR] Error al enviar señal/actualización")
             
             time.sleep(ANALISE_INTERVALO)
             
         except KeyboardInterrupt:
-            logger.info("Bot interrompido pelo usuário.")
-            print("\n[STOP] Bot parado pelo usuário.")
+            logger.info("Bot interrumpido por el usuario.")
+            print("\n[STOP] Bot detenido por el usuario.")
             break
         except Exception as e:
-            logger.error(f"Erro no loop principal: {e}", exc_info=True)
-            print(f"[ERROR] Erro: {e}")
+            logger.error(f"Error en el bucle principal: {e}", exc_info=True)
+            print(f"[ERROR] Error: {e}")
             time.sleep(ANALISE_INTERVALO)
 
 if __name__ == "__main__":
