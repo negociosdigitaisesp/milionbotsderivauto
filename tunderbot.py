@@ -93,49 +93,161 @@ class DerivWebSocketNativo:
         
         logger.info(f"🔧 DerivWebSocketNativo inicializado - App ID: {self.app_id}")
     
+    async def _check_network_connectivity(self):
+        """Verifica conectividade de rede antes de tentar conectar"""
+        try:
+            import socket
+            # Tenta conectar ao DNS do Google para verificar conectividade
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            result = sock.connect_ex(('8.8.8.8', 53))
+            sock.close()
+            return result == 0
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao verificar conectividade de rede: {e}")
+            return True  # Assume conectividade se não conseguir verificar
+    
     async def connect(self):
-        """Conecta ao WebSocket da Deriv com autenticação"""
-        max_retries = 3
+        """Conecta ao WebSocket da Deriv com autenticação e logs detalhados"""
+        max_retries = 5  # Aumentado de 3 para 5
+        connection_start_time = time.time()
+        
+        logger.info(f"🔗 Iniciando processo de conexão WebSocket...")
+        logger.debug(f"📊 Estado atual: connected={getattr(self, 'connected', False)}, "
+                    f"authorized={getattr(self, 'authorized', False)}, "
+                    f"session_id={getattr(self, 'session_id', None)}")
+        
+        # Verificar conectividade de rede antes de tentar conectar
+        logger.debug("🌐 Verificando conectividade de rede...")
+        if not await self._check_network_connectivity():
+            logger.error("❌ Sem conectividade de rede. Aguardando 10 segundos...")
+            await asyncio.sleep(10)
+            if not await self._check_network_connectivity():
+                logger.error("❌ Ainda sem conectividade de rede após 10 segundos")
+                return False
+        logger.debug("✅ Conectividade de rede confirmada")
+        
         for attempt in range(max_retries):
+            attempt_start_time = time.time()
             try:
                 logger.info(f"🔗 Tentativa {attempt + 1}/{max_retries} - Conectando WebSocket...")
                 
                 # Fechar conexão anterior se existir
                 if self.ws:
                     try:
-                        await self.ws.close()
-                    except:
-                        pass
+                        logger.debug("🔄 Fechando conexão WebSocket anterior...")
+                        await asyncio.wait_for(self.ws.close(), timeout=5.0)
+                        logger.debug("✅ Conexão anterior fechada com sucesso")
+                    except asyncio.TimeoutError:
+                        logger.warning("⚠️ Timeout ao fechar conexão anterior")
+                    except Exception as close_error:
+                        logger.warning(f"⚠️ Erro ao fechar conexão anterior: {close_error}")
                 
                 # URL WebSocket conforme especificação
                 ws_url = f"wss://ws.binaryws.com/websockets/v3?app_id={self.app_id}"
+                logger.debug(f"🌐 URL de conexão: {ws_url}")
                 
-                # Conectar WebSocket
-                self.ws = await websockets.connect(ws_url)
-                logger.info(f"🔗 WebSocket conectado: {ws_url}")
+                # Conectar WebSocket com timeout
+                logger.debug("🔗 Estabelecendo conexão WebSocket...")
+                connect_start = time.time()
+                self.ws = await asyncio.wait_for(
+                    websockets.connect(ws_url, ping_interval=20, ping_timeout=10), 
+                    timeout=30.0
+                )
+                connect_time = time.time() - connect_start
+                logger.info(f"🔗 WebSocket conectado em {connect_time:.2f}s: {ws_url}")
+                
+                # Verificar estado da conexão
+                try:
+                    # Diferentes versões do websockets podem ter atributos diferentes
+                    is_closed = getattr(self.ws, 'closed', False) or getattr(self.ws, 'close_code', None) is not None
+                    if is_closed:
+                        logger.error("❌ WebSocket foi fechado imediatamente após conexão")
+                        continue
+                except AttributeError:
+                    # Se não conseguir verificar o estado, continua
+                    logger.debug("⚠️ Não foi possível verificar estado do WebSocket, continuando...")
+                    pass
+                    
+                # Log do estado do WebSocket (compatível com diferentes versões)
+                try:
+                    is_open = not (getattr(self.ws, 'closed', False) or getattr(self.ws, 'close_code', None) is not None)
+                    logger.debug(f"📊 Estado WebSocket: open={is_open}, "
+                               f"local_address={getattr(self.ws, 'local_address', 'N/A')}, "
+                               f"remote_address={getattr(self.ws, 'remote_address', 'N/A')}")
+                except AttributeError:
+                    logger.debug("📊 Estado WebSocket: conectado (verificação de estado não disponível)")
                 
                 # Iniciar task para processar mensagens
-                asyncio.create_task(self._handle_messages())
+                logger.debug("🔄 Iniciando handler de mensagens...")
+                message_task = asyncio.create_task(self._handle_messages())
+                
+                # Aguardar um pouco para garantir que o handler está ativo
+                await asyncio.sleep(0.1)
                 
                 # Autenticar
+                logger.debug("🔐 Iniciando processo de autenticação...")
+                auth_start = time.time()
                 auth_success = await self._authenticate()
+                auth_time = time.time() - auth_start
+                
                 if auth_success:
                     self.connected = True
-                    logger.info(f"✅ Conexão WebSocket estabelecida - Session: {self.session_id}")
+                    total_time = time.time() - connection_start_time
+                    logger.info(f"✅ Conexão WebSocket estabelecida em {total_time:.2f}s - "
+                              f"Session: {self.session_id} (auth: {auth_time:.2f}s)")
                     
                     # Iniciar keepalive
-                    asyncio.create_task(self._keepalive_loop())
+                    logger.debug("💓 Iniciando sistema de keepalive...")
+                    keepalive_task = asyncio.create_task(self._keepalive_loop())
+                    
+                    # Reset contador de falhas de reconexão em caso de sucesso
+                    if hasattr(self, 'consecutive_reconnect_failures'):
+                        self.consecutive_reconnect_failures = 0
+                        logger.debug("🔄 Reset contador de falhas de reconexão")
                     
                     return True
                 else:
-                    logger.error("❌ Falha na autenticação")
+                    logger.error(f"❌ Falha na autenticação após {auth_time:.2f}s")
                     
+            except asyncio.TimeoutError:
+                attempt_time = time.time() - attempt_start_time
+                logger.error(f"❌ Timeout na tentativa {attempt + 1} após {attempt_time:.2f}s")
+                # Verificar conectividade novamente após timeout
+                if not await self._check_network_connectivity():
+                    logger.warning("⚠️ Conectividade de rede perdida após timeout")
+            except websockets.exceptions.InvalidURI as e:
+                logger.error(f"❌ URL WebSocket inválida na tentativa {attempt + 1}: {e}")
+                # Erro de URL é crítico, não vale a pena tentar novamente
+                break
+            except websockets.exceptions.ConnectionClosed as e:
+                attempt_time = time.time() - attempt_start_time
+                logger.error(f"❌ Conexão fechada na tentativa {attempt + 1} após {attempt_time:.2f}s: {e}")
+            except websockets.exceptions.WebSocketException as e:
+                attempt_time = time.time() - attempt_start_time
+                logger.error(f"❌ Erro WebSocket na tentativa {attempt + 1} após {attempt_time:.2f}s: {e}")
+            except OSError as e:
+                attempt_time = time.time() - attempt_start_time
+                logger.error(f"❌ Erro de rede na tentativa {attempt + 1} após {attempt_time:.2f}s: {e}")
+                # Verificar conectividade após erro de rede
+                if not await self._check_network_connectivity():
+                    logger.warning("⚠️ Conectividade de rede perdida após erro de rede")
             except Exception as e:
-                logger.error(f"❌ Erro na tentativa {attempt + 1}: {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(5)
+                attempt_time = time.time() - attempt_start_time
+                logger.error(f"❌ Erro inesperado na tentativa {attempt + 1} após {attempt_time:.2f}s: {type(e).__name__}: {e}")
+                import traceback
+                logger.debug(f"📋 Stack trace: {traceback.format_exc()}")
+                
+            if attempt < max_retries - 1:
+                # Backoff exponencial com jitter
+                base_wait = 2 ** attempt  # 1s, 2s, 4s, 8s, 16s
+                jitter = base_wait * 0.1 * (0.5 - asyncio.get_event_loop().time() % 1)  # ±10% jitter
+                wait_time = min(base_wait + jitter, 30)  # Máximo 30 segundos
+                logger.warning(f"⏳ Aguardando {wait_time:.1f}s antes da próxima tentativa (backoff exponencial)...")
+                await asyncio.sleep(wait_time)
                     
-        logger.error("❌ Falha ao estabelecer conexão WebSocket")
+        total_failed_time = time.time() - connection_start_time
+        logger.error(f"❌ Falha ao estabelecer conexão WebSocket após {total_failed_time:.2f}s e {max_retries} tentativas")
         return False
     
     def _get_next_req_id(self):
@@ -204,30 +316,125 @@ class DerivWebSocketNativo:
             self.connected = False
     
     async def _keepalive_loop(self):
-        """Loop de ping/pong para manter conexão ativa"""
+        """Loop de ping/pong aprimorado para manter conexão ativa"""
+        consecutive_ping_failures = 0
+        max_ping_failures = 3
+        ping_timeout = 10.0  # 10 segundos timeout para ping
+        last_successful_ping = time.time()
+        
         while self.connected and self.ws:
             try:
-                await asyncio.sleep(30)  # Ping a cada 30 segundos
+                await asyncio.sleep(20)  # Ping a cada 20 segundos (mais frequente)
+                
                 if self.connected and self.ws:
                     req_id = self._get_next_req_id()
                     ping_message = {"ping": 1, "req_id": req_id}
                     
-                    response = await self._send_request(ping_message)
-                    if 'ping' in response:
-                        logger.debug(f"💓 Ping OK - req_id: {req_id}")
-                    else:
-                        logger.warning("⚠️ Ping falhou - Reconectando...")
+                    try:
+                        # Enviar ping com timeout
+                        ping_start = time.time()
+                        response = await asyncio.wait_for(
+                            self._send_request(ping_message), 
+                            timeout=ping_timeout
+                        )
+                        
+                        if 'ping' in response:
+                            ping_duration = time.time() - ping_start
+                            last_successful_ping = time.time()
+                            consecutive_ping_failures = 0
+                            
+                            logger.debug(f"💓 Ping OK - req_id: {req_id}, latência: {ping_duration*1000:.1f}ms")
+                            
+                            # Alertar sobre latência alta
+                            if ping_duration > 5.0:
+                                logger.warning(f"⚠️ Latência alta no ping: {ping_duration*1000:.1f}ms")
+                        else:
+                            consecutive_ping_failures += 1
+                            logger.warning(f"⚠️ Ping falhou ({consecutive_ping_failures}/{max_ping_failures}) - Resposta inválida")
+                            
+                    except asyncio.TimeoutError:
+                        consecutive_ping_failures += 1
+                        logger.warning(f"⚠️ Timeout no ping ({consecutive_ping_failures}/{max_ping_failures}) - {ping_timeout}s")
+                        
+                    except Exception as ping_error:
+                        consecutive_ping_failures += 1
+                        logger.error(f"❌ Erro no ping ({consecutive_ping_failures}/{max_ping_failures}): {ping_error}")
+                    
+                    # Verificar se muitas falhas consecutivas
+                    if consecutive_ping_failures >= max_ping_failures:
+                        time_since_last_success = time.time() - last_successful_ping
+                        logger.error(f"❌ Muitas falhas de ping consecutivas ({consecutive_ping_failures}), "
+                                   f"última resposta há {time_since_last_success:.1f}s - Forçando reconexão")
                         await self._reconnect()
+                        consecutive_ping_failures = 0
+                        last_successful_ping = time.time()
                         
             except Exception as e:
                 logger.error(f"❌ Erro no keepalive: {e} - Reconectando...")
                 await self._reconnect()
+                consecutive_ping_failures = 0
+                last_successful_ping = time.time()
     
     async def _reconnect(self):
-        """Reconecta automaticamente"""
-        logger.info("🔄 Iniciando reconexão...")
-        self.connected = False
-        await self.connect()
+        """Reconecta automaticamente com circuit breaker inteligente"""
+        # Verificar se não estamos em loop de reconexão
+        if hasattr(self, '_reconnecting') and self._reconnecting:
+            logger.warning("⚠️ Reconexão já em andamento, ignorando nova tentativa")
+            return
+            
+        self._reconnecting = True
+        
+        try:
+            # Incrementar contador de falhas consecutivas
+            if not hasattr(self, 'consecutive_reconnect_failures'):
+                self.consecutive_reconnect_failures = 0
+            if not hasattr(self, 'last_reconnect_attempt'):
+                self.last_reconnect_attempt = 0
+                
+            self.consecutive_reconnect_failures += 1
+            current_time = time.time()
+            
+            # Implementar backoff exponencial
+            if self.consecutive_reconnect_failures > 1:
+                backoff_time = min(30 * (2 ** (self.consecutive_reconnect_failures - 1)), 300)  # Máximo 5 minutos
+                time_since_last_attempt = current_time - self.last_reconnect_attempt
+                
+                if time_since_last_attempt < backoff_time:
+                    wait_time = backoff_time - time_since_last_attempt
+                    logger.warning(f"⏳ Aguardando {wait_time:.1f}s antes da próxima tentativa de reconexão "
+                                 f"(tentativa {self.consecutive_reconnect_failures})")
+                    await asyncio.sleep(wait_time)
+            
+            # Circuit breaker - parar tentativas se muitas falhas
+            if self.consecutive_reconnect_failures > 10:
+                logger.critical(f"❌ Muitas falhas de reconexão consecutivas ({self.consecutive_reconnect_failures}), "
+                              f"pausando por 10 minutos")
+                await asyncio.sleep(600)  # 10 minutos
+                self.consecutive_reconnect_failures = 5  # Reset parcial
+            
+            logger.info(f"🔄 Iniciando reconexão (tentativa {self.consecutive_reconnect_failures})...")
+            self.connected = False
+            self.last_reconnect_attempt = current_time
+            
+            # Tentar reconectar com timeout
+            try:
+                await asyncio.wait_for(self.connect(), timeout=60.0)  # 1 minuto timeout
+                
+                # Se chegou até aqui, reconexão foi bem-sucedida
+                logger.info(f"✅ Reconexão bem-sucedida após {self.consecutive_reconnect_failures} tentativas")
+                self.consecutive_reconnect_failures = 0
+                
+            except asyncio.TimeoutError:
+                logger.error(f"❌ Timeout na reconexão (tentativa {self.consecutive_reconnect_failures})")
+                raise
+            except Exception as reconnect_error:
+                logger.error(f"❌ Erro na reconexão (tentativa {self.consecutive_reconnect_failures}): {reconnect_error}")
+                raise
+                
+        except Exception as e:
+            logger.error(f"❌ Falha crítica na reconexão: {e}")
+        finally:
+            self._reconnecting = False
     
     async def _send_request(self, message):
         """Envia request e aguarda response"""
@@ -948,50 +1155,168 @@ class AccumulatorScalpingBot:
     
     async def _force_restart_bot(self):
         """Força reinicialização completa do bot em caso de deadlock crítico"""
-        logger.info("Forçando o reinício do bot devido a inatividade ou erro...")
+        logger.info("🔄 Forçando o reinício do bot devido a inatividade ou erro...")
+        restart_start_time = time.time()
+        
         try:
-            # 1. Desconectar de forma limpa
-            logger.info("Fechando conexão existente...")
-            if self.api_manager and self.api_manager.connected:
-                await self.api_manager.disconnect()
+            # 1. Marcar estado de reinicialização
+            if hasattr(self, 'is_restarting'):
+                self.is_restarting = True
             
-            # 2. Aguardar um pouco para garantir que tudo foi encerrado
-            await asyncio.sleep(2)
+            # 2. Parar subscription de ticks primeiro
+            logger.info("📡 Parando subscription de ticks...")
+            if hasattr(self, 'tick_subscription_active'):
+                self.tick_subscription_active = False
+            
+            # 3. Desconectar de forma limpa com timeout
+            logger.info("🔌 Fechando conexão existente...")
+            if self.api_manager and hasattr(self.api_manager, 'connected') and self.api_manager.connected:
+                try:
+                    await asyncio.wait_for(self.api_manager.disconnect(), timeout=10.0)
+                    logger.info("✅ Desconexão realizada com sucesso")
+                except asyncio.TimeoutError:
+                    logger.warning("⚠️ Timeout na desconexão, forçando fechamento")
+                except Exception as disconnect_error:
+                    logger.warning(f"⚠️ Erro na desconexão: {disconnect_error}")
+            
+            # 4. Limpar buffers e resetar estados
+            logger.info("🧹 Limpando buffers e resetando estados...")
+            if hasattr(self, 'tick_buffer'):
+                self.tick_buffer.clear()
+            if hasattr(self, 'enhanced_tick_buffer'):
+                try:
+                    self.enhanced_tick_buffer.clear_buffer()
+                except:
+                    pass
+            if hasattr(self, 'signal_queue'):
+                try:
+                    self.signal_queue.clear_queue()
+                except:
+                    pass
+            
+            # 5. Aguardar estabilização
+            await asyncio.sleep(3)
 
-            # 3. Reconectar
-            logger.info("Estabelecendo nova conexão...")
-            # Recrie a instância do api_manager ou chame um método de conexão
-            await self.api_manager.connect()
-
-            # 4. Tentar se reinscrever com tratamento de erro
-            logger.info(f"Reinscrevendo nos ticks para o ativo {ATIVO}...")
-            try:
-                await asyncio.wait_for(self.api_manager.subscribe_ticks(ATIVO), timeout=10.0)
-                logger.info("Reinscrição nos ticks realizada com sucesso.")
-                self.last_activity_time = time.time()
-                return True
-            except asyncio.TimeoutError:
-                logger.error("Falha ao se reinscrever nos ticks (timeout). O reinício falhou.")
+            # 6. Reconectar com retry
+            logger.info("🔌 Estabelecendo nova conexão...")
+            connection_attempts = 0
+            max_connection_attempts = 3
+            
+            while connection_attempts < max_connection_attempts:
+                try:
+                    connection_attempts += 1
+                    logger.info(f"🔌 Tentativa de conexão {connection_attempts}/{max_connection_attempts}")
+                    
+                    # Timeout para conexão
+                    connect_success = await asyncio.wait_for(
+                        self.api_manager.connect(), 
+                        timeout=15.0
+                    )
+                    
+                    if connect_success:
+                        logger.info("✅ Nova conexão estabelecida com sucesso")
+                        break
+                    else:
+                        logger.warning(f"⚠️ Falha na tentativa {connection_attempts}")
+                        if connection_attempts < max_connection_attempts:
+                            await asyncio.sleep(5)
+                            
+                except asyncio.TimeoutError:
+                    logger.warning(f"⚠️ Timeout na tentativa de conexão {connection_attempts}")
+                    if connection_attempts < max_connection_attempts:
+                        await asyncio.sleep(5)
+                except Exception as conn_error:
+                    logger.error(f"❌ Erro na tentativa de conexão {connection_attempts}: {conn_error}")
+                    if connection_attempts < max_connection_attempts:
+                        await asyncio.sleep(5)
+            else:
+                logger.error("❌ Falha em todas as tentativas de conexão")
                 return False
-            except asyncio.CancelledError:
-                logger.warning("A reinscrição nos ticks foi cancelada durante o reinício.")
-                # Não retorne nada, deixe o erro ser propagado se necessário
-                raise
-            except Exception as e:
-                logger.error(f"Erro inesperado durante a reinscrição nos ticks: {e}")
+
+            # 7. Reconfigurar callback do bot
+            logger.info("🔧 Reconfigurando callback do bot...")
+            if hasattr(self.api_manager, 'set_bot_instance'):
+                self.api_manager.set_bot_instance(self)
+
+            # 8. Tentar se reinscrever com tratamento de erro robusto
+            logger.info(f"📡 Reinscrevendo nos ticks para o ativo {ATIVO}...")
+            subscription_attempts = 0
+            max_subscription_attempts = 3
+            
+            while subscription_attempts < max_subscription_attempts:
+                try:
+                    subscription_attempts += 1
+                    logger.info(f"📡 Tentativa de subscription {subscription_attempts}/{max_subscription_attempts}")
+                    
+                    await asyncio.wait_for(
+                        self.api_manager.subscribe_ticks(ATIVO), 
+                        timeout=15.0
+                    )
+                    
+                    self.tick_subscription_active = True
+                    logger.info("✅ Reinscrição nos ticks realizada com sucesso")
+                    break
+                    
+                except asyncio.TimeoutError:
+                    logger.warning(f"⚠️ Timeout na subscription {subscription_attempts}")
+                    if subscription_attempts < max_subscription_attempts:
+                        await asyncio.sleep(3)
+                except asyncio.CancelledError:
+                    logger.warning("⚠️ Subscription cancelada durante o reinício")
+                    raise
+                except Exception as sub_error:
+                    logger.error(f"❌ Erro na subscription {subscription_attempts}: {sub_error}")
+                    if subscription_attempts < max_subscription_attempts:
+                        await asyncio.sleep(3)
+            else:
+                logger.error("❌ Falha em todas as tentativas de subscription")
+                return False
+            
+            # 9. Validar estado final
+            await asyncio.sleep(2)  # Aguardar estabilização
+            
+            final_validation = (
+                hasattr(self, 'api_manager') and
+                self.api_manager and
+                hasattr(self.api_manager, 'connected') and
+                self.api_manager.connected and
+                hasattr(self, 'tick_subscription_active') and
+                self.tick_subscription_active
+            )
+            
+            if final_validation:
+                restart_duration = time.time() - restart_start_time
+                logger.info(f"✅ Reinício completo bem-sucedido em {restart_duration:.1f}s")
+                
+                # Atualizar timestamps
+                if hasattr(self, 'last_activity_time'):
+                    self.last_activity_time = time.time()
+                if hasattr(self, '_last_operation_time'):
+                    self._last_operation_time = time.time()
+                    
+                return True
+            else:
+                logger.error("❌ Falha na validação final do reinício")
                 return False
 
         except Exception as e:
-            logger.critical(f"Erro crítico durante o processo de reinício forçado: {e}")
+            restart_duration = time.time() - restart_start_time
+            logger.critical(f"❌ Erro crítico durante o processo de reinício forçado ({restart_duration:.1f}s): {e}")
+            import traceback
+            logger.critical(f"Stack trace: {traceback.format_exc()}")
             return False
         finally:
             # O bloco finally garante que, mesmo com erros, o estado é atualizado
-            self.is_restarting = False
-            logger.info("Processo de reinício finalizado.")
+            if hasattr(self, 'is_restarting'):
+                self.is_restarting = False
+            restart_duration = time.time() - restart_start_time
+            logger.info(f"🏁 Processo de reinício finalizado em {restart_duration:.1f}s")
     
     async def _check_inactivity_and_restart(self):
         """Monitora inatividade continuamente e reinicia o bot se necessário"""
         logger.info("🔍 Sistema de monitoramento de inatividade iniciado")
+        consecutive_errors = 0
+        max_consecutive_errors = 5
         
         while True:
             try:
@@ -1004,35 +1329,100 @@ class AccumulatorScalpingBot:
                 current_time = time.time()
                 time_since_last_operation = current_time - self._last_operation_time
                 
-                # Log de monitoramento a cada verificação
-                logger.info(f"🔍 Monitorando inatividade - Tempo desde última operação: {time_since_last_operation:.1f}s (timeout: {self._inactivity_timeout}s)")
+                # Verificar múltiplos indicadores de problemas
+                connection_healthy = (
+                    hasattr(self, 'api_manager') and 
+                    self.api_manager and 
+                    self.api_manager.connected and
+                    not (hasattr(self.api_manager, 'websocket') and 
+                         self.api_manager.websocket and 
+                         self.api_manager.websocket.closed)
+                )
                 
-                # Verificar se excedeu o timeout de inatividade
-                if time_since_last_operation > self._inactivity_timeout:
-                    logger.warning(f"⚠️ INATIVIDADE DETECTADA: {int(time_since_last_operation)}s sem operações")
+                subscription_healthy = (
+                    hasattr(self, 'tick_subscription_active') and 
+                    self.tick_subscription_active
+                )
+                
+                # Log de monitoramento detalhado
+                logger.info(f"🔍 HEALTH_CHECK: inatividade={time_since_last_operation:.1f}s/{self._inactivity_timeout}s, "
+                          f"conexão={'✅' if connection_healthy else '❌'}, "
+                          f"subscription={'✅' if subscription_healthy else '❌'}, "
+                          f"operações={self._operation_count}")
+                
+                # Condições para reinício
+                needs_restart = (
+                    # Inatividade prolongada
+                    time_since_last_operation > self._inactivity_timeout or
+                    # Conexão perdida
+                    not connection_healthy or
+                    # Subscription inativa
+                    not subscription_healthy
+                )
+                
+                if needs_restart:
+                    reason = []
+                    if time_since_last_operation > self._inactivity_timeout:
+                        reason.append(f"inatividade {int(time_since_last_operation)}s")
+                    if not connection_healthy:
+                        reason.append("conexão perdida")
+                    if not subscription_healthy:
+                        reason.append("subscription inativa")
+                    
+                    logger.warning(f"⚠️ PROBLEMA DETECTADO: {', '.join(reason)}")
                     logger.warning(f"🔄 Iniciando reinício automático do bot...")
                     
                     self._restart_in_progress = True
                     
-                    # Executar restart
-                    restart_success = await self._force_restart_bot()
-                    
-                    if restart_success:
-                        # Resetar timestamp e contador
-                        self._last_operation_time = time.time()
-                        self._operation_count = 0
-                        logger.info("✅ Bot reiniciado com sucesso após inatividade")
-                    else:
-                        logger.error("❌ Falha no reinício automático")
+                    # Executar restart com timeout
+                    try:
+                        restart_success = await asyncio.wait_for(
+                            self._force_restart_bot(), 
+                            timeout=60.0  # Timeout de 60s para restart
+                        )
+                        
+                        if restart_success:
+                            # Resetar timestamp e contador
+                            self._last_operation_time = time.time()
+                            self._operation_count = 0
+                            consecutive_errors = 0  # Reset contador de erros
+                            logger.info("✅ Bot reiniciado com sucesso")
+                        else:
+                            logger.error("❌ Falha no reinício automático")
+                            consecutive_errors += 1
+                            
+                    except asyncio.TimeoutError:
+                        logger.error("❌ Timeout no reinício automático (60s)")
+                        consecutive_errors += 1
+                    except Exception as restart_error:
+                        logger.error(f"❌ Erro durante reinício: {restart_error}")
+                        consecutive_errors += 1
                     
                     self._restart_in_progress = False
                     
+                    # Se muitos erros consecutivos, aguardar mais tempo
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"❌ Muitos erros consecutivos ({consecutive_errors}), aguardando 5 minutos")
+                        await asyncio.sleep(300)  # 5 minutos
+                        consecutive_errors = 0
+                else:
+                    # Reset contador de erros se tudo está funcionando
+                    consecutive_errors = 0
+                    
             except Exception as e:
-                logger.error(f"❌ Erro no monitoramento de inatividade: {e}")
+                consecutive_errors += 1
+                logger.error(f"❌ Erro no monitoramento de inatividade ({consecutive_errors}/{max_consecutive_errors}): {e}")
                 import traceback
                 logger.error(f"Stack trace: {traceback.format_exc()}")
                 self._restart_in_progress = False
-                await asyncio.sleep(10)  # Aguarda antes de tentar novamente
+                
+                # Aguardar mais tempo se muitos erros
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error(f"❌ Muitos erros no monitoramento, aguardando 5 minutos")
+                    await asyncio.sleep(300)  # 5 minutos
+                    consecutive_errors = 0
+                else:
+                    await asyncio.sleep(30)  # Aguarda antes de tentar novamente
     
     def _update_operation_timestamp(self):
         """Atualiza o timestamp da última operação"""
@@ -1766,27 +2156,99 @@ class AccumulatorScalpingBot:
             logger.info("📊 Sistema de sinais integrado com radar_de_apalancamiento_signals")
             logger.info("🌐 Endpoint de status disponível em http://localhost:8080/status")
             
-            # Loop de monitoramento principal
+            # Loop de monitoramento principal com tratamento robusto de erros
+            consecutive_main_loop_errors = 0
+            max_main_loop_errors = 10
+            main_loop_start_time = time.time()
+            
             while True:
                 try:
+                    loop_iteration_start = time.time()
+                    
                     # Verificar se subscription ainda está ativa
                     if not self.api_manager.connected:
                         logger.warning("⚠️ Conexão perdida - tentando reconectar...")
-                        await self._reconnect_and_resubscribe()
+                        try:
+                            await asyncio.wait_for(
+                                self._reconnect_and_resubscribe(), 
+                                timeout=120.0  # Timeout de 2 minutos para reconexão
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error("❌ Timeout na reconexão (2 minutos)")
+                            consecutive_main_loop_errors += 1
+                        except Exception as reconnect_error:
+                            logger.error(f"❌ Erro na reconexão: {reconnect_error}")
+                            consecutive_main_loop_errors += 1
                     
-                    # Verificar inatividade e reiniciar se necessário
-                    await self._check_inactivity_and_restart()
+                    # Verificar se o loop principal está rodando há muito tempo sem restart
+                    main_loop_duration = time.time() - main_loop_start_time
+                    if main_loop_duration > 86400:  # 24 horas
+                        logger.info(f"🔄 Loop principal rodando há {main_loop_duration/3600:.1f}h, reiniciando preventivamente")
+                        await self._force_restart_bot()
+                        main_loop_start_time = time.time()
                     
-                    # Aguardar antes da próxima verificação
-                    await asyncio.sleep(15)  # Verificação de conectividade a cada 15s
+                    # Reset contador de erros se chegou até aqui sem problemas
+                    consecutive_main_loop_errors = 0
                     
+                    # Aguardar antes da próxima verificação com timeout
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.sleep(15), 
+                            timeout=20.0  # Timeout de 20s para o sleep
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("⚠️ Timeout no sleep do loop principal")
+                    
+                    # Log de saúde do loop principal a cada 5 minutos
+                    if int(time.time()) % 300 == 0:  # A cada 5 minutos
+                        loop_iteration_duration = time.time() - loop_iteration_start
+                        logger.info(f"💓 MAIN_LOOP_HEALTH: duração_iteração={loop_iteration_duration:.3f}s, "
+                                  f"tempo_total={main_loop_duration/3600:.1f}h, "
+                                  f"erros_consecutivos={consecutive_main_loop_errors}")
+                    
+                except asyncio.CancelledError:
+                    logger.info("🛑 Loop principal cancelado")
+                    break
                 except Exception as e:
-                    logger.error(f"❌ ERRO NO MONITORAMENTO: {e}")
+                    consecutive_main_loop_errors += 1
+                    logger.error(f"❌ ERRO NO MONITORAMENTO ({consecutive_main_loop_errors}/{max_main_loop_errors}): {e}")
                     logger.error(f"📋 Tipo do erro: {type(e).__name__}")
-                    logger.error("⏸️ Pausando por 15 segundos para recuperação...")
                     
-                    await asyncio.sleep(15)
-                    await self._reconnect_and_resubscribe()
+                    # Log stack trace para erros críticos
+                    if consecutive_main_loop_errors >= 3:
+                        import traceback
+                        logger.error(f"Stack trace: {traceback.format_exc()}")
+                    
+                    # Se muitos erros consecutivos, tentar restart completo
+                    if consecutive_main_loop_errors >= max_main_loop_errors:
+                        logger.critical(f"❌ Muitos erros consecutivos no loop principal ({consecutive_main_loop_errors}), "
+                                      f"tentando restart completo")
+                        try:
+                            await asyncio.wait_for(
+                                self._force_restart_bot(), 
+                                timeout=180.0  # 3 minutos para restart
+                            )
+                            consecutive_main_loop_errors = 0
+                            main_loop_start_time = time.time()
+                        except Exception as restart_error:
+                            logger.critical(f"❌ Falha crítica no restart: {restart_error}")
+                            # Aguardar mais tempo antes de tentar novamente
+                            await asyncio.sleep(300)  # 5 minutos
+                            consecutive_main_loop_errors = 0
+                    else:
+                        # Aguardar tempo progressivo baseado no número de erros
+                        sleep_time = min(15 * consecutive_main_loop_errors, 120)  # Máximo 2 minutos
+                        logger.error(f"⏸️ Pausando por {sleep_time} segundos para recuperação...")
+                        await asyncio.sleep(sleep_time)
+                        
+                        # Tentar reconectar após erro
+                        try:
+                            await asyncio.wait_for(
+                                self._reconnect_and_resubscribe(), 
+                                timeout=60.0
+                            )
+                        except Exception as reconnect_after_error:
+                            logger.error(f"❌ Erro na reconexão pós-erro: {reconnect_after_error}")
                     
         except Exception as e:
             logger.error(f"❌ ERRO CRÍTICO NO SISTEMA DE TEMPO REAL: {e}")
@@ -1890,6 +2352,14 @@ class AccumulatorScalpingBot:
         try:
             logger.info("🔄 Iniciando recuperação automática...")
             
+            # Verificar conectividade de rede primeiro
+            if not await self.api_manager._check_network_connectivity():
+                logger.error("❌ Sem conectividade de rede. Aguardando 30s antes de tentar novamente...")
+                await asyncio.sleep(30)
+                if not await self.api_manager._check_network_connectivity():
+                    logger.error("❌ Conectividade de rede ainda indisponível")
+                    return False
+            
             # Resetar flags
             self.tick_subscription_active = False
             
@@ -1903,11 +2373,17 @@ class AccumulatorScalpingBot:
             self.tick_buffer.clear()
             logger.debug("🧹 Buffer de ticks limpo")
             
-            # Reconectar com retry
-            max_retries = 3
+            # Reconectar com retry melhorado
+            max_retries = 5  # Aumentado para 5 tentativas
             for attempt in range(max_retries):
                 try:
                     logger.info(f"🔌 Tentativa de reconexão {attempt + 1}/{max_retries}")
+                    
+                    # Verificar conectividade antes de cada tentativa
+                    if attempt > 0 and not await self.api_manager._check_network_connectivity():
+                        logger.warning(f"⚠️ Conectividade perdida na tentativa {attempt + 1}")
+                        await asyncio.sleep(15)  # Aguardar mais tempo se não há conectividade
+                        continue
                     
                     if await self.api_manager.connect():
                         logger.info("✅ Reconexão bem-sucedida")
@@ -1915,11 +2391,15 @@ class AccumulatorScalpingBot:
                     else:
                         logger.warning(f"⚠️ Falha na tentativa {attempt + 1}")
                         if attempt < max_retries - 1:
-                            await asyncio.sleep(5 * (attempt + 1))  # Delay progressivo
+                            # Backoff exponencial com máximo de 60s
+                            wait_time = min(2 ** attempt * 5, 60)
+                            logger.info(f"⏳ Aguardando {wait_time}s antes da próxima tentativa...")
+                            await asyncio.sleep(wait_time)
                 except Exception as conn_error:
-                    logger.error(f"❌ Erro na tentativa {attempt + 1}: {conn_error}")
+                    logger.error(f"❌ Erro na tentativa {attempt + 1}: {type(conn_error).__name__}: {conn_error}")
                     if attempt < max_retries - 1:
-                        await asyncio.sleep(5 * (attempt + 1))
+                        wait_time = min(2 ** attempt * 5, 60)
+                        await asyncio.sleep(wait_time)
             else:
                 logger.error("❌ Falha em todas as tentativas de reconexão")
                 return False
@@ -2100,8 +2580,26 @@ async def main():
             except Exception as e:
                 # Erro durante a execução do bot
                 retry_count += 1
+                error_type = type(e).__name__
                 logger.error(f"❌ Erro durante execução do bot: {e}")
-                logger.error(f"📋 Tipo do erro: {type(e).__name__}")
+                logger.error(f"📋 Tipo do erro: {error_type}")
+                
+                # Tratamento específico para erros de conexão WebSocket
+                if "websocket" in str(e).lower() or "connection" in str(e).lower():
+                    logger.warning("🔌 Erro de conexão detectado. Implementando estratégia de recuperação...")
+                    # Aguardar mais tempo para erros de conexão
+                    retry_delay = min(30 * retry_count, 120)  # Máximo 2 minutos
+                    logger.info(f"⏱️ Aguardando {retry_delay}s para recuperação de conexão...")
+                    await asyncio.sleep(retry_delay)
+                elif "timeout" in str(e).lower():
+                    logger.warning("⏰ Timeout detectado. Aguardando antes de reiniciar...")
+                    retry_delay = 15 * retry_count
+                    await asyncio.sleep(retry_delay)
+                else:
+                    # Outros tipos de erro
+                    retry_delay = 5 * retry_count
+                    logger.info(f"⏱️ Aguardando {retry_delay} segundos antes de tentar novamente...")
+                    await asyncio.sleep(retry_delay)
                 
                 # Tentar limpar recursos antes de reiniciar
                 try:
@@ -2109,10 +2607,6 @@ async def main():
                 except Exception as cleanup_error:
                     logger.error(f"❌ Erro ao limpar recursos: {cleanup_error}")
                 
-                # Aguardar antes de tentar novamente
-                retry_delay = 5 * retry_count
-                logger.info(f"⏱️ Aguardando {retry_delay} segundos antes de tentar novamente...")
-                await asyncio.sleep(retry_delay)
                 continue
         
         # Se atingiu o número máximo de tentativas internas

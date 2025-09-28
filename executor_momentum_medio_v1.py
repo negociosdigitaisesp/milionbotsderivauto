@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-EXECUTOR MOMENTUM-MEDIO - Bot de Trading Estratégico
+EXECUTOR L-L-L PATTERN - Bot de Trading Estratégico
 
-Este script monitora operaciones de trading en tiempo real y detecta patrones WW
-(2 victorias consecutivas) durante condiciones específicas de mercado.
+Este script monitora operaciones de trading en tiempo real y detecta patrones L-L-L
+(3 perdas consecutivas) para identificar oportunidades de reversão.
 
 Características:
-- Análisis en tiempo real de las últimas 2 operaciones
-- Detección de patrón WW en Actividad Media + Apertura de Hora
-- Filtros basados en régimen de actividad UTC
-- Envío de señales a Supabase
+- Análisis en tiempo real de las últimas 4 operaciones
+- Detección de patrón L-L-L (3 perdas consecutivas)
+- Sin filtros de horário - análisis continuo
+- Envío de señales a Supabase após detección del patrón
 - Logs simplificados y enfocados
 
 Autor: Sistema de Trading Automatizado
-Versión: 1.0 - Momentum-Medio
+Versión: 2.0 - L-L-L Pattern
 """
 import os
 import time
@@ -43,43 +43,11 @@ for lib in ['httpx', 'httpcore', 'supabase', 'postgrest']:
 BOT_NAME = 'executor_momentum_medio_v1'
 ANALISE_INTERVALO = 5
 OPERACOES_HISTORICO = 35
-OPERACOES_MINIMAS = 2  # Requisito mínimo para WW
-
-# Constantes de regime de atividade (UTC)
-HORAS_BAIXA_ATIVIDADE_UTC = [3, 4, 5, 6, 7, 8, 9, 10]
-HORAS_MEDIA_ATIVIDADE_UTC = [11, 12, 13, 14, 15, 16, 17, 18]
+OPERACOES_MINIMAS = 4  # Requisito mínimo para L-L-L + 1 operação
 
 
 
-def get_regime_atividade_utc(timestamp_str: str) -> str:
-    """Determina el régimen de actividad basado en la hora UTC."""
-    try:
-        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        hora_utc = dt.hour
-        
-        if hora_utc in HORAS_BAIXA_ATIVIDADE_UTC:
-            return 'Baixa Atividade'
-        elif hora_utc in HORAS_MEDIA_ATIVIDADE_UTC:
-            return 'Média Atividade'
-        else:
-            return 'Alta Atividade'
-    except Exception as e:
-        logger.warning(f"Error al procesar timestamp {timestamp_str}: {e}")
-        return 'Alta Atividade'  # Default seguro
-
-def get_padrao_intra_hora_utc(timestamp_str: str) -> str:
-    """Determina si estamos en el período de apertura de la hora."""
-    try:
-        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        minuto_utc = dt.minute
-        
-        if 0 <= minuto_utc <= 5:
-            return 'Apertura de Hora'
-        else:
-            return 'Otro Período'
-    except Exception as e:
-        logger.warning(f"Error al procesar timestamp {timestamp_str}: {e}")
-        return 'Otro Período'  # Default seguro
+# Funções de filtro de horário removidas - estratégia agora analisa apenas padrão L-L-L
 
 def retry_supabase_operation(max_retries=3, delay=2):
     def decorator(func):
@@ -132,36 +100,49 @@ def buscar_operacoes_historico(supabase: Client) -> Tuple[List[str], List[str], 
         return [], [], None
 
 def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: str) -> Dict:
-    """Verifica si las condiciones de la estrategia Momentum-Medio fueron cumplidas."""
+    """Verifica si las condiciones de la estrategia L-L-L fueron cumplidas."""
     
-    # 1. Validación Mínima de Datos
-    if len(historico) < OPERACOES_MINIMAS:
-        return {'should_operate': False, 'reason': 'Esperando historial mínimo'}
+    # 1. Validación Mínima de Datos - Necesitamos al menos 4 operaciones (3 L + 1 siguiente)
+    if len(historico) < 4:
+        return {'should_operate': False, 'reason': 'Esperando historial mínimo (4 operaciones)'}
 
-    # 2. Análisis de Contexto (UTC)
-    regime = get_regime_atividade_utc(ultimo_timestamp)
-    periodo = get_padrao_intra_hora_utc(ultimo_timestamp)
-
-    # 3. Verificación Rápida de Filtros (Fail-Fast)
-    if regime != 'Média Atividade':
-        return {'should_operate': False, 'reason': f'Filtro Rechazado: Régimen actual es {regime}'}
+    # 2. Verificación del Patrón L-L-L en las últimas 4 operaciones
+    ultimas_4_cronologica = list(reversed(historico[:4]))
     
-    if periodo != 'Apertura de Hora':
-        return {'should_operate': False, 'reason': f'Filtro Rechazado: Período no es Apertura'}
-
-    # 4. Verificación del Gatillo WW
-    ultimas_2_cronologica = list(reversed(historico[:2]))
-    if ultimas_2_cronologica == ['WIN', 'WIN']:
+    # Verificar si las operaciones 1, 2 y 3 son LOSS (patrón L-L-L)
+    if ultimas_4_cronologica[0:3] == ['LOSS', 'LOSS', 'LOSS']:
+        # Patrón L-L-L detectado - verificar se ainda não há operação após o padrão
+        # Se a 4ª operação (índice 3) existe, significa que já houve uma operação após o padrão
+        if len(ultimas_4_cronologica) >= 4:
+            # Já existe uma operação após o padrão L-L-L, sinal deve sumir
+            return {
+                'should_operate': False,
+                'strategy': 'L-L-L-Pattern-Expired',
+                'reason': f'Patrón L-L-L expirado - operação após padrão: {ultimas_4_cronologica[3]}',
+                'last_operations': historico[:4]
+            }
+        else:
+            # Patrão L-L-L detectado e ainda não há operação após
+            return {
+                'should_operate': True,
+                'strategy': 'L-L-L-Pattern',
+                'reason': 'PATRON ENCONTRADO, ENCENDER BOT AHORA!',
+                'last_operations': historico[:4]
+            }
+    
+    # 3. Verificar se temos um padrão L-L-L nas posições 1-2-3 (com uma operação já executada na posição 0)
+    if len(ultimas_4_cronologica) >= 4 and ultimas_4_cronologica[1:4] == ['LOSS', 'LOSS', 'LOSS']:
+        # Padrão L-L-L estava nas posições 1-2-3, e já houve uma operação na posição 0
         return {
-            'should_operate': True,
-            'strategy': 'Momentum-Medio',
-            'reason': 'SEÑAL ACTIVA: WW | Media + Apertura',
-            'last_operations': historico[:2]
+            'should_operate': False,
+            'strategy': 'L-L-L-Pattern-Used',
+            'reason': f'Patrón L-L-L já utilizado - resultado: {ultimas_4_cronologica[0]}',
+            'last_operations': historico[:4]
         }
     
-    # 5. Condición Estándar
-    padrao_atual = ''.join(['W' if op == 'WIN' else 'L' for op in ultimas_2_cronologica])
-    return {'should_operate': False, 'reason': f'Esperando gatillo WW. Patrón actual: {padrao_atual}'}
+    # 4. Condición Estándar - Mostrar patrón actual
+    padrao_atual = ''.join(['L' if op == 'LOSS' else 'W' for op in ultimas_4_cronologica[:3]])
+    return {'should_operate': False, 'reason': f'Esperando patrón L-L-L. Patrón actual: {padrao_atual}'}
 
 @retry_supabase_operation()
 def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
@@ -193,17 +174,17 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 
 def main_loop():
-    """Bucle principal del bot de análisis Momentum-Medio."""
-    logger.info("=== INICIANDO EXECUTOR MOMENTUM-MEDIO ===")
+    """Bucle principal del bot de análisis L-L-L Pattern."""
+    logger.info("=== INICIANDO EXECUTOR L-L-L PATTERN ===")
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
         logger.critical("Fallo fatal al conectar con Supabase. Cerrando.")
         return
 
     logger.info("Bot inicializado exitosamente.")
-    print("\n[INICIO] Iniciando bot EXECUTOR MOMENTUM-MEDIO")
-    print("[INFO] Configuración: Análisis de las últimas 2 operaciones")
-    print("[INFO] Objetivo: Detectar patrón WW en Actividad Media + Apertura de Hora")
+    print("\n[INICIO] Iniciando bot EXECUTOR L-L-L PATTERN")
+    print("[INFO] Configuración: Análisis de las últimas 4 operaciones")
+    print("[INFO] Objetivo: Detectar patrón L-L-L (3 perdas consecutivas)")
     print("[INFO] Intervalo de análisis: 5 segundos")
     print("[INFO] Actualizaciones automáticas para Supabase")
     print("-" * 60)
@@ -221,7 +202,7 @@ def main_loop():
                 time.sleep(ANALISE_INTERVALO)
                 continue
 
-            # Analiza la estrategia Momentum-Medio
+            # Analiza la estrategia L-L-L Pattern
             resultado_analise = analisar_estrategia_momentum_medio(historico, timestamps[0])
             
             # La lógica de decisión es ahora mucho más simple.
