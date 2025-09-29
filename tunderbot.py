@@ -2624,10 +2624,11 @@ async def main():
 
 # Função para reiniciar o bot automaticamente
 def reiniciar_bot_automaticamente():
-    """Função que reinicia o bot automaticamente em caso de erro"""
+    """Função que reinicia o bot automaticamente em caso de erro ou a cada 30 minutos"""
     max_tentativas = 10  # Número máximo de tentativas de reinicialização
     tentativa_atual = 0
     delay_base = 5  # Delay base em segundos
+    timeout_reinicio = 30 * 60  # 30 minutos em segundos
     
     while tentativa_atual < max_tentativas:
         try:
@@ -2643,12 +2644,26 @@ def reiniciar_bot_automaticamente():
                 logger.info(f"⏱️ Aguardando {delay} segundos antes de reiniciar...")
                 time.sleep(delay)
             
-            # Executar o bot
-            asyncio.run(main())
+            # Executar o bot com timeout de 30 minutos
+            logger.info(f"⏰ Bot será reiniciado automaticamente em {timeout_reinicio//60} minutos")
             
-            # Se chegou aqui, o bot foi finalizado normalmente
-            logger.info("✅ Bot finalizado normalmente")
-            break
+            # Criar uma task para executar o main() com timeout
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                # Executar com timeout de 30 minutos
+                loop.run_until_complete(asyncio.wait_for(main(), timeout=timeout_reinicio))
+                # Se chegou aqui, o bot foi finalizado normalmente
+                logger.info("✅ Bot finalizado normalmente")
+                break
+            except asyncio.TimeoutError:
+                logger.info("⏰ Timeout de 30 minutos atingido - reiniciando bot automaticamente")
+                print("Bot reiniciado automaticamente após 30 minutos de execução.")
+                # Continua o loop para reiniciar
+                continue
+            finally:
+                loop.close()
             
         except KeyboardInterrupt:
             logger.info("🛑 Bot interrompido pelo usuário")

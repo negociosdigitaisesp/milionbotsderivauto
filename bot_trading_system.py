@@ -235,9 +235,12 @@ class ConnectionPool:
         for i in range(self.pool_size):
             try:
                 api = DerivAPI(app_id=self.app_id)
-                await api.authorize(self.token)
+                await asyncio.wait_for(api.authorize(self.token), timeout=30.0)
                 self.connections.append(api)
                 print(f"✅ Conexão {i+1}/{self.pool_size} estabelecida")
+            except asyncio.TimeoutError:
+                print(f"⏰ Timeout na conexão {i+1}: Autorização demorou mais de 30 segundos")
+                self.connections.append(None)
             except Exception as e:
                 print(f"❌ Falha na conexão {i+1}: {e}")
                 self.connections.append(None)
