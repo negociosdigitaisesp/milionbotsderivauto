@@ -757,6 +757,27 @@ class AccumulatorScalpingBot:
         self._task_lock = asyncio.Lock()  # Lock para operações thread-safe com tasks
         self._restart_requested = False  # Flag para indicar se restart foi solicitado
         self._debug_log_file = f"debug_signals_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        # Sistema de monitoramento de inatividade
+        self._last_operation_time = time.time()  # Timestamp da última operação
+        self._inactivity_timeout = 120  # 2 minutos em segundos
+        self._restart_in_progress = False  # Flag para evitar múltiplos restarts
+        self._operation_count = 0  # Contador de operações executadas
+        
+        # Lock global para evitar deadlock no sistema de recovery
+        self._global_restart_lock = asyncio.Lock()
+        
+        logger.info(f"🤖 {NOME_BOT} inicializado")
+        logger.info(f"📊 Configuração do Bot:")
+        logger.info(f"   • Ativo: {ATIVO}")
+        logger.info(f"   • Initial Stake: ${self.initial_stake}")
+        logger.info(f"   • Stake Atual: ${self.stake}")
+        logger.info(f"   • Take Profit %: {TAKE_PROFIT_PERCENTUAL*100}%")
+        logger.info(f"   • Growth Rate: {GROWTH_RATE*100}%")
+        logger.info(f"   • Khizzbot: {self.khizzbot}")
+        logger.info(f"   • Win Stop: ${self.win_stop}")
+        logger.info(f"   • Loss Limit: ${self.loss_limit}")
+        logger.info(f"   • Sistema de Sinais: Integrado com radar_de_apalancamiento_signals")
     
     async def create_tracked_task(self, coro, name: str = None):
         """Método centralizado para criação de tasks com tracking automático"""
@@ -856,27 +877,6 @@ class AccumulatorScalpingBot:
         """Aguarda sinal de shutdown"""
         await self._shutdown_event.wait()
         return self._restart_requested
-        
-        # Sistema de monitoramento de inatividade
-        self._last_operation_time = time.time()  # Timestamp da última operação
-        self._inactivity_timeout = 120  # 2 minutos em segundos
-        self._restart_in_progress = False  # Flag para evitar múltiplos restarts
-        self._operation_count = 0  # Contador de operações executadas
-        
-        # Lock global para evitar deadlock no sistema de recovery
-        self._global_restart_lock = asyncio.Lock()
-        
-        logger.info(f"🤖 {NOME_BOT} inicializado")
-        logger.info(f"📊 Configuração do Bot:")
-        logger.info(f"   • Ativo: {ATIVO}")
-        logger.info(f"   • Initial Stake: ${self.initial_stake}")
-        logger.info(f"   • Stake Atual: ${self.stake}")
-        logger.info(f"   • Take Profit %: {TAKE_PROFIT_PERCENTUAL*100}%")
-        logger.info(f"   • Growth Rate: {GROWTH_RATE*100}%")
-        logger.info(f"   • Khizzbot: {self.khizzbot}")
-        logger.info(f"   • Win Stop: ${self.win_stop}")
-        logger.info(f"   • Loss Limit: ${self.loss_limit}")
-        logger.info(f"   • Sistema de Sinais: Integrado com radar_de_apalancamiento_signals")
     
     def _setup_recovery_callbacks(self):
         """Configura callbacks para recovery automático"""
