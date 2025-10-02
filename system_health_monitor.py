@@ -127,7 +127,8 @@ class SystemHealthMonitor:
         connection_issues = (
             not metrics.connection_status or
             metrics.circuit_breaker_state == 'open' or
-            (metrics.last_ping_time > 0 and current_time - metrics.last_ping_time > 60)
+            (metrics.last_ping_time is not None and metrics.last_ping_time > 0 and 
+             current_time - metrics.last_ping_time > 60)
         )
         if connection_issues:
             issues.append("CONNECTION")
@@ -140,7 +141,7 @@ class SystemHealthMonitor:
                 issues.append("HIGH_FAILURE_RATE")
         
         # 4. Verificar inatividade
-        if (metrics.last_signal_time > 0 and
+        if (metrics.last_signal_time is not None and metrics.last_signal_time > 0 and
             current_time - metrics.last_signal_time > self.inactivity_threshold):
             issues.append("INACTIVITY")
         
@@ -270,7 +271,8 @@ class SystemHealthMonitor:
         # Problemas de conexão
         if (not metrics.connection_status or
             metrics.circuit_breaker_state == 'open' or
-            (metrics.last_ping_time > 0 and current_time - metrics.last_ping_time > 60)):
+            (metrics.last_ping_time is not None and metrics.last_ping_time > 0 and 
+             current_time - metrics.last_ping_time > 60)):
             issues.append("CONNECTION")
         
         # Alta taxa de falhas
@@ -281,12 +283,12 @@ class SystemHealthMonitor:
                 issues.append("HIGH_FAILURE_RATE")
         
         # Inatividade
-        if (metrics.last_signal_time > 0 and
+        if (metrics.last_signal_time is not None and metrics.last_signal_time > 0 and
             current_time - metrics.last_signal_time > self.inactivity_threshold):
             issues.append("INACTIVITY")
         
         # Uso excessivo de memória
-        if metrics.memory_usage_mb > 500:
+        if metrics.memory_usage_mb is not None and metrics.memory_usage_mb > 500:
             issues.append("HIGH_MEMORY")
         
         return issues
@@ -345,7 +347,7 @@ class SystemHealthMonitor:
     
     def _should_restart(self, current_time: float) -> bool:
         """Determina se deve fazer restart do sistema"""
-        if not self.problem_start_time:
+        if self.problem_start_time is None:
             return False
         
         # Restart se problema persistir por mais de deadlock_threshold
