@@ -187,6 +187,11 @@ class RobustOrderSystem:
         try:
             portfolio_response = await self.api_manager.portfolio()
             
+            # CORREÇÃO CRÍTICA: Validar resposta NULL antes de processar
+            if portfolio_response is None:
+                self.logger.error("Falha na comunicação WebSocket: resposta NULL do portfolio (timeout ou erro de conexão)")
+                return False  # Tratar como erro de conexão
+            
             if 'error' in portfolio_response:
                  self.logger.error(f"Erro ao consultar portfolio: {portfolio_response['error']}")
                  return False

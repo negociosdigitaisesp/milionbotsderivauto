@@ -61,6 +61,14 @@ LOSS_LIMIT = 1000.0  # Limite de perda diária
 KHIZZBOT = 50  # Valor khizzbot conforme XML original
 
 # ============================================================================
+# CONFIGURAÇÕES DE REINICIALIZAÇÃO AUTOMÁTICA
+# ============================================================================
+AUTO_RESTART_ENABLED = True  # Ativar/desativar reinicialização automática
+AUTO_RESTART_INTERVAL_MINUTES = 5  # Intervalo de reinicialização em minutos (reduzido para testes)
+MAX_RESTART_ATTEMPTS = 10  # Máximo de tentativas de reinicialização
+RESTART_DELAY_BASE = 5  # Delay base entre tentativas (segundos)
+
+# ============================================================================
 # CLASSE DE GERENCIAMENTO DA API - WEBSOCKET NATIVO
 # ============================================================================
 class DerivWebSocketNativo:
@@ -75,7 +83,7 @@ class DerivWebSocketNativo:
         self.req_id_counter = 0
         self.req_id_lock = threading.Lock()
         self.pending_requests = {}
-        self.request_timeout = 15  # Otimizado para menor latência
+        self.request_timeout = 30  # Aumentado para resolver timeouts de autenticação
         
         # Rate limiting
         self.last_request_time = 0
@@ -91,6 +99,12 @@ class DerivWebSocketNativo:
         # Connection state
         self.session_id = None
         self.authorized = False
+        
+        # Keepalive task control
+        self._keepalive_task = None
+        
+        # Shutdown event control
+        self._shutdown_event = asyncio.Event()
         
         logger.info(f"🔧 DerivWebSocketNativo inicializado - App ID: {self.app_id}")
     
@@ -112,6 +126,23 @@ class DerivWebSocketNativo:
         """Conecta ao WebSocket da Deriv com autenticação e logs detalhados"""
         max_retries = 5  # Aumentado de 3 para 5
         connection_start_time = time.time()
+        
+        # Reset do shutdown event para nova conexão
+        self._shutdown_event.clear()
+        
+        # Verificar e cancelar keepalive anterior se existir
+        if hasattr(self, '_keepalive_task') and self._keepalive_task:
+            if not self._keepalive_task.done():
+                logger.debug("🔄 Cancelando keepalive anterior antes de nova conexão...")
+                self._keepalive_task.cancel()
+                try:
+                    await asyncio.sleep(0.5)  # Aguardar cancelamento conforme especificado
+                    await self._keepalive_task
+                except asyncio.CancelledError:
+                    logger.debug("✅ Keepalive anterior cancelado com sucesso")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao cancelar keepalive anterior: {e}")
+            self._keepalive_task = None
         
         logger.info(f"🔗 Iniciando processo de conexão WebSocket...")
         logger.debug(f"📊 Estado atual: connected={getattr(self, 'connected', False)}, "
@@ -179,28 +210,54 @@ class DerivWebSocketNativo:
                 except AttributeError:
                     logger.debug("📊 Estado WebSocket: conectado (verificação de estado não disponível)")
                 
-                # Iniciar task para processar mensagens
-                logger.debug("🔄 Iniciando handler de mensagens...")
-                message_task = asyncio.create_task(self._handle_messages())
-                
-                # Aguardar um pouco para garantir que o handler está ativo
-                await asyncio.sleep(0.1)
-                
-                # Autenticar
+                # CORREÇÃO PROBLEMA 9: Autenticar ANTES de iniciar _handle_messages para evitar race condition
                 logger.debug("🔐 Iniciando processo de autenticação...")
                 auth_start = time.time()
                 auth_success = await self._authenticate()
                 auth_time = time.time() - auth_start
                 
                 if auth_success:
+                    # Só iniciar handler de mensagens APÓS autenticação bem-sucedida
+                    logger.debug("🔄 Iniciando handler de mensagens após autenticação...")
+                    
+                    # Verificar e cancelar task anterior se existir
+                    if hasattr(self, '_message_handler_task') and self._message_handler_task:
+                        if not self._message_handler_task.done():
+                            logger.debug("⚠️ Cancelando handler de mensagens anterior...")
+                            self._message_handler_task.cancel()
+                            try:
+                                await asyncio.wait_for(self._message_handler_task, timeout=1.0)
+                            except (asyncio.CancelledError, asyncio.TimeoutError):
+                                pass
+                            await asyncio.sleep(0.5)  # Aguardar cancelamento completo
+                    
+                    # Criar nova task e armazenar referência
+                    if hasattr(self, 'bot_instance') and self.bot_instance:
+                        self._message_handler_task = await self.bot_instance.create_tracked_task(
+                            self._handle_messages(), 
+                            name="websocket_message_handler"
+                        )
+                    else:
+                        self._message_handler_task = asyncio.create_task(self._handle_messages())
+                    
+                    # Aguardar um pouco para garantir que o handler está ativo
+                    await asyncio.sleep(0.1)
+                    
                     self.connected = True
                     total_time = time.time() - connection_start_time
                     logger.info(f"✅ Conexão WebSocket estabelecida em {total_time:.2f}s - "
                               f"Session: {self.session_id} (auth: {auth_time:.2f}s)")
                     
-                    # Iniciar keepalive
+                    # Iniciar keepalive (verificação já feita no início do connect())
                     logger.debug("💓 Iniciando sistema de keepalive...")
-                    keepalive_task = asyncio.create_task(self._keepalive_loop())
+                    if hasattr(self, 'bot_instance') and self.bot_instance:
+                        self._keepalive_task = await self.bot_instance.create_tracked_task(
+                            self._keepalive_loop(), 
+                            name="websocket_keepalive"
+                        )
+                    else:
+                        # Armazenar referência da nova keepalive task conforme especificado
+                        self._keepalive_task = asyncio.create_task(self._keepalive_loop())
                     
                     # Reset contador de falhas de reconexão em caso de sucesso
                     if hasattr(self, 'consecutive_reconnect_failures'):
@@ -257,38 +314,92 @@ class DerivWebSocketNativo:
             self.req_id_counter += 1
             return self.req_id_counter
     
-    async def _authenticate(self):
-        """Autentica com a API da Deriv"""
+    async def _authenticate(self, attempt: int = 1, max_attempts: int = 3):
+        """Autentica com a API da Deriv usando sistema de request/response para evitar race condition"""
+        # Timeout progressivo: 30s, 45s, 60s (mais generosos)
+        timeout_values = [30, 45, 60]
+        current_timeout = timeout_values[min(attempt - 1, len(timeout_values) - 1)]
+        
+        # CORREÇÃO PROBLEMA 9: Verificar se WebSocket está pronto antes de autenticar
+        if not self.ws:
+            logger.error("❌ WebSocket não está disponível para autenticação")
+            return False
+            
+        # Verificar estado do WebSocket de forma compatível
         try:
-            req_id = self._get_next_req_id()
+            is_closed = getattr(self.ws, 'closed', False) or getattr(self.ws, 'close_code', None) is not None
+            if is_closed:
+                logger.error("❌ WebSocket está fechado, não é possível autenticar")
+                return False
+        except AttributeError:
+            # Se não conseguir verificar o estado, continua (assume que está aberto)
+            logger.debug("⚠️ Não foi possível verificar estado do WebSocket, continuando...")
+            
+        # Aguardar um momento para garantir que o WebSocket está estável
+        await asyncio.sleep(0.2)
+        
+        try:
             auth_message = {
-                "authorize": self.api_token,
-                "req_id": req_id
+                "authorize": self.api_token
             }
             
-            logger.info(f"🔐 Enviando autenticação - req_id: {req_id}")
+            logger.info(f"🔐 Tentativa {attempt}/{max_attempts} - Autenticação via sistema request/response (timeout: {current_timeout}s)")
+            
+            # Usar _send_request para evitar race condition com _handle_messages
             response = await self._send_request(auth_message)
             
-            if 'error' in response:
-                logger.error(f"❌ Erro de autenticação: {response['error']['message']}")
+            if not response:
+                logger.error(f"❌ Nenhuma resposta recebida para autenticação")
+                if attempt < max_attempts:
+                    wait_time = 2 ** (attempt - 1)
+                    logger.info(f"⏳ Aguardando {wait_time}s antes da próxima tentativa...")
+                    await asyncio.sleep(wait_time)
+                    return await self._authenticate(attempt + 1, max_attempts)
                 return False
             
-            if 'authorize' in response:
+            # Processar resposta de autenticação
+            if 'error' in response:
+                error_msg = response.get('error', {}).get('message', 'Erro desconhecido')
+                logger.error(f"❌ Erro de autenticação: {error_msg}")
+                if attempt < max_attempts:
+                    wait_time = 2 ** (attempt - 1)
+                    logger.info(f"⏳ Aguardando {wait_time}s antes da próxima tentativa...")
+                    await asyncio.sleep(wait_time)
+                    return await self._authenticate(attempt + 1, max_attempts)
+                return False
+            
+            if 'authorize' in response and response['authorize']:
                 self.authorized = True
                 self.session_id = response['authorize'].get('loginid')
-                logger.info(f"✅ Autenticado com sucesso - LoginID: {self.session_id}")
+                logger.info(f"✅ Autenticação bem-sucedida na tentativa {attempt} - LoginID: {self.session_id}")
                 return True
             
+            logger.warning("⚠️ Resposta de autenticação não contém dados de autorização válidos")
+            if attempt < max_attempts:
+                wait_time = 2 ** (attempt - 1)
+                logger.info(f"⏳ Aguardando {wait_time}s antes da próxima tentativa...")
+                await asyncio.sleep(wait_time)
+                return await self._authenticate(attempt + 1, max_attempts)
             return False
             
         except Exception as e:
-            logger.error(f"❌ Erro na autenticação: {e}")
+            logger.error(f"❌ Erro na autenticação (tentativa {attempt}): {e}")
+            if attempt < max_attempts:
+                wait_time = 2 ** (attempt - 1)
+                logger.info(f"⏳ Aguardando {wait_time}s antes da próxima tentativa...")
+                await asyncio.sleep(wait_time)
+                return await self._authenticate(attempt + 1, max_attempts)
             return False
     
     async def _handle_messages(self):
-        """Processa mensagens recebidas do WebSocket"""
+        """Processa mensagens recebidas do WebSocket - versão não-bloqueante"""
         try:
+            # Usar async for que é mais eficiente e não causa concorrência com _send_request
             async for message in self.ws:
+                # Verificar se deve parar
+                if not self.connected or self._shutdown_event.is_set():
+                    break
+                    
                 try:
                     data = json.loads(message)
                     req_id = data.get('req_id')
@@ -299,6 +410,7 @@ class DerivWebSocketNativo:
                     if 'tick' in data:
                         await self._process_tick(data['tick'])
                     
+                    # Resolver pending requests
                     if req_id and req_id in self.pending_requests:
                         future = self.pending_requests.pop(req_id)
                         if not future.done():
@@ -308,13 +420,17 @@ class DerivWebSocketNativo:
                     logger.error(f"❌ Erro ao decodificar JSON: {e}")
                 except Exception as e:
                     logger.error(f"❌ Erro ao processar mensagem: {e}")
-                    
+        
         except websockets.exceptions.ConnectionClosed:
-            logger.warning("⚠️ Conexão WebSocket fechada")
+            logger.warning("⚠️ Conexão WebSocket fechada durante handle_messages")
             self.connected = False
+        except asyncio.CancelledError:
+            logger.info("🔄 Handle messages cancelado durante shutdown")
         except Exception as e:
-            logger.error(f"❌ Erro no handler de mensagens: {e}")
+            logger.error(f"❌ Erro crítico no handle_messages: {e}")
             self.connected = False
+        finally:
+            logger.debug("🔄 Handle messages finalizado")
     
     async def _keepalive_loop(self):
         """Loop de ping/pong aprimorado para manter conexão ativa"""
@@ -323,8 +439,14 @@ class DerivWebSocketNativo:
         ping_timeout = 10.0  # 10 segundos timeout para ping
         last_successful_ping = time.time()
         
-        while self.connected and self.ws:
-            try:
+        try:
+            while self.connected and self.ws:
+                # Verificar shutdown_event se disponível
+                if hasattr(self, 'bot_instance') and self.bot_instance and hasattr(self.bot_instance, '_shutdown_event'):
+                    if self.bot_instance._shutdown_event.is_set():
+                        logger.info("🔄 Keepalive interrompido por shutdown")
+                        break
+                
                 await asyncio.sleep(20)  # Ping a cada 20 segundos (mais frequente)
                 
                 if self.connected and self.ws:
@@ -369,12 +491,11 @@ class DerivWebSocketNativo:
                         await self._reconnect()
                         consecutive_ping_failures = 0
                         last_successful_ping = time.time()
-                        
-            except Exception as e:
-                logger.error(f"❌ Erro no keepalive: {e} - Reconectando...")
-                await self._reconnect()
-                consecutive_ping_failures = 0
-                last_successful_ping = time.time()
+        
+        except asyncio.CancelledError:
+            logger.info("🔄 Keepalive cancelado durante shutdown")
+        except Exception as e:
+            logger.error(f"❌ Erro crítico no keepalive: {e}")
     
     async def _reconnect(self):
         """Reconecta automaticamente com circuit breaker inteligente"""
@@ -511,6 +632,12 @@ class DerivWebSocketNativo:
             
             response = await self._send_request(buy_message)
             
+            # CORREÇÃO CRÍTICA: Validar resposta None antes de verificar 'error'
+            if response is None:
+                raise Exception("Timeout na requisição - sem resposta da API")
+            if not isinstance(response, dict):
+                raise Exception(f"Resposta inválida: {type(response)}")
+            
             if 'error' in response:
                 raise Exception(f"Deriv API Error: {response['error']['message']}")
             
@@ -537,6 +664,12 @@ class DerivWebSocketNativo:
             
             response = await self._send_request(ticks_message)
             
+            # CORREÇÃO CRÍTICA: Validar resposta None antes de verificar 'error'
+            if response is None:
+                raise Exception("Timeout na requisição - sem resposta da API")
+            if not isinstance(response, dict):
+                raise Exception(f"Resposta inválida: {type(response)}")
+            
             if 'error' in response:
                 raise Exception(f"Deriv API Error: {response['error']['message']}")
             
@@ -560,6 +693,12 @@ class DerivWebSocketNativo:
             logger.debug(f"📋 Solicitando informações do contrato: {contract_message}")
             
             response = await self._send_request(contract_message)
+            
+            # CORREÇÃO CRÍTICA: Validar resposta None antes de verificar 'error'
+            if response is None:
+                raise Exception("Timeout na requisição - sem resposta da API")
+            if not isinstance(response, dict):
+                raise Exception(f"Resposta inválida: {type(response)}")
             
             if 'error' in response:
                 raise Exception(f"Deriv API Error: {response['error']['message']}")
@@ -595,6 +734,12 @@ class DerivWebSocketNativo:
             
             response = await self._send_request(proposal_message)
             
+            # CORREÇÃO CRÍTICA: Validar resposta None antes de verificar 'error'
+            if response is None:
+                raise Exception("Timeout na requisição - sem resposta da API")
+            if not isinstance(response, dict):
+                raise Exception(f"Resposta inválida: {type(response)}")
+            
             if 'error' in response:
                 raise Exception(f"Deriv API Error: {response['error']['message']}")
             
@@ -629,6 +774,10 @@ class DerivWebSocketNativo:
             
             response = await self._send_request(tick_message)
             
+            # CORREÇÃO CRÍTICA: Validar resposta None antes de verificar 'error'
+            if response is None or not isinstance(response, dict):
+                raise Exception("Timeout na subscription de ticks - resposta None ou inválida")
+            
             if 'error' in response:
                 raise Exception(f"Deriv API Error: {response['error']['message']}")
             
@@ -657,6 +806,10 @@ class DerivWebSocketNativo:
             
             response = await self._send_request(portfolio_message)
             
+            # CORREÇÃO CRÍTICA: Validar resposta NULL antes de processar
+            if response is None:
+                raise Exception("Falha na comunicação WebSocket: resposta NULL do portfolio (timeout ou erro de conexão)")
+            
             if 'error' in response:
                 raise Exception(f"Deriv API Error: {response['error']['message']}")
             
@@ -672,6 +825,25 @@ class DerivWebSocketNativo:
         
         self.connected = False
         self.authorized = False
+        
+        # Sinalizar shutdown para parar loops
+        self._shutdown_event.set()
+        
+        # CORREÇÃO CRÍTICA: Cancelamento explícito das tasks antes de ws.close()
+        # Cancelar message handler task
+        if hasattr(self, '_message_handler_task'):
+            self._message_handler_task.cancel()
+        
+        # Cancelar keepalive task
+        if hasattr(self, '_keepalive_task'):
+            self._keepalive_task.cancel()
+        
+        # Aguardar cancelamento das tasks
+        await asyncio.sleep(1.0)
+        
+        # Limpar referências das tasks
+        self._message_handler_task = None
+        self._keepalive_task = None
         
         # Limpar requests pendentes
         for req_id, future in self.pending_requests.items():
@@ -767,9 +939,17 @@ class AccumulatorScalpingBot:
         # Lock global para evitar deadlock no sistema de recovery
         self._global_restart_lock = asyncio.Lock()
         
+        # Referências para HTTP server cleanup
+        self._http_runner = None
+        self._http_site = None
+        
         logger.info(f"🤖 {NOME_BOT} inicializado")
         logger.info(f"📊 Configuração do Bot:")
         logger.info(f"   • Ativo: {ATIVO}")
+        logger.info(f"   • Reinicialização Automática: {'Ativada' if AUTO_RESTART_ENABLED else 'Desativada'}")
+        if AUTO_RESTART_ENABLED:
+            logger.info(f"   • Intervalo de Reinicialização: {AUTO_RESTART_INTERVAL_MINUTES} minutos")
+            logger.info(f"   • Máximo de Tentativas: {MAX_RESTART_ATTEMPTS}")
         logger.info(f"   • Initial Stake: ${self.initial_stake}")
         logger.info(f"   • Stake Atual: ${self.stake}")
         logger.info(f"   • Take Profit %: {TAKE_PROFIT_PERCENTUAL*100}%")
@@ -803,7 +983,7 @@ class AccumulatorScalpingBot:
             logger.debug(f"📝 Task '{name or 'unnamed'}' criada e rastreada ({len(self._running_tasks)} tasks ativas)")
             return task
     
-    async def shutdown_gracefully(self, timeout: float = 30.0):
+    async def shutdown_gracefully(self, timeout: float = 60.0):
         """Implementa shutdown graceful cancelando todas as tasks ativas"""
         if self._is_shutting_down:
             logger.warning("⚠️ Shutdown já em andamento")
@@ -813,42 +993,119 @@ class AccumulatorScalpingBot:
         self._is_shutting_down = True
         self._shutdown_event.set()
         
-        # Copiar conjunto de tasks para evitar modificação durante iteração
-        async with self._task_lock:
-            tasks_to_cancel = self._running_tasks.copy()
-        
-        if not tasks_to_cancel:
-            logger.info("✅ Nenhuma task ativa para cancelar")
-            return
+        try:
+            # Primeiro, parar subscription de ticks para evitar novas tasks
+            if self.tick_subscription_active:
+                try:
+                    await self.api_manager.unsubscribe_ticks(ATIVO)
+                    self.tick_subscription_active = False
+                    logger.info("📡 Subscription de ticks cancelada")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao cancelar subscription: {e}")
             
-        logger.info(f"🔄 Cancelando {len(tasks_to_cancel)} tasks ativas...")
-        
-        # Cancelar todas as tasks
-        for task in tasks_to_cancel:
-            if not task.done():
-                task.cancel()
-        
-        # Aguardar cancelamento com timeout
-        if tasks_to_cancel:
+            # Segundo, parar HTTP server para evitar novas conexões
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(*tasks_to_cancel, return_exceptions=True),
-                    timeout=timeout
-                )
-                logger.info("✅ Todas as tasks foram canceladas com sucesso")
-            except asyncio.TimeoutError:
-                logger.warning(f"⚠️ Timeout de {timeout}s atingido - algumas tasks podem não ter sido canceladas")
-                # Forçar cancelamento das tasks restantes
+                if self._http_site:
+                    await self._http_site.stop()
+                    logger.info("🌐 HTTP server site parado")
+                    self._http_site = None
+                
+                if self._http_runner:
+                    await self._http_runner.cleanup()
+                    logger.info("🌐 HTTP server runner limpo")
+                    self._http_runner = None
+                    
+                # Aguardar 2s para tasks HTTP finalizarem
+                await asyncio.sleep(2.0)
+                
+            except Exception as e:
+                logger.error(f"❌ Erro ao parar HTTP server: {e}")
+            
+            # Copiar conjunto de tasks para evitar modificação durante iteração
+            async with self._task_lock:
+                tasks_to_cancel = self._running_tasks.copy()
+            
+            if not tasks_to_cancel:
+                logger.info("✅ Nenhuma task ativa para cancelar")
+            else:
+                logger.info(f"🔄 Cancelando {len(tasks_to_cancel)} tasks ativas...")
+                
+                # Cancelar todas as tasks
                 for task in tasks_to_cancel:
                     if not task.done():
-                        logger.warning(f"⚠️ Forçando cancelamento da task: {task.get_name()}")
+                        logger.debug(f"🔄 Cancelando task: {task.get_name()}")
                         task.cancel()
-        
-        # Limpar conjunto de tasks
-        async with self._task_lock:
-            self._running_tasks.clear()
-        
-        logger.info("🧹 Shutdown graceful concluído")
+                
+                # Aguardar cancelamento com timeout aumentado
+                if tasks_to_cancel:
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                            timeout=45.0  # Aumentado de 15s para 45s
+                        )
+                        logger.info("✅ Todas as tasks foram canceladas com sucesso")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"⚠️ Timeout de 45s atingido - algumas tasks podem não ter sido canceladas")
+                        # Forçar cancelamento das tasks restantes
+                        for task in tasks_to_cancel:
+                            if not task.done():
+                                logger.warning(f"⚠️ Forçando cancelamento da task: {task.get_name()}")
+                                task.cancel()
+                    except Exception as e:
+                        logger.error(f"❌ Erro no cancelamento de tasks: {e}")
+                
+                # Limpar conjunto de tasks
+                async with self._task_lock:
+                    self._running_tasks.clear()
+                    logger.info("🧹 Lista de tasks rastreadas limpa")
+            
+            # Aguardar um pouco para garantir que as tasks foram realmente canceladas
+            await asyncio.sleep(1.0)
+            
+            # Desconectar explicitamente o WebSocket
+            try:
+                await self.api_manager.disconnect()
+                logger.info("🔌 WebSocket desconectado explicitamente")
+            except Exception as e:
+                logger.error(f"❌ Erro ao desconectar WebSocket: {e}")
+            
+            # Aguardar 3s para WebSocket finalizar completamente
+            await asyncio.sleep(3.0)
+            
+            # SEGUNDO ROUND: Verificar e cancelar tasks stubborn
+            all_tasks = [task for task in asyncio.all_tasks() if not task.done()]
+            if all_tasks:
+                logger.warning(f"⚠️ Encontradas {len(all_tasks)} tasks stubborn - iniciando segundo round de cancelamento")
+                for task in all_tasks:
+                    if not task.done():
+                        logger.debug(f"🔄 Cancelando task stubborn: {task.get_name()}")
+                        task.cancel()
+                
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*all_tasks, return_exceptions=True),
+                        timeout=10.0  # Timeout de 10s para tasks stubborn
+                    )
+                    logger.info("✅ Tasks stubborn canceladas com sucesso")
+                except asyncio.TimeoutError:
+                    logger.warning("⚠️ Algumas tasks stubborn não responderam ao cancelamento")
+                except Exception as e:
+                    logger.error(f"❌ Erro no cancelamento de tasks stubborn: {e}")
+            
+            # Cleanup de recursos
+            await self.cleanup_resources()
+            
+            # Aguardar mais um pouco para garantir cleanup completo
+            await asyncio.sleep(1.0)
+            
+            logger.info("✅ Shutdown graceful concluído")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro durante shutdown graceful: {e}")
+            import traceback
+            logger.error(f"Stack trace: {traceback.format_exc()}")
+        finally:
+            self._is_shutting_down = False
     
     def request_restart(self):
         """Solicita restart do bot de forma segura"""
@@ -877,6 +1134,31 @@ class AccumulatorScalpingBot:
         """Aguarda sinal de shutdown"""
         await self._shutdown_event.wait()
         return self._restart_requested
+    
+    def configure_auto_restart(self, enabled: bool = None, interval_minutes: int = None, max_attempts: int = None):
+        """Configura a reinicialização automática dinamicamente"""
+        global AUTO_RESTART_ENABLED, AUTO_RESTART_INTERVAL_MINUTES, MAX_RESTART_ATTEMPTS
+        
+        if enabled is not None:
+            AUTO_RESTART_ENABLED = enabled
+            logger.info(f"🔄 Reinicialização automática {'ativada' if enabled else 'desativada'}")
+        
+        if interval_minutes is not None and interval_minutes > 0:
+            AUTO_RESTART_INTERVAL_MINUTES = interval_minutes
+            logger.info(f"⏰ Intervalo de reinicialização alterado para {interval_minutes} minutos")
+        
+        if max_attempts is not None and max_attempts > 0:
+            MAX_RESTART_ATTEMPTS = max_attempts
+            logger.info(f"🔢 Máximo de tentativas alterado para {max_attempts}")
+    
+    def get_auto_restart_config(self) -> dict:
+        """Retorna a configuração atual de reinicialização automática"""
+        return {
+            'enabled': AUTO_RESTART_ENABLED,
+            'interval_minutes': AUTO_RESTART_INTERVAL_MINUTES,
+            'max_attempts': MAX_RESTART_ATTEMPTS,
+            'delay_base': RESTART_DELAY_BASE
+        }
     
     def _setup_recovery_callbacks(self):
         """Configura callbacks para recovery automático"""
@@ -937,6 +1219,33 @@ class AccumulatorScalpingBot:
             self.robust_order_system.reset_circuit_breaker()
             logger.info("🔄 Circuit breaker resetado")
             
+            # Cancelar tasks pendentes do WebSocket se existirem
+            try:
+                # Obter todas as tasks pendentes do loop atual
+                current_loop = asyncio.get_running_loop()
+                all_tasks = [task for task in asyncio.all_tasks(current_loop) 
+                           if not task.done() and task != asyncio.current_task()]
+                
+                if all_tasks:
+                    logger.info(f"🔄 Cancelando {len(all_tasks)} tasks pendentes adicionais...")
+                    for task in all_tasks:
+                        if not task.done():
+                            task.cancel()
+                    
+                    # Aguardar cancelamento com timeout curto
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(*all_tasks, return_exceptions=True),
+                            timeout=5.0
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("⚠️ Timeout no cancelamento de tasks adicionais")
+                    except Exception as e:
+                        logger.error(f"❌ Erro no cancelamento de tasks adicionais: {e}")
+                        
+            except Exception as e:
+                logger.error(f"❌ Erro ao cancelar tasks pendentes: {e}")
+            
             # Desconectar API
             if self.api_manager.connected:
                 try:
@@ -957,6 +1266,8 @@ class AccumulatorScalpingBot:
             
         except Exception as e:
             logger.error(f"❌ Erro durante limpeza de recursos: {e}")
+            import traceback
+            logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
     
     async def _on_deadlock_detected(self):
@@ -1026,8 +1337,13 @@ class AccumulatorScalpingBot:
     
     async def _process_signals_from_queue(self):
         """Processa sinais da queue de forma assíncrona"""
-        while True:
+        while not self._shutdown_event.is_set():
             try:
+                # Verificar shutdown_event a cada iteração
+                if self._shutdown_event.is_set():
+                    logger.info("🛑 Parando processamento de sinais - shutdown solicitado")
+                    break
+                
                 # Obter próximo sinal da queue (não bloqueante)
                 signal = self.sync_system.get_next_signal()
                 
@@ -1064,8 +1380,8 @@ class AccumulatorScalpingBot:
                     else:
                         logger.warning(f"⚠️ Operação rejeitada - limite de operações simultâneas atingido")
                 
-                # Pequeno delay para evitar loop intensivo
-                await asyncio.sleep(0.1)
+                # Pequeno delay para evitar loop intensivo - reduzido para resposta mais rápida ao shutdown
+                await asyncio.sleep(0.05)
                 
             except Exception as e:
                 logger.error(f"❌ Erro no processamento de sinais: {e}")
@@ -1122,8 +1438,13 @@ class AccumulatorScalpingBot:
         last_successful_operation_time = time.time()
         error_threshold = 120  # 2 minutos em segundos
         
-        while True:
+        while not self._shutdown_event.is_set():
             try:
+                # Verificar shutdown_event antes de continuar
+                if self._shutdown_event.is_set():
+                    logger.info("🛑 Parando monitoramento em tempo real - shutdown solicitado")
+                    break
+                
                 # Log estruturado a cada 30 segundos
                 stats = self.sync_system.get_statistics()
                 current_time = time.time()
@@ -1205,7 +1526,15 @@ class AccumulatorScalpingBot:
                                   f"circuit_breaker={stats['circuit_breaker_state']}")
                         deadlock_start_time = None
                 
-                await asyncio.sleep(30)  # Log a cada 30 segundos
+                # Sleep com verificação de shutdown_event
+                try:
+                    await asyncio.wait_for(asyncio.sleep(30), timeout=30)
+                except asyncio.TimeoutError:
+                    pass  # Timeout normal, continuar
+                
+                # Verificação adicional de shutdown após sleep
+                if self._shutdown_event.is_set():
+                    break
                 
             except Exception as e:
                  logger.error(f"❌ Erro no monitoramento em tempo real: {e}")
@@ -1227,17 +1556,18 @@ class AccumulatorScalpingBot:
                 'timestamp': time.time(),
                 'bot_name': NOME_BOT,
                 'active': True,
-                'circuit_breaker_state': stats['circuit_breaker_state'],
-                'active_operations': stats['active_operations'],
-                'queue_size': stats['queue_size'],
-                'last_signal_time': stats['last_signal_time'],
-                'total_signals': stats['total_signals'],
-                'successful_operations': stats['successful_operations'],
-                'failed_operations': stats['failed_operations'],
-                'tick_buffer_size': len(self.tick_buffer),
+                'circuit_breaker_state': stats.get('circuit_breaker_state', 'unknown'),
+                'active_operations': stats.get('active_operations', 0),
+                'queue_size': stats.get('queue_size', 0),
+                'last_signal_time': stats.get('last_signal_time', None),
+                'total_signals': stats.get('total_signals', 0),
+                'successful_operations': stats.get('successful_operations', 0),
+                'failed_operations': stats.get('failed_operations', 0),
+                'tick_buffer_size': len(self.tick_buffer) if hasattr(self, 'tick_buffer') else 0,
                 'connection_status': self.api_manager.connected if hasattr(self, 'api_manager') else False,
-                'subscription_active': self.tick_subscription_active,
-                'cached_params_valid': (time.time() - self._params_cache_time) < self._params_cache_ttl if self._cached_params else False
+                'subscription_active': self.tick_subscription_active if hasattr(self, 'tick_subscription_active') else False,
+                'cached_params_valid': (time.time() - self._params_cache_time) < self._params_cache_ttl if hasattr(self, '_cached_params') and self._cached_params else False,
+                'auto_restart_config': self.get_auto_restart_config()
             }
             
             return web.json_response(status_data)
@@ -1254,6 +1584,7 @@ class AccumulatorScalpingBot:
             
             runner = web.AppRunner(app)
             await runner.setup()
+            self._http_runner = runner  # Armazenar referência para cleanup
             
             # Tentar portas sequencialmente
             ports_to_try = [8080, 8081, 8082, 8083, 8084]
@@ -1263,6 +1594,7 @@ class AccumulatorScalpingBot:
                 try:
                     site = web.TCPSite(runner, 'localhost', port)
                     await site.start()
+                    self._http_site = site  # Armazenar referência para cleanup
                     logger.info(f"🌐 Servidor HTTP iniciado em http://localhost:{port}/status")
                     server_started = True
                     break
@@ -2229,6 +2561,45 @@ class AccumulatorScalpingBot:
             logger.error("❌ Falha na conexão inicial. Encerrando.")
             return
         
+        # CORREÇÃO PROBLEMA 10: Validação adicional de estado após connect()
+        max_validation_attempts = 3
+        for validation_attempt in range(1, max_validation_attempts + 1):
+            logger.info(f"🔍 Validação de estado (tentativa {validation_attempt}/{max_validation_attempts})...")
+            
+            # Verificar se conexão está realmente estável
+            validation_passed = True
+            validation_errors = []
+            
+            if not self.api_manager.authorized:
+                validation_errors.append("authorized == False")
+                validation_passed = False
+                
+            if self.api_manager.ws is None:
+                validation_errors.append("ws is None")
+                validation_passed = False
+                
+            if self.api_manager.session_id is None:
+                validation_errors.append("session_id is None")
+                validation_passed = False
+            
+            if validation_passed:
+                logger.info("✅ Validação de estado bem-sucedida - conexão estável confirmada")
+                break
+            else:
+                logger.warning(f"⚠️ Validação falhou: {', '.join(validation_errors)}")
+                
+                if validation_attempt < max_validation_attempts:
+                    logger.info("⏳ Aguardando 3s antes de tentar reconectar...")
+                    await asyncio.sleep(3.0)
+                    
+                    logger.info("🔄 Tentando reconectar...")
+                    if not await self.api_manager.connect():
+                        logger.error(f"❌ Falha na reconexão (tentativa {validation_attempt})")
+                        continue
+                else:
+                    logger.error("❌ Falha na validação após todas as tentativas. Encerrando.")
+                    return
+        
         # Configurar callback do bot na API
         self.api_manager.set_bot_instance(self)
         
@@ -2238,31 +2609,42 @@ class AccumulatorScalpingBot:
                 logger.error("❌ Falha na pré-validação de parâmetros")
                 return
             
-            # Iniciar subscription de ticks em tempo real
+            # Iniciar subscription de ticks em tempo real (só após validação completa)
             logger.info(f"📡 Iniciando subscription de ticks para {ATIVO}...")
             await self.api_manager.subscribe_ticks(ATIVO)
             self.tick_subscription_active = True
+            logger.info(f"✅ Subscription de ticks ativa para {ATIVO}")
             
             # Iniciar processamento de sinais da queue
             logger.info("🚀 Iniciando processamento de sinais da queue...")
-            signal_processor_task = asyncio.create_task(self._process_signals_from_queue())
+            signal_processor_task = await self.create_tracked_task(
+                self._process_signals_from_queue(), 
+                "signal_processor"
+            )
             
             # Iniciar monitoramento em tempo real (sistema antigo como backup)
             logger.info("📊 Iniciando monitoramento em tempo real...")
-            monitoring_task = asyncio.create_task(self._real_time_monitoring())
+            monitoring_task = await self.create_tracked_task(
+                self._real_time_monitoring(), 
+                "real_time_monitoring"
+            )
             
             # NOVO: Iniciar sistema de monitoramento de saúde aprimorado
             logger.info("🏥 Iniciando monitoramento de saúde aprimorado...")
-            health_monitor_task = asyncio.create_task(
+            health_monitor_task = await self.create_tracked_task(
                 self.health_monitor.monitor_and_recover(
                     stats_provider=self._get_enhanced_stats,
                     check_interval=30.0
-                )
+                ),
+                "health_monitor"
             )
             
             # Iniciar servidor HTTP para endpoint /status
             logger.info("🌐 Iniciando servidor HTTP...")
-            http_server_task = asyncio.create_task(self._start_http_server())
+            http_server_task = await self.create_tracked_task(
+                self._start_http_server(), 
+                "http_server"
+            )
             
             # Inicializar sinal no radar (bot seguro para operar inicialmente)
             logger.info("📊 Inicializando sinal no sistema radar...")
@@ -2510,6 +2892,23 @@ class AccumulatorScalpingBot:
                 # Limpar buffer de ticks para evitar dados obsoletos
                 self.tick_buffer.clear()
                 logger.debug("🧹 Buffer de ticks limpo")
+                
+                # Desconectar explicitamente antes de reconectar
+                if self.api_manager.connected:
+                    try:
+                        logger.info("🔌 Desconectando conexão existente...")
+                        await self.api_manager.disconnect()
+                        logger.info("✅ Desconexão realizada")
+                    except Exception as disconnect_error:
+                        logger.warning(f"⚠️ Erro na desconexão: {disconnect_error}")
+                
+                # Aguardar 5s para cleanup completo (aumentado de 2s para 5s)
+                await asyncio.sleep(5)
+                
+                # Validar se ws está realmente None antes de conectar
+                if hasattr(self.api_manager, 'ws') and self.api_manager.ws is not None:
+                    logger.warning("⚠️ WebSocket ainda existe após disconnect, aguardando mais 3s...")
+                    await asyncio.sleep(3)
                 
                 # Reconectar com retry melhorado
                 max_retries = 5  # Aumentado para 5 tentativas
@@ -2775,33 +3174,55 @@ async def force_cleanup_and_restart():
             for task in all_tasks:
                 task.cancel()
             
-            # Aguardar cancelamento com timeout
+            # Aguardar cancelamento com timeout aumentado
             try:
                 await asyncio.wait_for(
                     asyncio.gather(*all_tasks, return_exceptions=True),
-                    timeout=10.0
+                    timeout=30.0
                 )
                 logger.info("✅ Tasks canceladas com sucesso")
             except asyncio.TimeoutError:
                 logger.warning("⚠️ Timeout no cancelamento de tasks - forçando finalização")
+                # Retry de cancelamento se timeout
+                for task in all_tasks:
+                    if not task.done():
+                        task.cancel()
         
         # 2. Limpeza de memória
         import gc
         gc.collect()
         logger.info("🧹 Garbage collection executado")
         
-        # 3. Delay para estabilização
-        await asyncio.sleep(2)
+        # 3. Delay para estabilização aumentado
+        await asyncio.sleep(5)
         
     except Exception as e:
         logger.error(f"❌ Erro durante cleanup forçado: {e}")
 
 def reiniciar_bot_automaticamente():
     """Função que reinicia o bot automaticamente com cleanup forçado"""
-    max_tentativas = 10
+    # Verificar se a reinicialização automática está habilitada
+    if not AUTO_RESTART_ENABLED:
+        logger.info("🔄 Reinicialização automática desabilitada - executando bot uma única vez")
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(main())
+        except Exception as e:
+            logger.error(f"❌ Erro na execução única: {e}")
+        finally:
+            logger.info("🏁 Execução única finalizada")
+        return
+    
+    max_tentativas = MAX_RESTART_ATTEMPTS
     tentativa_atual = 0
-    delay_base = 5
-    timeout_reinicio = 30 * 60  # 30 minutos
+    delay_base = RESTART_DELAY_BASE
+    timeout_reinicio = AUTO_RESTART_INTERVAL_MINUTES * 60  # Converter minutos para segundos
+    
+    logger.info(f"🔄 Sistema de reinicialização automática iniciado")
+    logger.info(f"⏰ Intervalo de reinicialização: {AUTO_RESTART_INTERVAL_MINUTES} minutos")
+    logger.info(f"🔢 Máximo de tentativas: {MAX_RESTART_ATTEMPTS}")
+    logger.info(f"⏱️ Delay base entre tentativas: {RESTART_DELAY_BASE}s")
     
     while tentativa_atual < max_tentativas:
         loop = None
@@ -2830,7 +3251,7 @@ def reiniciar_bot_automaticamente():
             logger.info("✅ Novo event loop criado")
             
             # Executar bot com timeout e cleanup automático
-            logger.info(f"⏰ Bot executará por {timeout_reinicio//60} minutos")
+            logger.info(f"⏰ Bot executará por {AUTO_RESTART_INTERVAL_MINUTES} minutos")
             
             try:
                 # Executar main com timeout
@@ -2841,8 +3262,8 @@ def reiniciar_bot_automaticamente():
                 break
                 
             except asyncio.TimeoutError:
-                logger.info("⏰ Timeout de 30 minutos - reiniciando automaticamente")
-                print("🔄 Bot reiniciado automaticamente após 30 minutos")
+                logger.info(f"⏰ Timeout de {AUTO_RESTART_INTERVAL_MINUTES} minutos - reiniciando automaticamente")
+                print(f"🔄 Bot reiniciado automaticamente após {AUTO_RESTART_INTERVAL_MINUTES} minutos")
                 
                 # NOVO: Cleanup forçado antes de reiniciar
                 try:
@@ -2877,15 +3298,34 @@ def reiniciar_bot_automaticamente():
             continue
             
         finally:
-            # NOVO: Cleanup forçado do event loop
+            # NOVO: Cleanup forçado do event loop com aguardo de tasks
             if loop and not loop.is_closed():
                 try:
-                    # Cancelar tasks restantes
+                    # Obter tasks restantes
                     pending_tasks = [task for task in asyncio.all_tasks(loop) if not task.done()]
                     if pending_tasks:
                         logger.info(f"🧹 Limpando {len(pending_tasks)} tasks restantes...")
+                        
+                        # Cancelar todas as tasks
                         for task in pending_tasks:
                             task.cancel()
+                        
+                        # Aguardar cancelamento com timeout
+                        try:
+                            loop.run_until_complete(
+                                asyncio.wait_for(
+                                    asyncio.gather(*pending_tasks, return_exceptions=True),
+                                    timeout=15.0
+                                )
+                            )
+                            logger.info("✅ Tasks canceladas com sucesso")
+                        except asyncio.TimeoutError:
+                            logger.warning("⚠️ Timeout no cancelamento de tasks - forçando finalização")
+                        except Exception as gather_error:
+                            logger.warning(f"⚠️ Erro no gather de tasks: {gather_error}")
+                    
+                    # Aguardar um momento para estabilização
+                    time.sleep(1)
                     
                     # Fechar loop
                     loop.close()
@@ -2893,9 +3333,10 @@ def reiniciar_bot_automaticamente():
                 except Exception as cleanup_error:
                     logger.error(f"❌ Erro no cleanup final: {cleanup_error}")
             
-            # Delay adicional para estabilização
+            # Delay adicional para estabilização entre tentativas
             if tentativa_atual < max_tentativas:
-                time.sleep(3)
+                logger.info("⏱️ Aguardando estabilização...")
+                time.sleep(5)
     
     # Verificar se atingiu limite de tentativas
     if tentativa_atual >= max_tentativas:
