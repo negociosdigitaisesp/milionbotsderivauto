@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-EXECUTOR MOMENTUM-CALMO - Bot de Trading Estratégico
+EXECUTOR MOMENTUM-CALMO-LL - Bot de Trading Estratégico
 
-Este script monitora operações de trading em tempo real e detecta padrões WW
-(2 vitórias consecutivas) durante condições específicas de mercado.
+Este script monitora operações de trading em tempo real e detecta padrões LL
+(2 perdas consecutivas) sem restrições de horário.
 
 Características:
 - Análise em tempo real das últimas 2 operações
-- Detecção de padrão WW em Baixa Atividade + Fechamento da Hora
-- Filtros baseados em regime de atividade UTC
+- Detecção simples de padrão LL (2 LOSS consecutivos)
+- Sem filtros de horário ou regime de atividade
 - Envio de sinais para Supabase
 - Logs simplificados e focados
 
+Estratégia: Entrada após surgir 2 LOSS consecutivos
+
 Autor: Sistema de Trading Automatizado
-Versão: 3.5 - Momentum-Calmo
+Versão: 3.5 - Momentum-Calmo-LL (Sem Filtros de Horário)
 """
 import os
 import time
@@ -40,46 +42,12 @@ logger = logging.getLogger(__name__)
 for lib in ['httpx', 'httpcore', 'supabase', 'postgrest']:
     logging.getLogger(lib).setLevel(logging.WARNING)
 
-BOT_NAME = 'executor_momentum_calmo_v1'
+BOT_NAME = 'executor_momentum_calmo_ll_v1'
 ANALISE_INTERVALO = 5
 OPERACOES_HISTORICO = 35
 OPERACOES_MINIMAS = 2  # Requisito mínimo para WW
 
-# Constantes de regime de atividade (UTC)
-HORAS_BAIXA_ATIVIDADE_UTC = [3, 4, 5, 6, 7, 8, 9, 10]
-HORAS_MEDIA_ATIVIDADE_UTC = [11, 12, 13, 14, 15, 16, 17, 18]
 
-
-
-def get_regime_atividade_utc(timestamp_str: str) -> str:
-    """Determina o regime de atividade baseado na hora UTC."""
-    try:
-        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        hora_utc = dt.hour
-        
-        if hora_utc in HORAS_BAIXA_ATIVIDADE_UTC:
-            return 'Baixa Atividade'
-        elif hora_utc in HORAS_MEDIA_ATIVIDADE_UTC:
-            return 'Média Atividade'
-        else:
-            return 'Alta Atividade'
-    except Exception as e:
-        logger.warning(f"Erro ao processar timestamp {timestamp_str}: {e}")
-        return 'Alta Atividade'  # Default seguro
-
-def get_padrao_intra_hora_utc(timestamp_str: str) -> str:
-    """Determina se estamos no período de fechamento da hora."""
-    try:
-        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        minuto_utc = dt.minute
-        
-        if 55 <= minuto_utc <= 59:
-            return 'Fechamento da Hora'
-        else:
-            return 'Outro Período'
-    except Exception as e:
-        logger.warning(f"Erro ao processar timestamp {timestamp_str}: {e}")
-        return 'Outro Período'  # Default seguro
 
 def retry_supabase_operation(max_retries=3, delay=2):
     def decorator(func):
@@ -138,30 +106,19 @@ def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: s
     if len(historico) < OPERACOES_MINIMAS:
         return {'should_operate': False, 'reason': 'Esperando historial mínimo'}
 
-    # 2. Análisis de Contexto (UTC)
-    regime = get_regime_atividade_utc(ultimo_timestamp)
-    periodo = get_padrao_intra_hora_utc(ultimo_timestamp)
-
-    # 3. Verificación Rápida de Filtros (Fail-Fast)
-    if regime != 'Baixa Atividade':
-        return {'should_operate': False, 'reason': f'Filtro Rechazado: Régimen actual es {regime}'}
-    
-    if periodo != 'Fechamento da Hora':
-        return {'should_operate': False, 'reason': f'Filtro Rechazado: Período no es Cierre'}
-
-    # 4. Verificación del Gatillo WW
+    # 2. Verificación del Gatillo LL (2 LOSS consecutivos)
     ultimas_2_cronologica = list(reversed(historico[:2]))
-    if ultimas_2_cronologica == ['WIN', 'WIN']:
+    if ultimas_2_cronologica == ['LOSS', 'LOSS']:
         return {
             'should_operate': True,
-            'strategy': 'Momentum-Calmo',
-            'reason': 'SEÑAL ACTIVA: WW | Baja + Cierre',
+            'strategy': 'Momentum-Calmo-LL',
+            'reason': 'SEÑAL ACTIVA: LL detectado',
             'last_operations': historico[:2]
         }
     
-    # 5. Condición Estándar
+    # 3. Condición Estándar
     padrao_atual = ''.join(['W' if op == 'WIN' else 'L' for op in ultimas_2_cronologica])
-    return {'should_operate': False, 'reason': f'Esperando gatillo WW. Patrón actual: {padrao_atual}'}
+    return {'should_operate': False, 'reason': f'Esperando gatillo LL. Patrón actual: {padrao_atual}'}
 
 @retry_supabase_operation()
 def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
@@ -193,17 +150,18 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 
 def main_loop():
-    """Bucle principal del bot de análisis Momentum-Calmo."""
-    logger.info("=== INICIANDO EXECUTOR MOMENTUM-CALMO ===")
+    """Bucle principal del bot de análisis Momentum-Calmo-LL."""
+    logger.info("=== INICIANDO EXECUTOR MOMENTUM-CALMO-LL ===")
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
         logger.critical("Fallo fatal al conectar con Supabase. Cerrando.")
         return
 
     logger.info("Bot inicializado exitosamente.")
-    print("\n[INICIO] Iniciando bot EXECUTOR MOMENTUM-CALMO")
-    print("[INFO] Configuración: Análisis de las últimas 2 operaciones")
-    print("[INFO] Objetivo: Detectar patrón WW en Baja Actividad + Cierre de Hora")
+    print("\n[INICIO] Iniciando bot EXECUTOR MOMENTUM-CALMO-LL")
+    print("[INFO] Configuração: Análisis de las últimas 2 operaciones")
+    print("[INFO] Objetivo: Detectar patrón LL (2 LOSS consecutivos)")
+    print("[INFO] Estratégia: Entrada após 2 LOSS consecutivos (sem filtros de horário)")
     print("[INFO] Intervalo de análisis: 5 segundos")
     print("[INFO] Actualizaciones automáticas para Supabase")
     print("-" * 60)
