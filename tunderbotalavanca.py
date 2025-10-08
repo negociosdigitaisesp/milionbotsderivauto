@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Accumulator Scalping Bot - Modo Standalone
+Tunder Bot Avalancs
 Refatorado para seguir fielmente a estratégia do Scalping Bot.xml
 Com lógica de entrada corrigida e resiliência a falhas
 """
@@ -14,6 +14,7 @@ import json
 import threading
 import websockets
 import uuid
+import random
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
@@ -45,14 +46,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# PARÂMETROS DE GESTÃO (CONFORME XML ORIGINAL)
+# PARÂMETROS DE GESTÃO (ACCUMULATOR STRATEGY)
 # ============================================================================
-NOME_BOT = "Accumulator_Scalping_Bot"
+NOME_BOT = "Tunder Bot Alavancs"
 STAKE_INICIAL = 5.0  # initial stake - alterado para 5
 STAKE_MAXIMO_DERIV = 1000.0  # Limite máximo de stake permitido pela Deriv API
-TAKE_PROFIT_PERCENTUAL = 0.45  # 45% (Return%) - Conforme solicitação
+TAKE_PROFIT_PERCENTUAL = 0.26  # 26% (Return%) - Conforme solicitação
 ATIVO = 'R_10'
-GROWTH_RATE = 0.02  # 2% - Valor corrigido conforme solicitação
+GROWTH_RATE = 0.05  # 5% - Valor alterado conforme solicitação
 WIN_STOP = 1000.0  # Meta de ganho diário
 LOSS_LIMIT = 1000.0  # Limite de perda diária
 KHIZZBOT = 50  # Valor khizzbot conforme XML original
@@ -96,7 +97,8 @@ class DerivWebSocketNativo:
         self.req_id_counter = 0
         self.req_id_lock = threading.Lock()
         self.pending_requests = {}
-        self.request_timeout = 15  # Otimizado para menor latência
+        self.request_timeout = 30  # Aumentado de 15 para 30 segundos para resolver timeouts
+        self.portfolio_timeout = 45  # Timeout específico para portfolio (operação mais lenta)
         
         # Rate limiting
         self.last_request_time = 0
@@ -122,6 +124,9 @@ class DerivWebSocketNativo:
         # Connection state
         self.session_id = None
         self.authorized = False
+        
+        # Error handler
+        self.error_handler = RobustErrorHandler(f"DerivWebSocket_{self.account_name}")
         
         logger.info(f"🔧 DerivWebSocketNativo inicializado - Conta: {self.account_name}, App ID: {self.app_id}")
     
@@ -262,13 +267,18 @@ class DerivWebSocketNativo:
         await self.connect()
     
     async def _send_request(self, message):
-        """Envia request e aguarda response"""
+        """Envia request e aguarda response com logging detalhado"""
+        start_time = time.time()
+        req_id = None
+        
         try:
             # Rate limiting
             current_time = time.time()
             time_since_last = current_time - self.last_request_time
             if time_since_last < self.min_request_interval:
-                await asyncio.sleep(self.min_request_interval - time_since_last)
+                sleep_time = self.min_request_interval - time_since_last
+                logger.debug(f"⏱️ Rate limiting: aguardando {sleep_time:.2f}s")
+                await asyncio.sleep(sleep_time)
             
             req_id = message.get('req_id')
             if not req_id:
@@ -281,28 +291,133 @@ class DerivWebSocketNativo:
             
             # Enviar mensagem
             message_str = json.dumps(message)
-            logger.debug(f"📤 Enviando: {message_str}")
+            logger.debug(f"📤 Enviando req_id {req_id} (timeout {self.request_timeout}s): {message_str}")
             
+            send_start = time.time()
             await self.ws.send(message_str)
+            send_time = time.time() - send_start
             self.last_request_time = time.time()
+            
+            logger.debug(f"📤 Mensagem enviada em {send_time:.3f}s, aguardando response...")
             
             # Aguardar response com timeout
             try:
+                wait_start = time.time()
                 response = await asyncio.wait_for(future, timeout=self.request_timeout)
+                wait_time = time.time() - wait_start
+                total_time = time.time() - start_time
+                
+                logger.debug(f"📥 Response recebido para req_id {req_id} em {wait_time:.3f}s (total: {total_time:.3f}s)")
                 return response
+                
             except asyncio.TimeoutError:
                 # Cleanup em caso de timeout
                 self.pending_requests.pop(req_id, None)
+                total_time = time.time() - start_time
+                logger.error(f"⏰ Timeout para req_id {req_id} após {total_time:.3f}s (limite: {self.request_timeout}s)")
                 raise Exception(f"Timeout aguardando response para req_id {req_id}")
                 
         except Exception as e:
             # Cleanup em caso de erro
-            self.pending_requests.pop(req_id, None)
+            if req_id:
+                self.pending_requests.pop(req_id, None)
+            total_time = time.time() - start_time
+            logger.error(f"❌ Erro no request req_id {req_id} após {total_time:.3f}s: {e}")
+            raise e
+    
+    async def _send_request_with_timeout(self, message, custom_timeout):
+        """Envia request e aguarda response com timeout customizado e logging detalhado"""
+        start_time = time.time()
+        req_id = None
+        
+        try:
+            # Rate limiting
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.min_request_interval:
+                sleep_time = self.min_request_interval - time_since_last
+                logger.debug(f"⏱️ Rate limiting: aguardando {sleep_time:.2f}s")
+                await asyncio.sleep(sleep_time)
+            
+            req_id = message.get('req_id')
+            if not req_id:
+                req_id = self._get_next_req_id()
+                message['req_id'] = req_id
+            
+            # Criar Future para aguardar response
+            future = asyncio.Future()
+            self.pending_requests[req_id] = future
+            
+            # Enviar mensagem
+            message_str = json.dumps(message)
+            logger.debug(f"📤 Enviando req_id {req_id} (timeout customizado {custom_timeout}s): {message_str}")
+            
+            send_start = time.time()
+            await self.ws.send(message_str)
+            send_time = time.time() - send_start
+            self.last_request_time = time.time()
+            
+            logger.debug(f"📤 Mensagem enviada em {send_time:.3f}s, aguardando response com timeout {custom_timeout}s...")
+            
+            # Aguardar response com timeout customizado
+            try:
+                wait_start = time.time()
+                response = await asyncio.wait_for(future, timeout=custom_timeout)
+                wait_time = time.time() - wait_start
+                total_time = time.time() - start_time
+                
+                logger.debug(f"📥 Response recebido para req_id {req_id} em {wait_time:.3f}s (total: {total_time:.3f}s)")
+                return response
+                
+            except asyncio.TimeoutError:
+                # Cleanup em caso de timeout
+                self.pending_requests.pop(req_id, None)
+                total_time = time.time() - start_time
+                logger.error(f"⏰ Timeout customizado para req_id {req_id} após {total_time:.3f}s (limite: {custom_timeout}s)")
+                raise asyncio.TimeoutError(f"Timeout aguardando response para req_id {req_id} após {custom_timeout}s")
+                
+        except Exception as e:
+            # Cleanup em caso de erro
+            if req_id:
+                self.pending_requests.pop(req_id, None)
+            total_time = time.time() - start_time
+            logger.error(f"❌ Erro no request customizado req_id {req_id} após {total_time:.3f}s: {e}")
             raise e
     
     async def ensure_connection(self):
-        """Garante que a conexão WebSocket está ativa"""
+        """Garante que a conexão WebSocket está ativa com verificação de saúde"""
+        # Verificação básica de estado
         if not self.connected or not self.ws or not self.authorized:
+            logger.info("🔄 Conexão não estabelecida, conectando...")
+            await self.connect()
+            return
+        
+        # Verificação de saúde da conexão
+        try:
+            # Verificar se o WebSocket ainda está aberto
+            if hasattr(self.ws, 'closed') and self.ws.closed:
+                logger.warning("⚠️ WebSocket fechado detectado, reconectando...")
+                await self.connect()
+                return
+            elif hasattr(self.ws, 'close_code') and self.ws.close_code is not None:
+                logger.warning("⚠️ WebSocket com close_code detectado, reconectando...")
+                await self.connect()
+                return
+            
+            # Teste de ping para verificar se a conexão está responsiva
+            ping_message = {"ping": 1}
+            logger.debug("🏓 Testando conexão com ping...")
+            
+            # Usar timeout menor para ping (5 segundos)
+            try:
+                await self._send_request_with_timeout(ping_message, 5)
+                logger.debug("✅ Ping bem-sucedido, conexão saudável")
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"⚠️ Ping falhou ({e}), reconectando...")
+                await self.connect()
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Erro na verificação de saúde da conexão: {e}, reconectando...")
             await self.connect()
     
     async def buy(self, params):
@@ -385,7 +500,11 @@ class DerivWebSocketNativo:
         await self.ensure_connection()
         
         try:
-            # Estrutura de proposta conforme documentação Deriv
+            # Log para verificação do growth_rate dinâmico
+            growth_rate_recebido = params.get("growth_rate", "AUSENTE")
+            logger.info(f"🔍 VERIFICAÇÃO GROWTH_RATE: Recebido={growth_rate_recebido}")
+            
+            # Estrutura de proposta conforme documentação Deriv para ACCUMULATOR
             proposal_message = {
                 "proposal": 1,
                 "contract_type": "ACCU",
@@ -393,8 +512,10 @@ class DerivWebSocketNativo:
                 "amount": float(params["amount"]),
                 "basis": "stake",
                 "currency": "USD",
-                "growth_rate": float(params["growth_rate"])
+                "growth_rate": float(params.get("growth_rate", GROWTH_RATE))  # ✅ CORRIGIDO - usar growth_rate para ACCUMULATOR
             }
+            
+            logger.info(f"🔍 VERIFICAÇÃO ENVIO: Enviando growth_rate={proposal_message['growth_rate']}")
             
             # Adicionar limit_order se presente
             if "limit_order" in params:
@@ -454,27 +575,46 @@ class DerivWebSocketNativo:
         self.bot_instance = bot_instance
     
     async def portfolio(self, params=None):
-        """Obtém portfolio de contratos ativos usando WebSocket nativo"""
-        await self.ensure_connection()
+        """Obtém portfolio de contratos ativos usando WebSocket nativo com retry logic"""
+        max_retries = 3
+        retry_delay = 2  # segundos
         
-        try:
-            # Estrutura de portfolio conforme documentação Deriv
-            portfolio_message = {
-                "portfolio": 1
-            }
-            
-            logger.debug(f"📊 Solicitando portfolio: {portfolio_message}")
-            
-            response = await self._send_request(portfolio_message)
-            
-            if 'error' in response:
-                raise Exception(f"Deriv API Error: {response['error']['message']}")
-            
-            return response
-            
-        except Exception as e:
-            logger.error(f"❌ Erro ao obter portfolio via WebSocket: {e}")
-            raise e
+        for attempt in range(max_retries):
+            try:
+                await self.ensure_connection()
+                
+                # Estrutura de portfolio conforme documentação Deriv
+                portfolio_message = {
+                    "portfolio": 1
+                }
+                
+                logger.info(f"📊 Solicitando portfolio (tentativa {attempt + 1}/{max_retries}): {portfolio_message}")
+                start_time = time.time()
+                
+                # Usar timeout específico para portfolio
+                response = await self._send_request_with_timeout(portfolio_message, self.portfolio_timeout)
+                
+                elapsed_time = time.time() - start_time
+                logger.info(f"✅ Portfolio obtido com sucesso em {elapsed_time:.2f}s")
+                
+                if 'error' in response:
+                    raise Exception(f"Deriv API Error: {response['error']['message']}")
+                
+                return response
+                
+            except asyncio.TimeoutError as e:
+                logger.warning(f"⏰ Timeout na tentativa {attempt + 1}/{max_retries} para portfolio (>{self.portfolio_timeout}s)")
+                if attempt == max_retries - 1:
+                    logger.error(f"❌ Todas as tentativas de portfolio falharam por timeout")
+                    raise Exception(f"Portfolio timeout após {max_retries} tentativas")
+                await asyncio.sleep(retry_delay)
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Erro na tentativa {attempt + 1}/{max_retries} para portfolio: {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"❌ Todas as tentativas de portfolio falharam: {e}")
+                    raise e
+                await asyncio.sleep(retry_delay)
     
     async def disconnect(self):
         """Desconecta adequadamente o WebSocket"""
@@ -512,11 +652,23 @@ class AccumulatorScalpingBot:
         # Configuração da conta
         self.account_config = account_config
         self.account_name = account_config.get('name', 'Default') if account_config else 'Default'
+        self.token = account_config.get('token', '') if account_config else ''
+        self.app_id = account_config.get('app_id', '') if account_config else ''
         
         self.api_manager = DerivWebSocketNativo(account_config)
         self.ativo = ATIVO
         
-        # VARIÁVEIS CONFORME XML ORIGINAL
+        # VARIÁVEIS PARA ESTRATÉGIA ALAVANCS PRO 2.0
+        self.nome_bot = NOME_BOT  # Nome do bot
+        self.stake = STAKE_INICIAL  # Stake inicial
+        self.initial_stake = STAKE_INICIAL  # Stake inicial (constante)
+        
+        # Controles de parada
+        self.win_stop = WIN_STOP
+        self.loss_limit = LOSS_LIMIT
+        self.total_profit = 0.0  # Lucro total acumulado
+        
+        # VARIÁVEIS CONFORME XML ORIGINAL ACCUMULATOR
         self.stake = STAKE_INICIAL  # Stake (variável)
         self.initial_stake = STAKE_INICIAL  # initial stake (constante)
         self.total_lost = 0.0  # total lost
@@ -524,16 +676,15 @@ class AccumulatorScalpingBot:
         self.account_initial_take_profit = STAKE_INICIAL * TAKE_PROFIT_PERCENTUAL  # DT inicial
         self.dt = self.account_initial_take_profit  # DT (take profit dinâmico)
         
-        # Controles de parada
-        self.win_stop = WIN_STOP
-        self.loss_limit = LOSS_LIMIT
-        self.total_profit = 0.0  # Lucro total acumulado
+        # VARIÁVEIS DE ESTADO PARA ACCUMULATOR
+        self.consecutive_losses = 0  # Contador de perdas consecutivas
+        self.is_trading_locked = False  # Controle de bloqueio para prevenir condições de corrida
         
         self.ticks_history = []
         self.ciclo = 0
         
         # NOVO: Sistema de tick stream em tempo real
-        self.tick_buffer = []  # Buffer para manter últimos 5 ticks
+        self.tick_buffer = []  # Buffer para manter últimos 4 ticks
         self.tick_subscription_active = False  # Flag para controlar subscription
         
         # NOVO: Sistema robusto de execução de ordens
@@ -569,125 +720,288 @@ class AccumulatorScalpingBot:
         self._restart_in_progress = False  # Flag para evitar múltiplos restarts
         self._operation_count = 0  # Contador de operações executadas
         
+        # SISTEMA DE CONFIRMAÇÃO FIEL AO XML
+        self.aguardando_confirmacao = False  # Variável AguardandoConfirmacao do XML
+        
         # Configurar callbacks de recuperação do health monitor
         self.health_monitor.set_recovery_callbacks(
-            on_connection_issues=self._reconnect_and_resubscribe,
             on_system_restart=self._force_restart_bot
         )
         
         logger.info(f"🤖 {NOME_BOT} inicializado")
-        logger.info(f"📊 Configuração XML:")
+        logger.info(f"📊 Configuração ACCUMULATOR:")
         logger.info(f"   • Ativo: {ATIVO}")
-        logger.info(f"   • Initial Stake: ${self.initial_stake}")
-        logger.info(f"   • Stake Atual: ${self.stake}")
-        logger.info(f"   • Take Profit %: {TAKE_PROFIT_PERCENTUAL*100}%")
+        logger.info(f"   • Stake Inicial: ${self.stake}")
+        logger.info(f"   • Take Profit: {TAKE_PROFIT_PERCENTUAL*100}%")
         logger.info(f"   • Growth Rate: {GROWTH_RATE*100}%")
-        logger.info(f"   • Khizzbot: {self.khizzbot}")
         logger.info(f"   • Win Stop: ${self.win_stop}")
         logger.info(f"   • Loss Limit: ${self.loss_limit}")
-        logger.info(f"🔧 Sistemas Avançados Integrados:")
-        logger.info(f"   • Enhanced Tick Buffer: ✅ (max_size=10)")
-        logger.info(f"   • WebSocket Recovery: ✅ (max_retries=5)")
-        logger.info(f"   • Signal Queue: ✅ (max_size=10, max_concurrent=2)")
-        logger.info(f"   • Health Monitor: ✅ (check_interval=30s)")
+        
+        # NOVO: Buffer de ticks para análise reativa ALAVANCS PRO 2.0
+        self.tick_buffer_alavancs = []  # Buffer específico para análise de padrões
+        self.max_buffer_size = 10  # Máximo de 10 ticks no buffer
+        self.pattern_detection_active = False  # Flag para detecção de padrões
+        self.last_tick_time = 0  # Timestamp do último tick recebido
+
+    # ============================================================================
+    # SISTEMA DE ANÁLISE DE TICKS REATIVO - ALAVANCS PRO 2.0 (SIMPLIFICADO)
+    # ============================================================================
     
-    @with_error_handling(ErrorType.DATA_PROCESSING, ErrorSeverity.HIGH)
     async def _handle_new_tick(self, tick_data):
-        """Processa novo tick recebido em tempo real com sistema de queue"""
+        """Processa novo tick para análise de padrão ACCUMULATOR (Red-Red-Red-Blue)"""
         try:
-            # Timestamp preciso para debugging
-            tick_timestamp = time.time()
-            
             # Extrair valor do tick
             tick_value = float(tick_data.get('quote', 0))
             
             if tick_value <= 0:
-                logger.warning(f"⚠️ Tick inválido recebido: {tick_data}")
                 return
-            
-            # Log detalhado com timestamp preciso
-            logger.debug(f"📥 TICK_RECEIVED: {tick_value:.5f} at {tick_timestamp:.6f}")
             
             # Adicionar ao buffer
             self.tick_buffer.append(tick_value)
             
             # Manter apenas os últimos 5 ticks
             if len(self.tick_buffer) > 5:
-                self.tick_buffer.pop(0)  # Remove o mais antigo
+                self.tick_buffer.pop(0)
             
             # Executar análise quando tiver 5 ticks
             if len(self.tick_buffer) == 5:
-                pattern_detected = self.analisar_padrao_entrada(self.tick_buffer.copy())
+                pattern_detected = self.analisar_padrao_entrada_accumulator(self.tick_buffer.copy())
                 
-                if pattern_detected:
-                    logger.info(f"🎯 PATTERN_DETECTED at {tick_timestamp:.6f}")
+                if pattern_detected and not self.is_trading_locked:
+                    # Bloquear operações simultâneas
+                    self.is_trading_locked = True
+                    logger.info(f"🎯 PADRÃO ACCUMULATOR DETECTADO - EXECUTANDO COMPRA")
+                    # Executar ciclo completo da operação
+                    asyncio.create_task(self._execute_trade_lifecycle_accumulator())
+                    
+        except Exception as e:
+            logger.error(f"❌ Erro em _handle_new_tick: {e}")
+
+    def analisar_padrao_entrada_accumulator(self, ticks: List[float]) -> bool:
+        """ 
+        Lógica de Padrão ACCUMULATOR: Red-Red-Red-Blue (3 subidas + 1 queda) 
+        """ 
+        if len(ticks) < 5: 
+            return False 
+     
+        # Atribuições de tick (indexação FROM_END) 
+        tick4 = ticks[-5]  # FROM_END 5 (mais antigo) 
+        tick3 = ticks[-4]  # FROM_END 4  
+        tick2 = ticks[-3]  # FROM_END 3 
+        tick1 = ticks[-2]  # FROM_END 2 
+        tick_atual = ticks[-1]  # FROM_END 1 (atual/mais novo) 
+     
+        # Cálculos de sinal ACCUMULATOR 
+        single4 = "Red" if tick4 > tick3 else "Blue" 
+        single3 = "Red" if tick3 > tick2 else "Blue"  
+        single2 = "Red" if tick2 > tick1 else "Blue" 
+        single1 = "Red" if tick1 > tick_atual else "Blue" 
+     
+        # Condição ACCUMULATOR: single1=Red E single2=Red E single3=Red E single4=Blue 
+        entrada_accumulator = (single1 == "Red" and 
+                              single2 == "Red" and 
+                              single3 == "Red" and 
+                              single4 == "Blue") 
+     
+        # Log detalhado 
+        logger.info(f"📊 VERIFICAÇÃO DE PADRÃO ACCUMULATOR:") 
+        logger.info(f"   • single1: {single1}, single2: {single2}, single3: {single3}, single4: {single4}") 
+        logger.info(f"   • Padrão esperado: Red-Red-Red-Blue") 
+        logger.info(f"   • Entrada detectada: {entrada_accumulator}") 
+     
+        if entrada_accumulator: 
+            logger.info("🎯 PADRÃO ACCUMULATOR DETECTADO! (Red-Red-Red-Blue)") 
+            
+        return entrada_accumulator
+
+    async def _execute_trade_lifecycle_accumulator(self):
+        """Ciclo de vida completo para operação ACCUMULATOR"""
+        try:
+            logger.info("--- Iniciando Novo Ciclo ACCUMULATOR ---")
+            contract_id = await self.executar_compra_accumulator()
+            
+            if contract_id:
+                lucro = await self.monitorar_contrato(contract_id)
+                self.aplicar_gestao_risco_accumulator(lucro)
+            else:
+                logger.error("Falha na operação ACCUMULATOR")
+        
+        except Exception as e:
+            logger.error(f"Erro no ciclo ACCUMULATOR: {e}")
+        
+        finally:
+            self.is_trading_locked = False
+            logger.info("--- Fim do Ciclo ACCUMULATOR (TRAVA LIBERADA) ---")
+
+    async def executar_compra_accumulator(self) -> Optional[str]:
+        """Executa compra do contrato ACCU com parâmetros corretos e validação"""
+        
+        # VALIDAÇÃO E LIMITAÇÃO DE STAKE (CORREÇÃO CRÍTICA)
+        # Validar e limitar stake conforme limite da Deriv API
+        stake_para_usar = min(self.stake, STAKE_MAXIMO_DERIV)
+        
+        if stake_para_usar < self.stake:
+            logger.warning(f"⚠️ Stake limitado: ${self.stake:.2f} -> ${stake_para_usar:.2f}")
+        
+        # VALIDAÇÃO DOS PARÂMETROS ANTES DO ENVIO
+        # 1. Validar stake mínimo/máximo
+        if stake_para_usar < 0.35:
+            logger.error(f"❌ Stake muito baixo: ${stake_para_usar} (mínimo: $0.35)")
+            return None
+        if stake_para_usar > STAKE_MAXIMO_DERIV:
+            logger.error(f"❌ Stake muito alto: ${stake_para_usar} (máximo: ${STAKE_MAXIMO_DERIV})")
+            return None
+            
+        # 2. Validar growth rate (1-5%)
+        if GROWTH_RATE < 0.01 or GROWTH_RATE > 0.05:
+            logger.error(f"❌ Growth rate inválido: {GROWTH_RATE*100}% (deve ser 1-5%)")
+            return None
+            
+        # 3. Validar parâmetros obrigatórios para ACCU
+        if not ATIVO or not isinstance(ATIVO, str):
+            logger.error(f"❌ Símbolo inválido: {ATIVO}")
+            return None
+            
+        # 4. Validar take profit
+        if self.dt <= 0:
+            logger.error(f"❌ Take profit inválido: ${self.dt}")
+            return None
+            
+        # Take profit: baseado no percentual configurado
+        take_profit_amount = self.stake * TAKE_PROFIT_PERCENTUAL
+        
+        try:
+            # ESTRUTURA CORRETA BASEADA NA DOCUMENTAÇÃO OFICIAL DA DERIV API
+            proposal_params = {
+                "proposal": 1,
+                "contract_type": "ACCU",
+                "symbol": ATIVO,
+                "amount": float(stake_para_usar),
+                "basis": "stake",
+                "currency": "USD",
+                "growth_rate": GROWTH_RATE,
+                "limit_order": {
+                    "take_profit": float(take_profit_amount)
+                }
+            }
+            
+            # Log detalhado dos parâmetros para debug
+            logger.info(f"📋 PARÂMETROS DA PROPOSTA ACCU:")
+            logger.info(f"   • proposal: 1")
+            logger.info(f"   • contract_type: ACCU")
+            logger.info(f"   • symbol: {ATIVO}")
+            logger.info(f"   • amount: {stake_para_usar}")
+            logger.info(f"   • basis: stake")
+            logger.info(f"   • currency: USD")
+            logger.info(f"   • growth_rate: {GROWTH_RATE}")
+            logger.info(f"   • limit_order.take_profit: {take_profit_amount}")
+            
+            logger.info(f"💰 SOLICITANDO PROPOSTA ACCU:")
+            logger.info(f"   • Stake: ${stake_para_usar}")
+            logger.info(f"   • Take Profit (DT): ${take_profit_amount:.2f}")
+            logger.info(f"   • Growth Rate: {GROWTH_RATE*100}%")
+            logger.info(f"   • Symbol: {ATIVO}")
+            
+            # Executar proposta
+            proposal_response = await self.api_manager.proposal(proposal_params)
+            
+            if not proposal_response or 'proposal' not in proposal_response:
+                logger.error(f"❌ Proposta inválida - campo 'proposal' ausente: {proposal_response}")
+                return None
                 
-                # Salvar sinal no histórico de debugging
-                self._save_signal_to_history(self.tick_buffer.copy(), pattern_detected)
-                
-                # Enviar sinal para queue (sempre, mesmo sem padrão para estatísticas)
-                success = self.sync_system.queue_signal(self.tick_buffer.copy(), pattern_detected)
-                
-                if success:
-                    logger.debug(f"📤 SIGNAL_QUEUED: pattern={pattern_detected} at {tick_timestamp:.6f}")
-                else:
-                    logger.warning(f"⚠️ Falha ao enfileirar sinal at {tick_timestamp:.6f}")
+            proposal = proposal_response['proposal']
+            proposal_id = proposal.get('id')
+            ask_price = proposal.get('ask_price')
+            
+            if not proposal_id or not ask_price:
+                logger.error(f"❌ Dados essenciais da proposta ausentes - ID: {proposal_id}, Ask Price: {ask_price}")
+                return None
+            
+            logger.info(f"✅ Proposta aceita - ID: {proposal_id}, Ask Price: ${ask_price}")
+            
+            # Executar compra usando o ask_price da proposta
+            buy_params = {
+                "buy": proposal_id,
+                "price": float(ask_price)
+            }
+            
+            logger.info(f"🔄 Executando compra com Ask Price: ${ask_price}")
+            
+            buy_response = await self.api_manager.buy(buy_params)
+            
+            if buy_response and 'buy' in buy_response and 'contract_id' in buy_response['buy']:
+                contract_id = buy_response['buy']['contract_id']
+                logger.info(f"✅ COMPRA ACCU EXECUTADA COM SUCESSO!")
+                logger.info(f"   • Contract ID: {contract_id}")
+                logger.info(f"   • Stake: ${stake_para_usar}")
+                logger.info(f"   • Take Profit: ${take_profit_amount:.2f}")
+                return contract_id
+            else:
+                logger.error(f"❌ Falha na compra: {buy_response}")
+                return None
                 
         except Exception as e:
-            logger.error(f"❌ Erro ao processar tick: {e}")
-    
-    async def _process_signals_from_queue(self):
-        """Processa sinais da queue de forma assíncrona"""
-        while True:
-            try:
-                # Obter próximo sinal da queue (não bloqueante)
-                signal = self.sync_system.get_next_signal()
-                
-                if signal and signal.pattern_detected:
-                    operation_timestamp = time.time()
-                    logger.info(f"🚀 OPERATION_QUEUED at {operation_timestamp:.6f}")
-                    
-                    # Verificar se pode executar operação
-                    if self.sync_system.can_execute_operation():
-                        # Adquirir semáforo para operação
-                        async with self.sync_system.operation_semaphore:
-                            try:
-                                logger.info(f"⚡ OPERATION_EXECUTING at {time.time():.6f}")
-                                
-                                # Executar compra
-                                contract_id = await self.executar_compra_accu()
-                                
-                                if contract_id:
-                                    logger.info(f"✅ OPERATION_SUCCESS at {time.time():.6f}")
-                                    self.sync_system.record_operation_success()
-                                    
-                                    # Monitorar contrato
-                                    lucro = await self.monitorar_contrato(contract_id)
-                                    
-                                    # Aplicar gestão de risco
-                                    self.aplicar_gestao_risco(lucro)
-                                else:
-                                    logger.error(f"❌ OPERATION_FAILED at {time.time():.6f}")
-                                    self.sync_system.record_operation_failure()
-                                    
-                            except Exception as e:
-                                logger.error(f"❌ Erro durante execução da compra: {e}")
-                                self.sync_system.record_operation_failure()
-                    else:
-                        logger.warning(f"⚠️ Operação rejeitada - limite de operações simultâneas atingido")
-                
-                # Pequeno delay para evitar loop intensivo
-                await asyncio.sleep(0.1)
-                
-            except Exception as e:
-                logger.error(f"❌ Erro no processamento de sinais: {e}")
-                await asyncio.sleep(1)
+            logger.error(f"❌ Erro durante execução da compra ACCU: {e}")
+            return None
+
+    def aplicar_gestao_risco_accumulator(self, lucro: float):
+        """Gestão de risco específica para ACCUMULATOR - stake sempre fixo"""
+        logger.info(f"💼 GESTÃO DE RISCO ACCUMULATOR (STAKE FIXO) - Lucro: ${lucro:.2f}")
         
-        # Validar configuração inicial
-        self._validar_configuracao_inicial()
-    
+        # Calcular percentual para log
+        profit_percentage = (lucro / self.stake) * 100 if self.stake > 0 else 0
+        operation_result = "WIN" if lucro > 0 else "LOSS"
+        
+        # Enviar para Supabase
+        asyncio.create_task(self.log_to_supabase(operation_result, profit_percentage, self.stake))
+        
+        # SEMPRE manter stake fixo (SEM Martingale)
+        self.stake = STAKE_INICIAL  # Sempre fixo
+        
+        if lucro > 0:
+            self.total_profit += lucro  # Acumular lucro total
+            logger.info(f"🎉 WIN - Stake mantido: ${self.stake:.2f}")
+            
+            # Verificar Win Stop
+            if self.total_profit >= WIN_STOP:
+                logger.info(f"🎯 WIN STOP ATINGIDO! Total: ${self.total_profit:.2f}")
+                return "STOP_WIN"
+        else:
+            self.total_lost += abs(lucro)  # Acumular perdas
+            logger.info(f"💸 LOSS - Stake mantido: ${self.stake:.2f}")
+            
+            # Verificar Loss Limit
+            if self.total_lost >= LOSS_LIMIT:
+                logger.info(f"🛑 LOSS LIMIT ATINGIDO! Total perdido: ${self.total_lost:.2f}")
+                return "STOP_LOSS"
+        
+        logger.info(f"📊 Estado atual: Stake=${self.stake:.2f} (FIXO), Total Profit=${self.total_profit:.2f}, Total Lost=${self.total_lost:.2f}")
+
+    async def _execute_trade_lifecycle(self):
+        """
+        Encapsula o ciclo de vida completo de uma única operação:
+        comprar, monitorar o resultado e aplicar a gestão de risco.
+        """
+        try:
+            logger.info("--- Iniciando Novo Ciclo de Operação ---")
+            contract_id = await self.executar_compra_accumulator()
+            
+            if contract_id:
+                lucro = await self.monitorar_contrato(contract_id)
+                self.aplicar_gestao_risco_accumulator(lucro)
+            else:
+                logger.error("Falha ao iniciar a operação. Nenhuma ação de gestão de risco aplicada.")
+        
+        except Exception as e:
+            logger.error(f"Erro inesperado no ciclo de vida da operação: {e}")
+        
+        finally:
+            # Libera a trava para permitir que novas operações sejam iniciadas
+            self.is_trading_locked = False
+            logger.info("--- Fim do Ciclo de Operação (TRAVA LIBERADA) ---")
+
     def _pre_validate_params(self):
-        """Pré-valida parâmetros para otimização de latência"""
+        """Pré-valida parâmetros para otimização de latência - ACCUMULATOR"""
         current_time = time.time()
         
         # Verificar se cache ainda é válido
@@ -696,14 +1010,13 @@ class AccumulatorScalpingBot:
             return self._cached_params
         
         try:
-            # Validar parâmetros ACCU
+            # Validar parâmetros ACCUMULATOR
             params = {
                 'contract_type': 'ACCU',
                 'symbol': ATIVO,
                 'currency': 'USD',
                 'amount': float(STAKE_INICIAL),
-                'growth_rate': float(GROWTH_RATE),
-                'take_profit': float(TAKE_PROFIT_PERCENTUAL)
+                'growth_rate': GROWTH_RATE
             }
             
             # Validações básicas
@@ -713,14 +1026,11 @@ class AccumulatorScalpingBot:
             if not (0.01 <= params['growth_rate'] <= 0.05):
                 raise ValueError(f"Growth rate inválido: {params['growth_rate']}")
             
-            if not (0.01 <= params['take_profit'] <= 1.0):
-                raise ValueError(f"Take profit inválido: {params['take_profit']}")
-            
             # Atualizar cache
             self._cached_params = params
             self._params_cache_time = current_time
             
-            logger.debug(f"✅ Parâmetros pré-validados e cacheados")
+            logger.debug(f"✅ Parâmetros ACCUMULATOR pré-validados e cacheados")
             return params
             
         except Exception as e:
@@ -1147,12 +1457,8 @@ class AccumulatorScalpingBot:
         return test_results
     
     def _validar_configuracao_inicial(self):
-        """Valida a configuração inicial do bot"""
+        """Valida a configuração inicial do bot - Digits Over/Under"""
         logger.info("🔍 VALIDANDO CONFIGURAÇÃO INICIAL...")
-        
-        # Validar GROWTH_RATE
-        if GROWTH_RATE < 0.01 or GROWTH_RATE > 0.05:
-            raise ValueError(f"❌ GROWTH_RATE inválido: {GROWTH_RATE*100}% (deve ser 1-5%)")
         
         # Validar ATIVO
         if not ATIVO or not isinstance(ATIVO, str):
@@ -1162,182 +1468,11 @@ class AccumulatorScalpingBot:
         if STAKE_INICIAL < 0.35 or STAKE_INICIAL > 50000:
             raise ValueError(f"❌ STAKE_INICIAL inválido: ${STAKE_INICIAL} (deve ser $0.35-$50,000)")
         
-        # Validar TAKE_PROFIT_PERCENTUAL
-        if TAKE_PROFIT_PERCENTUAL <= 0 or TAKE_PROFIT_PERCENTUAL > 1:
-            raise ValueError(f"❌ TAKE_PROFIT_PERCENTUAL inválido: {TAKE_PROFIT_PERCENTUAL*100}%")
-        
         logger.info("✅ Configuração inicial validada com sucesso!")
     
-    def _validar_parametros_accu(self, params: Dict[str, Any]) -> bool:
-        """Valida se os parâmetros do contrato ACCU estão corretos"""
-        required_keys = ["proposal", "contract_type", "symbol", "amount", "basis", "currency", "growth_rate"]
-        
-        # Verificar se todas as chaves obrigatórias estão presentes
-        if not all(key in params for key in required_keys):
-            missing_keys = [key for key in required_keys if key not in params]
-            logger.error(f"❌ Chaves obrigatórias ausentes: {missing_keys}")
-            return False
-        
-        # Verificar valores específicos
-        if params.get("contract_type") != "ACCU":
-            logger.error(f"❌ Contract type deve ser 'ACCU', recebido: {params.get('contract_type')}")
-            return False
-        
-        if params.get("basis") != "stake":
-            logger.error(f"❌ Basis deve ser 'stake', recebido: {params.get('basis')}")
-            return False
-        
-        # CORREÇÃO CRÍTICA: Aceitar tanto float quanto string para growth_rate
-        growth_rate = params.get("growth_rate")
-        if growth_rate is None:
-            logger.error(f"❌ Growth rate ausente")
-            return False
-            
-        # Converter para float se for string
-        try:
-            if isinstance(growth_rate, str):
-                growth_rate_float = float(growth_rate)
-            else:
-                growth_rate_float = float(growth_rate)
-                
-            if growth_rate_float < 0.01 or growth_rate_float > 0.05:
-                logger.error(f"❌ Growth rate deve ser entre 0.01 e 0.05, recebido: {growth_rate}")
-                return False
-        except (ValueError, TypeError):
-            logger.error(f"❌ Growth rate inválido: {growth_rate}")
-            return False
-        
-        if not isinstance(params.get("amount"), (int, float)) or params.get("amount") < 0.35:
-            logger.error(f"❌ Amount deve ser >= 0.35, recebido: {params.get('amount')}")
-            return False
-        
-        logger.info("✅ Parâmetros ACCU validados com sucesso!")
-        return True
+
     
-    async def obter_ultimos_5_ticks(self) -> List[float]:
-        """Obtém os últimos 5 ticks do ativo com tratamento robusto de erros"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = await self.api_manager.ticks_history(self.ativo, count=5)
-                
-                # A API retorna os dados em 'history' ao invés de 'ticks_history'
-                if 'history' in response and 'prices' in response['history']:
-                    prices = response['history']['prices']
-                    self.ticks_history = prices[-5:] if len(prices) >= 5 else prices
-                    return self.ticks_history
-                elif 'ticks_history' in response and 'prices' in response['ticks_history']:
-                    prices = response['ticks_history']['prices']
-                    self.ticks_history = prices[-5:] if len(prices) >= 5 else prices
-                    return self.ticks_history
-                else:
-                    raise Exception(f"Resposta inválida da API: {response}")
-                    
-            except Exception as e:
-                logger.error(f"❌ Erro ao obter ticks (tentativa {attempt + 1}/{max_retries}): {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(2)
-                else:
-                    raise Exception(f"Falha ao obter ticks após {max_retries} tentativas: {e}")
-    
-    def debug_comparacao_xml_python(self, ticks: List[float]) -> Dict[str, Any]:
-        """Função de debug para comparar resultados XML vs Python"""
-        if len(ticks) < 5:
-            return {"erro": "Ticks insuficientes"}
-            
-        # SIMULAÇÃO DA LÓGICA XML EXATA
-        tick4 = ticks[-5]  # FROM_END 5 (mais antigo)
-        tick3 = ticks[-4]  # FROM_END 4
-        tick2 = ticks[-3]  # FROM_END 3
-        tick1 = ticks[-2]  # FROM_END 2
-        tick_atual = ticks[-1]  # Tick atual (mais recente)
-        
-        # Cálculo dos sinais XML
-        single4_xml = "Red" if tick4 > tick3 else "Blue"
-        single3_xml = "Red" if tick3 > tick2 else "Blue"
-        single2_xml = "Red" if tick2 > tick1 else "Blue"
-        single1_xml = "Red" if tick1 > tick_atual else "Blue"
-        
-        # CORREÇÃO CRÍTICA: Usar verificação individual das condições com operador AND
-        # Condição de entrada XML: single1=Red E single2=Red E single3=Red E single4=Blue
-        entrada_xml = (single1_xml == "Red" and 
-                      single2_xml == "Red" and 
-                      single3_xml == "Red" and 
-                      single4_xml == "Blue")
-        
-        debug_info = {
-            "ticks_raw": ticks,
-            "tick_positions": {
-                "tick4 (FROM_END 5)": tick4,
-                "tick3 (FROM_END 4)": tick3,
-                "tick2 (FROM_END 3)": tick2,
-                "tick1 (FROM_END 2)": tick1,
-                "tick_atual": tick_atual
-            },
-            "comparacoes": {
-                "tick4 > tick3": f"{tick4:.5f} > {tick3:.5f} = {tick4 > tick3}",
-                "tick3 > tick2": f"{tick3:.5f} > {tick2:.5f} = {tick3 > tick2}",
-                "tick2 > tick1": f"{tick2:.5f} > {tick1:.5f} = {tick2 > tick1}",
-                "tick1 > tick_atual": f"{tick1:.5f} > {tick_atual:.5f} = {tick1 > tick_atual}"
-            },
-            "sinais_xml": {
-                "single1": single1_xml,
-                "single2": single2_xml,
-                "single3": single3_xml,
-                "single4": single4_xml
-            },
-            "padrao_completo": [single1_xml, single2_xml, single3_xml, single4_xml],
-            "padrao_esperado": "single1=Red E single2=Red E single3=Red E single4=Blue",
-            "entrada_detectada": entrada_xml,
-            "timestamp": datetime.now().strftime('%H:%M:%S.%f')[:-3]
-        }
-        
-        return debug_info
-    
-    def analisar_padrao_entrada(self, ticks: List[float]) -> bool:
-        """ 
-        Lógica de Padrão XML: single1=Red E single2=Red E single3=Red E single4=Blue 
-        Onde os sinais são atribuídos em ordem cronológica reversa mas verificados individualmente 
-        """ 
-        if len(ticks) < 5: 
-            return False 
-     
-        # Atribuições de tick do XML (indexação FROM_END) 
-        tick4 = ticks[-5]  # FROM_END 5 (mais antigo) 
-        tick3 = ticks[-4]  # FROM_END 4  
-        tick2 = ticks[-3]  # FROM_END 3 
-        tick1 = ticks[-2]  # FROM_END 2 
-        tick_atual = ticks[-1]  # FROM_END 1 (atual/mais novo) 
-     
-        # Cálculos de sinal do XML 
-        single4 = "Red" if tick4 > tick3 else "Blue" 
-        single3 = "Red" if tick3 > tick2 else "Blue"  
-        single2 = "Red" if tick2 > tick1 else "Blue" 
-        single1 = "Red" if tick1 > tick_atual else "Blue" 
-     
-        # Condição de entrada XML: todas as quatro condições devem ser True simultaneamente 
-        entrada_xml = (single1 == "Red" and 
-                       single2 == "Red" and 
-                       single3 == "Red" and 
-                       single4 == "Blue") 
-     
-        # Log detalhado para debug 
-        logger.info(f"📊 VERIFICAÇÃO DE PADRÃO XML:") 
-        logger.info(f"   • single1 (tick1 > atual): {single1} ({tick1:.5f} > {tick_atual:.5f})") 
-        logger.info(f"   • single2 (tick2 > tick1): {single2} ({tick2:.5f} > {tick1:.5f})") 
-        logger.info(f"   • single3 (tick3 > tick2): {single3} ({tick3:.5f} > {tick2:.5f})") 
-        logger.info(f"   • single4 (tick4 > tick3): {single4} ({tick4:.5f} > {tick3:.5f})") 
-        logger.info(f"   • Padrão esperado: single1=Red E single2=Red E single3=Red E single4=Blue") 
-        logger.info(f"   • Entrada detectada: {entrada_xml}") 
-     
-        if entrada_xml:
-            logger.info("🎯 PADRÃO DE ENTRADA DETECTADO! (XML MATCH)")
-            logger.info("🚀 EXECUTANDO COMPRA DO CONTRATO ACCUMULATOR...")
-        else:
-            logger.info("⏳ Aguardando padrão correto...")
-            
-        return entrada_xml
-    
+
     async def log_to_supabase(self, operation_result: str, profit_percentage: float, stake_value: float):
         """Envia log de operação para Supabase"""
         try:
@@ -1364,138 +1499,43 @@ class AccumulatorScalpingBot:
         except Exception as e:
             logger.error(f"❌ Erro ao enviar log para Supabase [{self.account_name}]: {e}")
     
+
+
     @with_error_handling(ErrorType.TRADING, ErrorSeverity.CRITICAL)
-    async def executar_compra_accu(self) -> Optional[str]:
-        """Executa compra do contrato ACCU com parâmetros corretos e validação"""
+    async def executar_compra_accumulator(self) -> Optional[str]:
+        """Executa compra do contrato ACCUMULATOR com parâmetros corretos"""
         
-        # VALIDAÇÃO E LIMITAÇÃO DE STAKE (CORREÇÃO CRÍTICA)
-        # Validar e limitar stake conforme limite da Deriv API
+        # VALIDAÇÃO E LIMITAÇÃO DE STAKE
         stake_para_usar = min(self.stake, STAKE_MAXIMO_DERIV)
         
         if stake_para_usar < self.stake:
             logger.warning(f"⚠️ Stake limitado: ${self.stake:.2f} -> ${stake_para_usar:.2f}")
         
-        # VALIDAÇÃO DOS PARÂMETROS ANTES DO ENVIO
-        # 1. Validar stake mínimo/máximo
-        if stake_para_usar < 0.35:
-            logger.error(f"❌ Stake muito baixo: ${stake_para_usar} (mínimo: $0.35)")
-            return None
-        if stake_para_usar > STAKE_MAXIMO_DERIV:
-            logger.error(f"❌ Stake muito alto: ${stake_para_usar} (máximo: ${STAKE_MAXIMO_DERIV})")
-            return None
-            
-        # 2. Validar growth rate (1-5%)
-        if GROWTH_RATE < 0.01 or GROWTH_RATE > 0.05:
-            logger.error(f"❌ Growth rate inválido: {GROWTH_RATE*100}% (deve ser 1-5%)")
-            return None
-            
-        # 3. Validar parâmetros obrigatórios para ACCU
-        if not ATIVO or not isinstance(ATIVO, str):
-            logger.error(f"❌ Símbolo inválido: {ATIVO}")
-            return None
-            
-        # 4. Validar take profit
-        if self.dt <= 0:
-            logger.error(f"❌ Take profit inválido: ${self.dt}")
-            return None
-            
-        # 3. Take profit: 10% do stake atual ($0.50 se stake=$5)
+        # Take profit: 45% do stake atual
         take_profit_amount = self.stake * TAKE_PROFIT_PERCENTUAL
         
-        # ESTRUTURA CORRETA BASEADA NA DOCUMENTAÇÃO OFICIAL DA DERIV API
-        # Primeiro fazer proposal para obter o ID
         try:
-            # VALIDAÇÃO FINAL DOS PARÂMETROS ANTES DO ENVIO
-            # ESTRUTURA CORRIGIDA CONFORME DOCUMENTAÇÃO OFICIAL DA DERIV
-            required_params = {
+            # PARÂMETROS PARA PROPOSTA ACCUMULATOR
+            proposal_params = {
                 "proposal": 1,
                 "contract_type": "ACCU",
                 "symbol": ATIVO,
-                "amount": float(stake_para_usar),  # USAR STAKE LIMITADO
+                "amount": float(stake_para_usar),
                 "basis": "stake",
                 "currency": "USD",
                 "growth_rate": GROWTH_RATE,
                 "limit_order": {
-                    "take_profit": float(take_profit_amount)  # CORREÇÃO: 10% do stake
+                    "take_profit": float(take_profit_amount)
                 }
             }
             
-            # CORREÇÃO CRÍTICA: Manter growth_rate como float
-            # A API da Deriv espera growth_rate como float entre 0.01 e 0.05
-            
-            # CORREÇÃO FINAL: Estrutura conforme documentação mais recente da Deriv
-            # A API espera growth_rate como float entre 0.01 e 0.05
-            required_params_final = {
-                "proposal": 1,
-                "contract_type": "ACCU",
-                "symbol": ATIVO,
-                "amount": float(stake_para_usar),  # USAR STAKE LIMITADO
-                "basis": "stake",
-                "currency": "USD",
-                "growth_rate": GROWTH_RATE  # CORREÇÃO: Usar GROWTH_RATE (0.02)
-            }
-            
-            # TENTATIVA ALTERNATIVA: Estrutura mais simples sem limit_order
-            # Algumas versões da API têm problemas com limit_order em ACCU
-            required_params_simple = {
-                "proposal": 1,
-                "contract_type": "ACCU",
-                "symbol": ATIVO,
-                "amount": float(stake_para_usar),  # USAR STAKE LIMITADO
-                "basis": "stake",
-                "currency": "USD",
-                "growth_rate": GROWTH_RATE  # CORREÇÃO: Usar GROWTH_RATE (0.02)
-            }
-            
-            # Validar parâmetros usando função especializada
-            if not self._validar_parametros_accu(required_params):
-                logger.error(f"❌ Validação dos parâmetros ACCU falhou")
-                return None
-                
-            # Usar a estrutura validada
-            proposal_params = required_params
-                
-            # Log detalhado dos parâmetros para debug
-            logger.info(f"📋 PARÂMETROS DA PROPOSTA ACCU:")
-            logger.info(f"   • proposal: 1")
-            logger.info(f"   • contract_type: ACCU")
-            logger.info(f"   • symbol: {ATIVO}")
-            logger.info(f"   • amount: {stake_para_usar}")
-            logger.info(f"   • basis: stake")
-            logger.info(f"   • currency: USD")
-            logger.info(f"   • growth_rate: {GROWTH_RATE}")
-            logger.info(f"   • limit_order.take_profit: {take_profit_amount}")
-            
-            logger.info(f"💰 SOLICITANDO PROPOSTA ACCU (CONFORME XML):")
+            logger.info(f"💰 SOLICITANDO PROPOSTA ACCUMULATOR:")
             logger.info(f"   • Stake: ${stake_para_usar}")
-            logger.info(f"   • Take Profit (DT): ${take_profit_amount:.2f}")
+            logger.info(f"   • Take Profit: ${take_profit_amount:.2f} (45%)")
             logger.info(f"   • Growth Rate: {GROWTH_RATE*100}%")
             logger.info(f"   • Symbol: {ATIVO}")
-            logger.info(f"   • Currency: USD")
-            logger.info(f"   • Basis: stake")
-            logger.info(f"   • Total Lost: ${self.total_lost}")
-            logger.info(f"   • Khizzbot: {self.khizzbot}")
             
-            # EXECUÇÃO OTIMIZADA COM POOLING PERSISTENTE
-            # Medição de latência para otimização
-            start_time = time.time()
-            
-            # VALIDAÇÃO FINAL ANTES DO ENVIO
-            logger.info(f"🔍 VALIDAÇÃO FINAL DOS PARÂMETROS:")
-            logger.info(f"   • Estrutura: {proposal_params}")
-            logger.info(f"   • Growth Rate: {proposal_params.get('growth_rate')}")
-            logger.info(f"   • Basis: {proposal_params.get('basis')}")
-            logger.info(f"   • Contract Type: {proposal_params.get('contract_type')}")
-            
-            # USAR SISTEMA ROBUSTO DE EXECUÇÃO DE ORDENS
-            logger.info(f"🔄 Executando proposta via sistema robusto...")
-            
-            # Verificar limites de portfolio antes da proposta
-            if not await self.robust_order_system._check_portfolio_limits("ACCU"):
-                logger.warning(f"🚫 Limite de posições ACCU atingido - operação cancelada")
-                return None
-            
-            # Executar proposta com retry e timeout
+            # Executar proposta com sistema robusto
             proposal_result = await self.robust_order_system._execute_with_retry(
                 self.api_manager.proposal,
                 proposal_params,
@@ -1503,161 +1543,48 @@ class AccumulatorScalpingBot:
             )
             
             if not proposal_result.success:
-                logger.error(f"❌ Falha na proposta após retries: {proposal_result.error}")
+                logger.error(f"❌ Falha na proposta: {proposal_result.error}")
                 return None
                 
             proposal_response = proposal_result.data
             
-            proposal_latency = (time.time() - start_time) * 1000
-            logger.info(f"📥 Resposta da proposta (latência: {proposal_latency:.2f}ms): {proposal_response}")
-            
-            # VALIDAÇÃO CRÍTICA DA PROPOSTA
             if 'proposal' not in proposal_response:
-                logger.error(f"❌ Proposta inválida - campo 'proposal' ausente: {proposal_response}")
+                logger.error(f"❌ Proposta inválida: {proposal_response}")
                 return None
                 
             proposal = proposal_response['proposal']
             proposal_id = proposal.get('id')
             ask_price = proposal.get('ask_price')
             
-            # VALIDAR DADOS ESSENCIAIS DA PROPOSTA
-            if not proposal_id:
-                logger.error(f"❌ Proposal ID ausente: {proposal}")
+            if not proposal_id or not ask_price:
+                logger.error(f"❌ Dados da proposta inválidos")
                 return None
                 
-            if not ask_price:
-                logger.error(f"❌ Ask price ausente: {proposal}")
-                return None
-                
-            logger.info(f"✅ Proposta válida - ID: {proposal_id}, Ask Price: ${ask_price}")
-            
-            # COMPRA IMEDIATA NA MESMA SESSÃO WEBSOCKET
-            # ESTRUTURA CORRETA CONFORME DOCUMENTAÇÃO OFICIAL DA DERIV API
-            parametros_da_compra = {
+            # COMPRA IMEDIATA
+            buy_params = {
                 "buy": proposal_id,
-                "price": float(ask_price)  # USAR ASK_PRICE DA PROPOSTA
+                "price": float(ask_price)
             }
             
-            logger.info(f"🚀 EXECUTANDO COMPRA IMEDIATA (MESMA SESSÃO):")
-            logger.info(f"   • Proposal ID: {proposal_id}")
-            logger.info(f"   • Ask Price (CORRETO): ${ask_price}")
-            logger.info(f"   • Session ID: {self.api_manager.session_id}")
-            
-            # COMPRA VIA SISTEMA ROBUSTO
-            buy_start_time = time.time()
-            
-            # Executar compra com retry e timeout
             buy_result = await self.robust_order_system._execute_with_retry(
                 self.api_manager.buy,
-                parametros_da_compra,
+                buy_params,
                 OperationType.BUY
             )
             
-            buy_latency = (time.time() - buy_start_time) * 1000
-            total_latency = (time.time() - start_time) * 1000
-            
-            logger.info(f"⚡ Latências - Compra: {buy_latency:.2f}ms, Total: {total_latency:.2f}ms")
-            
-            # VALIDAR RESPOSTA DA COMPRA
             if buy_result.success:
                 response = buy_result.data
                 if 'buy' in response and 'contract_id' in response['buy']:
                     contract_id = response['buy']['contract_id']
-                    logger.info(f"✅ Compra executada via sistema robusto - Contract ID: {contract_id}")
-                    # Atualizar timestamp da última operação
+                    logger.info(f"✅ Compra ACCUMULATOR executada - Contract ID: {contract_id}")
                     self._update_operation_timestamp()
                     return contract_id
-                else:
-                    logger.error(f"❌ Resposta de compra inválida: {response}")
-                    return None
-            else:
-                logger.error(f"❌ Falha na compra após retries: {buy_result.error}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ ERRO CRÍTICO na execução da compra: {e}")
-            logger.error(f"📋 Tipo do erro: {type(e).__name__}")
+                    
+            logger.error(f"❌ Falha na compra: {buy_result.error if not buy_result.success else 'Resposta inválida'}")
+            return None
             
-            # FALLBACK: Tentar compra simplificada sem take_profit
-            try:
-                logger.info("🔄 TENTANDO FALLBACK - Compra sem take_profit...")
-                
-                # ESTRUTURA FALLBACK VALIDADA (sem take_profit)
-                fallback_proposal = {
-                    "proposal": 1,
-                    "contract_type": "ACCU",
-                    "symbol": ATIVO,
-                    "amount": self.stake,
-                    "basis": "stake",
-                    "currency": "USD",
-                    "growth_rate": GROWTH_RATE
-                    # Sem limit_order para fallback
-                }
-                
-                # CORREÇÃO FINAL: Usar growth_rate correto (0.02) como float
-                fallback_proposal["growth_rate"] = GROWTH_RATE
-                
-                # Validar parâmetros do fallback usando função especializada
-                if not self._validar_parametros_accu(fallback_proposal):
-                    logger.error(f"❌ Validação dos parâmetros ACCU do fallback falhou")
-                    return None
-                
-                logger.info(f"🔄 Enviando proposta fallback via sistema robusto...")
-                
-                # Executar proposta fallback com retry e timeout
-                fallback_result = await self.robust_order_system._execute_with_retry(
-                    self.api_manager.proposal,
-                    fallback_proposal,
-                    OperationType.PROPOSAL
-                )
-                
-                if not fallback_result.success:
-                    logger.error(f"❌ Falha na proposta fallback: {fallback_result.error}")
-                    return None
-                    
-                fallback_response = fallback_result.data
-                logger.info(f"📥 Resposta da proposta fallback: {fallback_response}")
-                
-                if 'proposal' in fallback_response and 'id' in fallback_response['proposal']:
-                    fallback_id = fallback_response['proposal']['id']
-                    logger.info(f"✅ Proposta fallback aceita - ID: {fallback_id}")
-                    
-                    # FALLBACK TAMBÉM PRECISA USAR ASK_PRICE
-                    fallback_ask_price = fallback_response['proposal'].get('ask_price')
-                    
-                    if not fallback_ask_price:
-                        logger.error(f"❌ Fallback ask_price ausente: {fallback_response['proposal']}")
-                        return None
-                    
-                    fallback_buy = {
-                        "buy": fallback_id,
-                        "price": float(fallback_ask_price)  # USAR ASK_PRICE DO FALLBACK
-                    }
-                    
-                    logger.info(f"🔄 Fallback usando Ask Price: ${fallback_ask_price}")
-                    
-                    # Executar compra fallback via sistema robusto
-                    fallback_buy_result = await self.robust_order_system._execute_with_retry(
-                        self.api_manager.buy,
-                        fallback_buy,
-                        OperationType.BUY
-                    )
-                    
-                    if fallback_buy_result.success:
-                        fallback_buy_response = fallback_buy_result.data
-                        if 'buy' in fallback_buy_response and 'contract_id' in fallback_buy_response['buy']:
-                            contract_id = fallback_buy_response['buy']['contract_id']
-                            logger.info(f"✅ Compra fallback executada via sistema robusto - Contract ID: {contract_id}")
-                            # Atualizar timestamp da última operação
-                            self._update_operation_timestamp()
-                            return contract_id
-                    else:
-                        logger.error(f"❌ Falha na compra fallback: {fallback_buy_result.error}")
-                        return None
-                        
-            except Exception as fallback_error:
-                logger.error(f"❌ FALLBACK também falhou: {fallback_error}")
-                
+        except Exception as e:
+            logger.error(f"❌ ERRO na execução da compra ACCUMULATOR: {e}")
             return None
     
     async def monitorar_contrato(self, contract_id: str) -> float:
@@ -1687,9 +1614,9 @@ class AccumulatorScalpingBot:
                 logger.error(f"❌ Erro ao monitorar contrato: {e}")
                 await asyncio.sleep(5)
     
-    def aplicar_gestao_risco(self, lucro: float):
-        """Gestão SEM Martingale - stake sempre fixo"""
-        logger.info(f"💼 GESTÃO DE RISCO (STAKE FIXO) - Lucro: ${lucro:.2f}")
+    def aplicar_gestao_risco_alavancs_pro(self, lucro: float):
+        """Gestão de Risco ALAVANCS PRO 2.0 - Com pausa de segurança após perdas consecutivas"""
+        logger.info(f"💼 GESTÃO DE RISCO ALAVANCS PRO 2.0 - Lucro: ${lucro:.2f}")
         
         # Calcular percentual para log
         profit_percentage = (lucro / self.stake) * 100 if self.stake > 0 else 0
@@ -1698,68 +1625,58 @@ class AccumulatorScalpingBot:
         # Enviar para Supabase
         asyncio.create_task(self.log_to_supabase(operation_result, profit_percentage, self.stake))
         
-        # SEMPRE manter stake fixo (SEM Martingale)
+        # Atualizar total_profit ANTES de resetar o stake
+        self.total_profit += lucro
+        
+        # SEMPRE resetar stake para valor fixo (SEM Martingale)
         self.stake = STAKE_INICIAL  # Sempre fixo
         
         if lucro > 0:
-            self.total_profit += lucro  # Acumular lucro total
-            logger.info(f"🎉 WIN - Stake mantido: ${self.stake:.2f}")
+            # WIN: Resetar contador de perdas consecutivas
+            self.consecutive_losses = 0
+            logger.info(f"🎉 WIN - Perdas consecutivas resetadas. Stake: ${self.stake:.2f}")
             
             # Verificar Win Stop
-            if self.total_profit >= self.win_stop:
+            if self.total_profit >= WIN_STOP:
                 logger.info(f"🎯 WIN STOP ATINGIDO! Total: ${self.total_profit:.2f}")
                 return "STOP_WIN"
         else:
-            logger.info(f"💸 LOSS - Stake mantido: ${self.stake:.2f}")
+            # LOSS: Incrementar contador de perdas consecutivas
+            self.consecutive_losses += 1
+            logger.info(f"💸 LOSS #{self.consecutive_losses} - Stake resetado para: ${self.stake:.2f}")
             
-            # Verificar Loss Limit (baseado em número de perdas consecutivas)
-            if abs(lucro) * 200 >= self.loss_limit:  # Exemplo: 200 perdas de $5 = $1000
-                logger.info(f"🛑 LOSS LIMIT ATINGIDO!")
+            # Verificar Loss Limit (total de perdas acumuladas)
+            if self.total_profit <= -LOSS_LIMIT:
+                logger.info(f"🛑 LOSS LIMIT ATINGIDO! Total: ${self.total_profit:.2f}")
                 return "STOP_LOSS"
         
-        logger.info(f"📊 Estado atual: Stake=${self.stake:.2f} (FIXO), Total Profit=${self.total_profit:.2f}")
+        logger.info(f"📊 Estado: Stake=${self.stake:.2f}, Total=${self.total_profit:.2f}, Perdas consecutivas={self.consecutive_losses}")
+        return None  # Continuar operando
     
-    async def executar_ciclo_trading(self):
-        """Executa um ciclo completo de trading"""
-        self.ciclo += 1
-        logger.info(f"\n🔄 CICLO {self.ciclo} - {datetime.now().strftime('%H:%M:%S')}")
-        
-        # 1. Obter últimos 5 ticks
-        ticks = await self.obter_ultimos_5_ticks()
-        if len(ticks) < 4:
-            logger.warning("⚠️ Ticks insuficientes para análise")
-            return
-        
-        # 2. Analisar padrão de entrada
-        if not self.analisar_padrao_entrada(ticks):
-            logger.info("⏳ Aguardando padrão de entrada...")
-            return
-        
-        # 3. Executar compra
-        contract_id = await self.executar_compra_accu()
-        if not contract_id:
-            logger.error("❌ Falha na execução da compra")
-            return
-        
-        # 4. Monitorar contrato
-        lucro = await self.monitorar_contrato(contract_id)
-        
-        # 5. Aplicar gestão de risco
-        self.aplicar_gestao_risco(lucro)
+
+    def aplicar_gestao_risco(self, lucro: float):
+        """Mantém compatibilidade com código legado - redireciona para versão ALAVANCS PRO"""
+        return self.aplicar_gestao_risco_alavancs_pro(lucro)
     
+
+    
+
+
     async def start(self):
-        """Inicia o bot com tick stream subscription em tempo real"""
+        """Inicia o bot ALAVANCS PRO 2.0 - Sistema reativo baseado em ticks"""
         logger.info("\n" + "="*70)
-        logger.info(f"🚀 INICIANDO {NOME_BOT} - MODO TEMPO REAL")
+        logger.info(f"🚀 INICIANDO {NOME_BOT}")
         logger.info("="*70)
         logger.info(f"📅 Iniciado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-        logger.info(f"🎯 Estratégia: Padrão Red-Red-Red-Blue (3 subidas + 1 queda)")
+        logger.info(f"🎯 Estratégia: ACCUMULATOR - Sistema Reativo")
         logger.info(f"💰 Stake inicial: ${STAKE_INICIAL}")
-        logger.info(f"📈 Take Profit: {TAKE_PROFIT_PERCENTUAL*100}%")
         logger.info(f"📊 Ativo: {ATIVO}")
-        logger.info(f"🔄 Growth Rate: {GROWTH_RATE*100}%")
-        logger.info(f"⚖️ Gestão: Stake fixo (sem martingale)")
-        logger.info(f"⚡ NOVO: Análise em tempo real via tick stream")
+        logger.info(f"📈 Take Profit: {TAKE_PROFIT_PERCENTUAL*100}%")
+        logger.info(f"📊 Growth Rate: {GROWTH_RATE*100}%")
+        logger.info(f"🔴 Padrão: Red-Red-Red-Blue")
+        logger.info(f"🎯 Meta de lucro: ${WIN_STOP}")
+        logger.info(f"🛑 Limite de perda: ${LOSS_LIMIT}")
+        logger.info(f"⚖️ Gestão: Dinâmica com barreiras adaptáveis")
         logger.info("="*70)
         
         # Conectar à API
@@ -1767,7 +1684,7 @@ class AccumulatorScalpingBot:
             logger.error("❌ Falha na conexão inicial. Encerrando.")
             return
         
-        # Configurar callback do bot na API
+        # Configurar callback de ticks
         self.api_manager.set_bot_instance(self)
         
         try:
@@ -1776,133 +1693,59 @@ class AccumulatorScalpingBot:
                 logger.error("❌ Falha na pré-validação de parâmetros")
                 return
             
-            # Iniciar subscription de ticks em tempo real
-            logger.info(f"📡 Iniciando subscription de ticks para {ATIVO}...")
+            # ATIVAR SUBSCRIPTION DE TICKS PARA ANÁLISE EM TEMPO REAL
+            logger.info(f"📊 Ativando subscription de ticks para {ATIVO}...")
             await self.api_manager.subscribe_ticks(ATIVO)
-            self.tick_subscription_active = True
+            logger.info("✅ Subscription de ticks ativa - Bot reagirá a cada tick recebido")
+            logger.info("🤖 Sistema reativo iniciado - _handle_new_tick processará todos os ticks")
             
-            # Iniciar processamento de sinais da queue
-            logger.info("🚀 Iniciando processamento de sinais da queue...")
-            signal_processor_task = asyncio.create_task(self._process_signals_from_queue())
-            
-            # Iniciar monitoramento em tempo real
-            logger.info("📊 Iniciando monitoramento em tempo real...")
-            monitoring_task = asyncio.create_task(self._real_time_monitoring())
-            
-            # Iniciar servidor HTTP para endpoint /status
-            logger.info("🌐 Iniciando servidor HTTP...")
-            http_server_task = asyncio.create_task(self._start_http_server())
-            
-            # Iniciar Health Monitor em paralelo
-            logger.info("🏥 Iniciando Health Monitor...")
-            health_monitor_task = asyncio.create_task(
-                self.health_monitor.monitor_and_recover(
-                    stats_provider=self._get_enhanced_stats,
-                    check_interval=30.0
-                )
-            )
-            
-            logger.info("✅ Bot em modo tempo real - aguardando ticks...")
-            logger.info("🎯 Padrão será analisado automaticamente a cada tick recebido")
-            logger.info("⚡ Sistema de sincronização aprimorado ativo")
-            logger.info("🌐 Endpoint de status disponível em http://localhost:8080/status")
-            logger.info("🔧 Sistemas Avançados Ativos:")
-            logger.info("   • Enhanced Tick Buffer: ✅ Otimização de dados")
-            logger.info("   • WebSocket Recovery: ✅ Auto-recuperação")
-            logger.info("   • Signal Queue: ✅ Processamento paralelo")
-            logger.info("   • Health Monitor: ✅ Monitoramento contínuo")
-            
-            # Loop de monitoramento principal
+            # Loop principal simples para manter o programa ativo
+            logger.info("🔄 Entrando em loop de monitoramento...")
             while True:
                 try:
-                    # Verificar se subscription ainda está ativa
+                    # Verificar condições de parada
+                    if self.total_profit >= WIN_STOP:
+                        logger.info(f"🎯 META DE LUCRO ATINGIDA! Lucro total: ${self.total_profit:.2f}")
+                        await self.api_manager.disconnect()
+                        break
+                    
+                    if self.total_profit <= -LOSS_LIMIT:
+                        logger.info(f"🛑 LIMITE DE PERDA ATINGIDO! Perda total: ${self.total_profit:.2f}")
+                        await self.api_manager.disconnect()
+                        break
+                    
+                    # Verificar saúde da conexão
                     if not self.api_manager.connected:
                         logger.warning("⚠️ Conexão perdida - tentando reconectar...")
-                        await self._reconnect_and_resubscribe()
+                        if not await self.api_manager.connect():
+                            logger.error("❌ Falha na reconexão. Tentando novamente em 10 segundos...")
+                            await asyncio.sleep(10)
+                            continue
+                        else:
+                            # Reativar subscription após reconexão
+                            logger.info("🔄 Reativando subscription de ticks após reconexão...")
+                            await self.api_manager.subscribe_ticks(ATIVO)
+                            self.api_manager.set_bot_instance(self)
                     
-                    # Verificar inatividade e reiniciar se necessário
-                    await self._check_inactivity_and_restart()
-                    
-                    # Aguardar antes da próxima verificação
-                    await asyncio.sleep(15)  # Verificação de conectividade a cada 15s
+                    # Sleep para evitar consumo desnecessário de CPU
+                    await asyncio.sleep(5)
                     
                 except Exception as e:
-                    logger.error(f"❌ ERRO NO MONITORAMENTO: {e}")
+                    logger.error(f"❌ ERRO NO LOOP DE MONITORAMENTO: {e}")
                     logger.error(f"📋 Tipo do erro: {type(e).__name__}")
-                    logger.error("⏸️ Pausando por 15 segundos para recuperação...")
-                    
-                    await asyncio.sleep(15)
-                    await self._reconnect_and_resubscribe()
+                    logger.error("⏸️ Pausando por 10 segundos para recuperação...")
+                    await asyncio.sleep(10)
                     
         except Exception as e:
-            logger.error(f"❌ ERRO CRÍTICO NO SISTEMA DE TEMPO REAL: {e}")
-            logger.error("🔄 Tentando reiniciar sistema...")
-            await self._reconnect_and_resubscribe()
+            logger.error(f"❌ ERRO CRÍTICO NO SISTEMA: {e}")
+            logger.error("🔄 Encerrando bot...")
+        
+        finally:
+            logger.info("🏁 Bot finalizado.")
+            if self.api_manager.connected:
+                await self.api_manager.disconnect()
     
-    async def _reconnect_and_resubscribe(self):
-        """Reconecta e reinicia subscription de ticks com recuperação automática"""
-        try:
-            logger.info("🔄 Iniciando recuperação automática...")
-            
-            # Resetar flags
-            self.tick_subscription_active = False
-            
-            # Auto-reset do circuit breaker se necessário
-            circuit_state = self.robust_order_system.circuit_breaker_state
-            if circuit_state != 'CLOSED':
-                logger.info(f"🔧 Auto-reset do circuit breaker (estado: {circuit_state})")
-                self.robust_order_system.reset_circuit_breaker()
-            
-            # Limpar buffer de ticks para evitar dados obsoletos
-            self.tick_buffer.clear()
-            logger.debug("🧹 Buffer de ticks limpo")
-            
-            # Reconectar com retry
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    logger.info(f"🔌 Tentativa de reconexão {attempt + 1}/{max_retries}")
-                    
-                    if await self.api_manager.connect():
-                        logger.info("✅ Reconexão bem-sucedida")
-                        break
-                    else:
-                        logger.warning(f"⚠️ Falha na tentativa {attempt + 1}")
-                        if attempt < max_retries - 1:
-                            await asyncio.sleep(5 * (attempt + 1))  # Delay progressivo
-                except Exception as conn_error:
-                    logger.error(f"❌ Erro na tentativa {attempt + 1}: {conn_error}")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(5 * (attempt + 1))
-            else:
-                logger.error("❌ Falha em todas as tentativas de reconexão")
-                return False
-            
-            # Reconfigurar callback
-            self.api_manager.set_bot_instance(self)
-            
-            # Reiniciar subscription com validação
-            try:
-                await self.api_manager.subscribe_ticks(ATIVO)
-                self.tick_subscription_active = True
-                logger.info("📡 Subscription de ticks reestabelecida")
-            except Exception as sub_error:
-                logger.error(f"❌ Erro ao reestabelecer subscription: {sub_error}")
-                return False
-            
-            # Validar conectividade
-            await asyncio.sleep(2)  # Aguardar estabilização
-            if self.api_manager.connected and self.tick_subscription_active:
-                logger.info("✅ Recuperação automática concluída com sucesso")
-                return True
-            else:
-                logger.error("❌ Falha na validação pós-recuperação")
-                return False
-            
-        except Exception as e:
-            logger.error(f"❌ Erro crítico na recuperação automática: {e}")
-            await asyncio.sleep(10)
-            return False
+
 
 # ============================================================================
 # GERENCIADOR DE MÚLTIPLAS CONTAS
@@ -2015,14 +1858,14 @@ class MultiAccountManager:
 async def main():
     """Função principal do bot com suporte a múltiplas contas"""
     try:
-        print("\n[INICIO] Iniciando Accumulator Scalping Bot - Modo Multi-Conta")
+        print("\n[INICIO] Iniciando ACCUMULATOR Bot - Modo Multi-Conta")
         print("[CONFIG] Configuracao:")
         print(f"   • Ativo: {ATIVO}")
         print(f"   • Stake Inicial: ${STAKE_INICIAL}")
         print(f"   • Take Profit: {TAKE_PROFIT_PERCENTUAL*100}%")
         print(f"   • Growth Rate: {GROWTH_RATE*100}%")
-        print(f"   • Padrao: Red-Red-Red-Blue (3 subidas + 1 queda)")
-        print(f"   • Gestao: Stake fixo (sem martingale)")
+        print(f"   • Estratégia: ACCUMULATOR")
+        print(f"   • Padrão: Red-Red-Red-Blue")
         print("="*60)
         
         # Verificar se há contas ativas configuradas

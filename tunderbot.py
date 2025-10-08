@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 NOME_BOT = "Tunder Bot"
 STAKE_INICIAL = 5.0  # initial stake - alterado para 5
 STAKE_MAXIMO_DERIV = 1000.0  # Limite máximo de stake permitido pela Deriv API
-TAKE_PROFIT_PERCENTUAL = 0.45  # 45% (Return%) - Alterado conforme solicitado
+TAKE_PROFIT_PERCENTUAL = 0.25  # 25% (Return%) - Alterado conforme solicitado
 ATIVO = 'R_75'
 GROWTH_RATE = 0.02  # 2% - Valor alterado para Tunder Bot
 WIN_STOP = 1000.0  # Meta de ganho diário
@@ -69,12 +69,36 @@ MAX_RESTART_ATTEMPTS = 10  # Máximo de tentativas de reinicialização
 RESTART_DELAY_BASE = 5  # Delay base entre tentativas (segundos)
 
 # ============================================================================
+# CONFIGURAÇÃO DE MÚLTIPLAS CONTAS
+# ============================================================================
+ACCOUNTS = [
+    {
+        "name": "Bot_Principal",
+        "token": "5iD3wgrYUz39kzS",
+        "app_id": "105327"
+    },
+    {
+        "name": "Bot_Secundario",
+        "token": "SEU_TOKEN_2_AQUI",  # Usuário adicionará depois
+        "app_id": "105327"
+    },
+    {
+        "name": "Bot_Terciario",
+        "token": "SEU_TOKEN_3_AQUI",  # Usuário adicionará depois
+        "app_id": "105327"
+    }
+]
+
+# Configuração para usar apenas a conta principal inicialmente
+ACTIVE_ACCOUNTS = [ACCOUNTS[0]]  # Apenas Bot_Principal ativo
+
+# ============================================================================
 # CLASSE DE GERENCIAMENTO DA API - WEBSOCKET NATIVO
 # ============================================================================
 class DerivWebSocketNativo:
-    """Gerenciador de API WebSocket nativo com APP_ID 85515"""
+    """Gerenciador de API WebSocket nativo com suporte a múltiplas contas"""
     
-    def __init__(self):
+    def __init__(self, account_config=None):
         # WebSocket connection
         self.ws = None
         self.connected = False
@@ -84,17 +108,38 @@ class DerivWebSocketNativo:
         self.req_id_lock = threading.Lock()
         self.pending_requests = {}
         self.request_timeout = 30  # Aumentado para resolver timeouts de autenticação
+        self.portfolio_timeout = 45  # Timeout específico para portfolio (operação mais lenta)
         
         # Rate limiting
         self.last_request_time = 0
         self.min_request_interval = 0.5  # 2 requests per second max
         
-        # Credentials from environment
-        self.app_id = "85515"  # APP_ID específico conforme especificação
-        self.api_token = os.getenv('DERIV_API_TOKEN')
+        # Credentials - usar configuração da conta ou fallback para variáveis de ambiente
+        if account_config:
+            self.account_name = account_config.get('name', 'Unknown')
+            self.app_id = account_config.get('app_id', '105327')
+            self.api_token = account_config.get('token')
+            
+            if not self.api_token or self.api_token.startswith('SEU_TOKEN_'):
+                raise ValueError(f"❌ Token inválido para a conta {self.account_name}")
+        else:
+            # Fallback para variáveis de ambiente (compatibilidade)
+            self.account_name = "Default"
+            self.app_id = "85515"
+            self.api_token = os.getenv('DERIV_API_TOKEN')
+            
+            if not self.api_token:
+                raise ValueError("❌ DERIV_API_TOKEN deve estar definido no arquivo .env")
         
-        if not self.api_token:
-            raise ValueError("❌ DERIV_API_TOKEN deve estar definido no arquivo .env")
+        # Validar formato do token
+        if len(self.api_token) < 30:
+            raise ValueError(f"❌ Token da conta {self.account_name} parece inválido (muito curto: {len(self.api_token)} caracteres). "
+                           f"Tokens válidos da Deriv têm pelo menos 30 caracteres. "
+                           f"Obtenha um token válido em: https://app.deriv.com/account/api-token")
+        
+        if "EXEMPLO" in self.api_token or "AQUI" in self.api_token:
+            raise ValueError(f"❌ Token da conta {self.account_name} ainda está com valor de exemplo. "
+                           "Configure seu token real da Deriv API em: https://app.deriv.com/account/api-token")
         
         # Connection state
         self.session_id = None
@@ -106,7 +151,10 @@ class DerivWebSocketNativo:
         # Shutdown event control
         self._shutdown_event = asyncio.Event()
         
-        logger.info(f"🔧 DerivWebSocketNativo inicializado - App ID: {self.app_id}")
+        # Error handler
+        self.error_handler = RobustErrorHandler(f"DerivWebSocket_{self.account_name}")
+        
+        logger.info(f"🔧 DerivWebSocketNativo inicializado - Conta: {self.account_name}, App ID: {self.app_id}")
     
     async def _check_network_connectivity(self):
         """Verifica conectividade de rede antes de tentar conectar"""
@@ -334,9 +382,27 @@ class DerivWebSocketNativo:
         except AttributeError:
             # Se não conseguir verificar o estado, continua (assume que está aberto)
             logger.debug("⚠️ Não foi possível verificar estado do WebSocket, continuando...")
+        
+        # Verificar conectividade de rede antes de tentar autenticar
+        if not await self._check_network_connectivity():
+            logger.error("❌ Conectividade de rede perdida antes da autenticação")
+            return False
             
         # Aguardar um momento para garantir que o WebSocket está estável
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.5)  # Aumentado para dar mais tempo de estabilização
+        
+        # Teste de ping antes da autenticação para verificar se a conexão está responsiva
+        try:
+            ping_start = time.time()
+            await self.ws.ping()
+            ping_time = time.time() - ping_start
+            if ping_time > 5.0:  # Se ping demorar mais de 5s, conexão pode estar instável
+                logger.warning(f"⚠️ Ping demorou {ping_time:.2f}s - conexão pode estar instável")
+            else:
+                logger.debug(f"✅ Ping OK em {ping_time:.2f}s")
+        except Exception as e:
+            logger.warning(f"⚠️ Falha no teste de ping: {e}")
+            # Continua mesmo com falha no ping, pois pode ser limitação do servidor
         
         try:
             auth_message = {
@@ -589,6 +655,17 @@ class DerivWebSocketNativo:
                 return response  # Retorne a resposta em caso de sucesso
             except asyncio.TimeoutError:
                 logger.warning(f"A requisição {req_id} expirou (timeout).")
+                # Verificar se a conexão ainda está ativa
+                try:
+                    if self.ws and not getattr(self.ws, 'closed', True):
+                        # Tentar um ping rápido para verificar conectividade
+                        await asyncio.wait_for(self.ws.ping(), timeout=5.0)
+                        logger.debug("✅ Conexão WebSocket ainda está ativa após timeout")
+                    else:
+                        logger.warning("⚠️ Conexão WebSocket perdida durante timeout")
+                except Exception as ping_error:
+                    logger.warning(f"⚠️ Falha na verificação de conectividade após timeout: {ping_error}")
+                
                 # Remover a future do dicionário para evitar vazamento de memória
                 if req_id in self.pending_requests:
                     del self.pending_requests[req_id]
@@ -867,11 +944,15 @@ class DerivWebSocketNativo:
 class AccumulatorScalpingBot:
     """Bot Accumulator Scalping com lógica fiel ao XML e resiliência a falhas"""
     
-    def __init__(self):
+    def __init__(self, account_config=None):
         # Sistema de tratamento de erros
         self.error_handler = RobustErrorHandler(NOME_BOT)
         
-        self.api_manager = DerivWebSocketNativo()
+        # Configuração da conta
+        self.account_config = account_config
+        self.account_name = account_config.get('name', 'Bot_Principal') if account_config else 'Bot_Principal'
+        
+        self.api_manager = DerivWebSocketNativo(account_config)
         self.ativo = ATIVO
         
         # VARIÁVEIS CONFORME XML ORIGINAL
@@ -3070,13 +3151,152 @@ class AccumulatorScalpingBot:
             return None
 
 # ============================================================================
+# CLASSE GERENCIADORA DE MÚLTIPLAS CONTAS
+# ============================================================================
+class MultiAccountManager:
+    """Gerenciador de múltiplas contas para o bot"""
+    
+    def __init__(self, active_accounts):
+        self.active_accounts = active_accounts
+        self.bots = {}
+        self.current_account_index = 0
+        self.error_handler = RobustErrorHandler("MultiAccountManager")
+        
+    async def initialize_bots(self):
+        """Inicializa todos os bots das contas ativas"""
+        logger.info(f"🚀 Inicializando {len(self.active_accounts)} contas ativas...")
+        
+        for account in self.active_accounts:
+            account_name = account['name']
+            
+            # Verificar se o token não é um placeholder
+            if account['token'] in ['SEU_TOKEN_2_AQUI', 'SEU_TOKEN_3_AQUI', 'EXEMPLO', 'AQUI']:
+                logger.warning(f"⚠️ Conta {account_name} tem token placeholder - pulando inicialização")
+                continue
+                
+            try:
+                logger.info(f"🔧 Inicializando bot para conta: {account_name}")
+                bot = AccumulatorScalpingBot(account_config=account)
+                self.bots[account_name] = bot
+                logger.info(f"✅ Bot {account_name} inicializado com sucesso")
+                
+            except Exception as e:
+                logger.error(f"❌ Erro ao inicializar bot {account_name}: {e}")
+                continue
+                
+        logger.info(f"✅ {len(self.bots)} bots inicializados com sucesso")
+        
+    async def start_all_bots(self):
+        """Inicia todos os bots simultaneamente"""
+        if not self.bots:
+            logger.error("❌ Nenhum bot disponível para iniciar")
+            return
+            
+        logger.info(f"🚀 Iniciando {len(self.bots)} bots...")
+        
+        # Criar tasks para todos os bots
+        tasks = []
+        for account_name, bot in self.bots.items():
+            task = asyncio.create_task(
+                self._run_bot_with_monitoring(account_name, bot),
+                name=f"bot_{account_name}"
+            )
+            tasks.append(task)
+            
+        # Aguardar todos os bots
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as e:
+            logger.error(f"❌ Erro ao executar bots: {e}")
+            
+    async def _run_bot_with_monitoring(self, account_name, bot):
+        """Executa um bot com monitoramento"""
+        try:
+            logger.info(f"🤖 Iniciando bot {account_name}...")
+            await bot.start()
+        except Exception as e:
+            logger.error(f"❌ Erro no bot {account_name}: {e}")
+            # Tentar reiniciar o bot
+            await self._restart_bot(account_name)
+            
+    async def _restart_bot(self, account_name):
+        """Reinicia um bot específico"""
+        try:
+            logger.info(f"🔄 Reiniciando bot {account_name}...")
+            
+            # Encontrar a configuração da conta
+            account_config = None
+            for account in self.active_accounts:
+                if account['name'] == account_name:
+                    account_config = account
+                    break
+                    
+            if account_config:
+                # Criar novo bot
+                new_bot = AccumulatorScalpingBot(account_config=account_config)
+                self.bots[account_name] = new_bot
+                
+                # Iniciar o novo bot
+                await new_bot.start()
+                logger.info(f"✅ Bot {account_name} reiniciado com sucesso")
+            else:
+                logger.error(f"❌ Configuração não encontrada para {account_name}")
+                
+        except Exception as e:
+            logger.error(f"❌ Erro ao reiniciar bot {account_name}: {e}")
+            
+    def get_next_account(self):
+        """Retorna a próxima conta no sistema round-robin"""
+        if not self.bots:
+            return None
+            
+        account_names = list(self.bots.keys())
+        account_name = account_names[self.current_account_index]
+        self.current_account_index = (self.current_account_index + 1) % len(account_names)
+        
+        return account_name, self.bots[account_name]
+        
+    def get_combined_stats(self):
+        """Retorna estatísticas combinadas de todas as contas"""
+        total_profit = 0
+        total_operations = 0
+        active_bots = 0
+        
+        for account_name, bot in self.bots.items():
+            try:
+                total_profit += getattr(bot, 'total_profit', 0)
+                total_operations += getattr(bot, 'ciclo', 0)
+                active_bots += 1
+            except Exception as e:
+                logger.error(f"❌ Erro ao obter stats do bot {account_name}: {e}")
+                
+        return {
+            'total_profit': total_profit,
+            'total_operations': total_operations,
+            'active_bots': active_bots,
+            'accounts': list(self.bots.keys())
+        }
+
+# ============================================================================
 # FUNÇÃO PRINCIPAL
 # ============================================================================
 @with_error_handling(ErrorType.SYSTEM, ErrorSeverity.CRITICAL)
 async def main():
     """Função principal do bot"""
     try:
-        print("\n[INICIO] Iniciando Tunder Bot - Modo Standalone")
+        # Verificar se há contas ativas
+        if not ACTIVE_ACCOUNTS:
+            logger.error("❌ Nenhuma conta ativa configurada!")
+            return
+            
+        # Determinar modo de operação
+        multi_account_mode = len(ACTIVE_ACCOUNTS) > 1
+        
+        if multi_account_mode:
+            print(f"\n[INICIO] Iniciando Tunder Bot - Modo Multi-Conta ({len(ACTIVE_ACCOUNTS)} contas)")
+        else:
+            print("\n[INICIO] Iniciando Tunder Bot - Modo Conta Única")
+            
         print("[CONFIG] Configuracao:")
         print(f"   • Ativo: {ATIVO}")
         print(f"   • Stake Inicial: ${STAKE_INICIAL}")
@@ -3086,10 +3306,29 @@ async def main():
         print(f"   • Gestao: Stake fixo (sem martingale)")
         print(f"   • Sistema de Sinais: Integrado")
         print(f"   • Sistema de Reinicialização Automática: Ativado")
+        print(f"   • Contas Ativas: {[acc['name'] for acc in ACTIVE_ACCOUNTS]}")
         print("="*60)
         
-        # Criar e iniciar o bot com tratamento de erros interno
-        bot = AccumulatorScalpingBot()
+        if multi_account_mode:
+            # Modo multi-conta
+            logger.info("🚀 Iniciando em modo multi-conta...")
+            manager = MultiAccountManager(ACTIVE_ACCOUNTS)
+            
+            # Inicializar todos os bots
+            await manager.initialize_bots()
+            
+            # Verificar se algum bot foi inicializado
+            if not manager.bots:
+                logger.error("❌ Nenhum bot foi inicializado com sucesso!")
+                return
+                
+            # Iniciar todos os bots
+            await manager.start_all_bots()
+            
+        else:
+            # Modo conta única (compatibilidade com código anterior)
+            logger.info("🚀 Iniciando em modo conta única...")
+            bot = AccumulatorScalpingBot(account_config=ACTIVE_ACCOUNTS[0])
         
         # Configurar sistema de recuperação de erros internos
         max_retries_internal = 3

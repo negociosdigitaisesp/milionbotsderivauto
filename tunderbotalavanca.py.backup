@@ -2425,9 +2425,9 @@ class ThunderBotMultiAccountManager:
         self.active_bots = []
         
         # Componentes auxiliares integrados
-        self.operation_queue = OperationQueue()
-        self.account_manager = AccountManager(accounts_config)
-        self.health_monitor = HealthMonitor()
+        self.operation_queue = ThunderBotOperationQueue("MultiAccount")
+        self.account_managers = {}  # Dict de ThunderBotAccountManager
+        self.health_monitor = None  # Será inicializado após criar account_managers
         self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
         self.connection_managers = {}
         
@@ -2436,7 +2436,7 @@ class ThunderBotMultiAccountManager:
         self.start_time = None
         
         logger.info(f"⚡ ThunderBotMultiAccountManager inicializado com {len(accounts_config)} contas")
-        logger.info(f"🔧 Componentes: OperationQueue, AccountManager, HealthMonitor, CircuitBreaker")
+        logger.info(f"🔧 Componentes: ThunderBotOperationQueue, ThunderBotAccountManager, ThunderBotHealthMonitor, CircuitBreaker")
     
     async def initialize_bots(self):
         """Inicializa todas as instâncias do bot para as contas ativas com proteções"""
@@ -2448,17 +2448,16 @@ class ThunderBotMultiAccountManager:
                 if not self._validate_account(account):
                     continue
                 
-                # Criar connection manager para a conta
-                conn_manager = ConnectionManager(account)
-                self.connection_managers[account['name']] = conn_manager
+                # Criar account manager para a conta
+                account_manager = ThunderBotAccountManager(account['name'], account)
+                self.account_managers[account['name']] = account_manager
                 
                 # Inicializar bot com circuit breaker
-                bot = await self.circuit_breaker.call(self._initialize_single_bot, account)
+                bot = await self.circuit_breaker.call(self._initialize_single_bot, account, account_manager)
                 
                 if bot:
                     self.bot_instances[account['name']] = bot
                     self.active_bots.append(bot)
-                    self.account_manager.add_account(account)
                     
                     logger.info(f"✅ ThunderBot inicializado: {account['name']}")
                 else:
@@ -2466,7 +2465,12 @@ class ThunderBotMultiAccountManager:
                 
             except Exception as e:
                 logger.error(f"❌ Erro crítico ao inicializar {account['name']}: {e}")
-                self.health_monitor.record_operation(success=False)
+                # self.health_monitor.record_operation(success=False)  # Comentado até health_monitor ser inicializado
+        
+        # Inicializar health monitor após criar account managers
+        if self.account_managers:
+            self.health_monitor = ThunderBotHealthMonitor(self.account_managers)
+            logger.info("✅ ThunderBotHealthMonitor inicializado")
         
         logger.info(f"🎯 ThunderBots ativos: {len(self.active_bots)}")
         return len(self.active_bots) > 0
@@ -2488,11 +2492,11 @@ class ThunderBotMultiAccountManager:
         logger.info(f"✅ Conta validada: {account['name']}")
         return True
     
-    async def _initialize_single_bot(self, account):
+    async def _initialize_single_bot(self, account, account_manager):
         """Inicializa um bot individual com tratamento de erro"""
         try:
             logger.info(f"🤖 Criando ThunderBot para: {account['name']}")
-            bot = AccumulatorScalpingBot(account)
+            bot = AccumulatorScalpingBot(account, account_manager)
             
             # Teste de conectividade
             if hasattr(bot, 'api_manager'):
