@@ -43,9 +43,9 @@ for lib in ['httpx', 'httpcore', 'supabase', 'postgrest']:
 BOT_NAME = 'executor_momentum_medio_v1'
 ANALISE_INTERVALO = 5
 OPERACOES_HISTORICO = 35
-OPERACOES_MINIMAS = 3  # Requisito mínimo para detectar padrão L-L-L
+OPERACOES_MINIMAS = 1  # Requisito mínimo para detectar padrão L
 
-# Controle de estado do padrão L-L-L
+# Controle de estado do padrão L
 pattern_state = {
     'pattern_detected': False,
     'pattern_timestamp': None,
@@ -109,12 +109,12 @@ def buscar_operacoes_historico(supabase: Client) -> Tuple[List[str], List[str], 
         return [], [], None
 
 def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: str, latest_operation_id: str = None) -> Dict:
-    """Verifica si las condiciones de la estrategia L-L-L fueron cumplidas."""
+    """Verifica si las condiciones de la estrategia L fueron cumplidas."""
     global pattern_state
     
-    # 1. Validación Mínima de Datos - Necesitamos al menos 3 operaciones para detectar L-L-L
-    if len(historico) < 3:
-        return {'should_operate': False, 'reason': 'Esperando historial mínimo (3 operaciones)'}
+    # 1. Validación Mínima de Datos - Necesitamos al menos 1 operación para detectar L
+    if len(historico) < 1:
+        return {'should_operate': False, 'reason': 'Esperando historial mínimo (1 operación)'}
 
     # 2. Verificar se há nova operação desde a última análise
     nova_operacao = (latest_operation_id != pattern_state['last_analyzed_operation_id'])
@@ -126,29 +126,29 @@ def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: s
     # O histórico vem em ordem DESC (mais recente primeiro), então invertemos para análise cronológica
     historico_cronologico = list(reversed(historico))
     
-    # 4. Verificar padrão L-L-L nas últimas 3 operações (posições finais do histórico cronológico)
-    ultimas_3_ops = historico_cronologico[-3:] if len(historico_cronologico) >= 3 else historico_cronologico
+    # 4. Verificar padrão L na última operação (posição final do histórico cronológico)
+    ultima_operacao = historico_cronologico[-1] if len(historico_cronologico) >= 1 else None
     
-    # Debug: mostrar as últimas operações analisadas
+    # Debug: mostrar a última operação analisada
     logger.debug(f"Histórico completo (cronológico): {historico_cronologico}")
-    logger.debug(f"Últimas 3 operações analisadas: {ultimas_3_ops}")
+    logger.debug(f"Última operação analisada: {ultima_operacao}")
     logger.debug(f"Estado atual do padrão: {pattern_state}")
     
     # 5. Se já temos um padrão detectado e estamos aguardando a primeira operação
     if pattern_state['waiting_first_operation'] and nova_operacao:
-        # Nova operação após padrão L-L-L detectado
+        # Nova operação após padrão L detectado
         primeira_operacao_pos_padrao = historico[0]  # Operação mais recente
         pattern_state['pattern_detected'] = False
         pattern_state['waiting_first_operation'] = False
         pattern_state['pattern_timestamp'] = None
         
-        logger.info(f"Primeira operação após padrão L-L-L executada: {primeira_operacao_pos_padrao}")
+        logger.info(f"Primeira operação após padrão L executada: {primeira_operacao_pos_padrao}")
         
         return {
             'should_operate': False,
-            'strategy': 'L-L-L-Pattern-Executed',
-            'reason': f'Primeira operação após padrão L-L-L executada: {primeira_operacao_pos_padrao}',
-            'last_operations': historico[:4] if len(historico) >= 4 else historico,
+            'strategy': 'L-Pattern-Executed',
+            'reason': 'Aguardando Padrao, Espere...',
+            'last_operations': historico[:2] if len(historico) >= 2 else historico,
             'pattern_detected': False,
             'pattern_completed': True,
             'first_operation_result': primeira_operacao_pos_padrao
@@ -158,39 +158,39 @@ def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: s
     if pattern_state['waiting_first_operation']:
         return {
             'should_operate': True,
-            'strategy': 'L-L-L-Pattern-Active',
-            'reason': 'PADRÃO L-L-L ATIVO! Aguardando primeira operação após padrão.',
-            'last_operations': historico[:3],
+            'strategy': 'L-Pattern-Active',
+            'reason': 'Aguardando Padrao, Espere...',
+            'last_operations': historico[:1],
             'pattern_detected': True,
             'pattern_completed': False,
             'confidence': 95
         }
     
-    # 7. Verificar se as últimas 3 operações formam o padrão L-L-L
-    if len(ultimas_3_ops) >= 3 and ultimas_3_ops == ['LOSS', 'LOSS', 'LOSS']:
-        # Padrão L-L-L detectado pela primeira vez!
+    # 7. Verificar se a última operação forma o padrão L
+    if ultima_operacao == 'LOSS':
+        # Padrão L detectado pela primeira vez!
         pattern_state['pattern_detected'] = True
         pattern_state['waiting_first_operation'] = True
         pattern_state['pattern_timestamp'] = datetime.now().isoformat()
         
-        logger.info("PADRÃO L-L-L DETECTADO! Ativando sinal...")
+        logger.info("PADRÃO L DETECTADO! Ativando sinal...")
         
         return {
             'should_operate': True,
-            'strategy': 'L-L-L-Pattern-Active',
-            'reason': 'PADRÃO L-L-L DETECTADO! Sinal ativo até próxima operação.',
-            'last_operations': historico[:3],
+            'strategy': 'L-Pattern-Active',
+            'reason': 'Aguardando Padrao, Espere...',
+            'last_operations': historico[:1],
             'pattern_detected': True,
             'pattern_completed': False,
             'confidence': 95
         }
     
-    # 8. Condição padrão - mostrar padrão atual das últimas 3 operações
-    padrao_atual = ''.join(['L' if op == 'LOSS' else 'W' for op in ultimas_3_ops])
+    # 8. Condição padrão - mostrar padrão atual da última operação
+    padrao_atual = 'L' if ultima_operacao == 'LOSS' else 'W' if ultima_operacao == 'WIN' else 'N/A'
     return {
         'should_operate': False, 
-        'reason': f'Aguardando padrão L-L-L. Padrão atual: {padrao_atual}',
-        'last_operations': historico[:3] if len(historico) >= 3 else historico,
+        'reason': 'Aguardando Padrao, Espere...',
+        'last_operations': historico[:1] if len(historico) >= 1 else historico,
         'pattern_detected': False,
         'current_pattern': padrao_atual
     }
@@ -225,17 +225,17 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 
 def main_loop():
-    """Bucle principal del bot de análisis L-L-L Pattern."""
-    logger.info("=== INICIANDO EXECUTOR L-L-L PATTERN ===")
+    """Bucle principal del bot de análisis L Pattern."""
+    logger.info("=== INICIANDO EXECUTOR L PATTERN ===")
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
         logger.critical("Fallo fatal al conectar con Supabase. Cerrando.")
         return
 
     logger.info("Bot inicializado exitosamente.")
-    print("\n[INICIO] Iniciando bot EXECUTOR L-L-L PATTERN")
-    print("[INFO] Configuración: Análisis de las últimas 4 operaciones")
-    print("[INFO] Objetivo: Detectar patrón L-L-L (3 perdas consecutivas)")
+    print("\n[INICIO] Iniciando bot EXECUTOR L PATTERN")
+    print("[INFO] Configuración: Análisis de la última operación")
+    print("[INFO] Objetivo: Detectar patrão L (1 perda)")
     print("[INFO] Intervalo de análisis: 5 segundos")
     print("[INFO] Actualizaciones automáticas para Supabase")
     print("-" * 60)

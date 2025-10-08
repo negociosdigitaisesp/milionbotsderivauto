@@ -104,7 +104,7 @@ def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: s
     
     # 1. Validación Mínima de Datos
     if len(historico) < OPERACOES_MINIMAS:
-        return {'should_operate': False, 'reason': 'Esperando historial mínimo'}
+        return {'should_operate': False, 'reason': 'Aguardando Padrao, Espere...'}
 
     # 2. Verificación del Gatillo LL (2 LOSS consecutivos)
     ultimas_2_cronologica = list(reversed(historico[:2]))
@@ -112,13 +112,13 @@ def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: s
         return {
             'should_operate': True,
             'strategy': 'Momentum-Calmo-LL',
-            'reason': 'SEÑAL ACTIVA: LL detectado',
+            'reason': 'Aguardando Padrao, Espere...',
             'last_operations': historico[:2]
         }
     
     # 3. Condición Estándar
     padrao_atual = ''.join(['W' if op == 'WIN' else 'L' for op in ultimas_2_cronologica])
-    return {'should_operate': False, 'reason': f'Esperando gatillo LL. Patrón actual: {padrao_atual}'}
+    return {'should_operate': False, 'reason': 'Aguardando Padrao, Espere...'}
 
 @retry_supabase_operation()
 def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
