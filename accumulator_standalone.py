@@ -58,6 +58,41 @@ LOSS_LIMIT = 1000.0  # Limite de perda diária
 KHIZZBOT = 50  # Valor khizzbot conforme XML original
 
 # ============================================================================
+# FUNÇÃO DE VALIDAÇÃO DE TOKEN
+# ============================================================================
+def validar_token_deriv(token: str) -> tuple[bool, str]:
+    """
+    Valida se o token da Deriv API é válido
+    
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    if not token:
+        return False, "Token não fornecido"
+    
+    # Verificar se é um token de exemplo
+    tokens_exemplo = [
+        "W82xX7Z5EFxsWGI_EXEMPLO_TOKEN_COMPLETO_AQUI_30_CHARS_MIN",
+        "SEU_TOKEN_AQUI",
+        "EXEMPLO",
+        "AQUI"
+    ]
+    
+    if any(exemplo in token for exemplo in tokens_exemplo):
+        return False, "Token de exemplo detectado. Configure um token real da Deriv API"
+    
+    # Verificar comprimento mínimo (tokens reais da Deriv têm pelo menos 10 caracteres)
+    if len(token) < 10:
+        return False, f"Token muito curto ({len(token)} caracteres). Tokens válidos têm pelo menos 10 caracteres"
+    
+    # Verificar se contém apenas caracteres válidos (letras, números, hífens, underscores)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', token):
+        return False, "Token contém caracteres inválidos. Use apenas letras, números, hífens e underscores"
+    
+    return True, ""
+
+# ============================================================================
 # CLASSE DE GERENCIAMENTO DA API - WEBSOCKET NATIVO
 # ============================================================================
 class DerivWebSocketNativo:
@@ -84,6 +119,28 @@ class DerivWebSocketNativo:
         
         if not self.api_token:
             raise ValueError("❌ DERIV_API_TOKEN deve estar definido no arquivo .env")
+        
+        # Validar token com função robusta
+        token_valido, erro_token = validar_token_deriv(self.api_token)
+        if not token_valido:
+            print("================================================================================")
+            print("❌ ERRO DE CONFIGURAÇÃO - TOKEN INVÁLIDO")
+            print("================================================================================")
+            print(f"🔍 Problema detectado: {erro_token}")
+            print()
+            print("📋 COMO CORRIGIR:")
+            print("1. Acesse: https://app.deriv.com/account/api-token")
+            print("2. Faça login na sua conta Deriv")
+            print("3. Clique em 'Create new token'")
+            print("4. Dê um nome ao token (ex: 'Bot Trading')")
+            print("5. Selecione os escopos: Read, Trade, Trading information, Payments")
+            print("6. Clique em 'Create' e copie o token gerado")
+            print("7. Edite o arquivo .env e substitua o valor de DERIV_API_TOKEN")
+            print()
+            print("💡 O token deve ter pelo menos 10 caracteres e começar com letras/números")
+            print("💡 Exemplo de formato válido: 'a1-AbCdEfGhIjKlMnOpQrStUvWxYz123456789'")
+            print("================================================================================")
+            raise ValueError(f"❌ Token inválido: {erro_token}")
         
         # Connection state
         self.session_id = None

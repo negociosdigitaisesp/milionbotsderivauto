@@ -495,6 +495,61 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not all([DERIV_APP_ID, DERIV_API_TOKEN, SUPABASE_URL, SUPABASE_KEY]):
     raise ValueError("❌ Erro: Variáveis de ambiente não encontradas. Verifique o arquivo .env")
 
+# Validação específica do token da Deriv API
+def validar_token_deriv(token: str) -> tuple[bool, str]:
+    """
+    Valida se o token da Deriv API é válido
+    
+    Returns:
+        tuple[bool, str]: (is_valid, error_message)
+    """
+    if not token:
+        return False, "Token não pode estar vazio"
+    
+    # Verificar se é um token de exemplo
+    tokens_exemplo = [
+        "W82xX7Z5EFxsWGI_EXEMPLO_TOKEN_COMPLETO_AQUI_30_CHARS_MIN",
+        "SUBSTITUA_ESTE_TEXTO_PELO_SEU_TOKEN_REAL_DA_DERIV_API",
+        "EXEMPLO_TOKEN",
+        "YOUR_TOKEN_HERE"
+    ]
+    
+    if token in tokens_exemplo:
+        return False, "Token de exemplo detectado. Configure um token real da Deriv API"
+    
+    # Verificar comprimento mínimo (tokens reais da Deriv têm pelo menos 10 caracteres)
+    if len(token) < 10:
+        return False, f"Token muito curto ({len(token)} caracteres). Tokens válidos têm pelo menos 10 caracteres"
+    
+    # Verificar se contém apenas caracteres válidos (letras, números, hífens, underscores)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', token):
+        return False, "Token contém caracteres inválidos. Use apenas letras, números, hífens e underscores"
+    
+    return True, "Token válido"
+
+# Validar o token antes de prosseguir
+token_valido, erro_token = validar_token_deriv(DERIV_API_TOKEN)
+if not token_valido:
+    print("=" * 80)
+    print("❌ ERRO DE CONFIGURAÇÃO - TOKEN INVÁLIDO")
+    print("=" * 80)
+    print(f"🔍 Problema detectado: {erro_token}")
+    print()
+    print("📋 COMO CORRIGIR:")
+    print("1. Acesse: https://app.deriv.com/account/api-token")
+    print("2. Faça login na sua conta Deriv")
+    print("3. Clique em 'Create new token'")
+    print("4. Dê um nome ao token (ex: 'Bot Trading')")
+    print("5. Selecione os escopos: Read, Trade, Trading information, Payments")
+    print("6. Clique em 'Create' e copie o token gerado")
+    print("7. Edite o arquivo .env e substitua o valor de DERIV_API_TOKEN")
+    print()
+    print("💡 O token deve ter pelo menos 30 caracteres e começar com letras/números")
+    print("💡 Exemplo de formato válido: 'a1-AbCdEfGhIjKlMnOpQrStUvWxYz123456789'")
+    print("=" * 80)
+    raise ValueError(f"❌ Token inválido: {erro_token}")
+
 # Inicializar cliente do Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 

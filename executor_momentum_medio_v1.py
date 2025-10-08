@@ -67,7 +67,7 @@ def retry_supabase_operation(max_retries=3, delay=2):
                     return func(*args, **kwargs)
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        logger.warning(f"Intento {attempt + 1} falló: {e}. Intentando nuevamente...")
+                        logger.warning(f"Intento {attempt + 1} falló: {e}. Reintentando...")
                         time.sleep(delay)
                     else:
                         logger.error(f"Todos los {max_retries} intentos para {func.__name__} fallaron.")
@@ -90,7 +90,7 @@ def buscar_operacoes_historico(supabase: Client) -> Tuple[List[str], List[str], 
             .execute()
 
         if not response.data:
-            logger.warning("Ningún historial de operaciones fue retornado por la base de datos.")
+            logger.warning("No se retornó ningún historial de operaciones desde la base de datos.")
             return [], [], None
 
         historico_raw = [op['operation_result'] for op in response.data]
@@ -100,7 +100,7 @@ def buscar_operacoes_historico(supabase: Client) -> Tuple[List[str], List[str], 
         timestamps = [op['timestamp'] for op in response.data]
         latest_operation_id = response.data[0]['id']
         
-        logger.info(f"{len(historico_traduzido)} operaciones cargadas de la tabla 'tunder_bot_logs'.")
+        logger.info(f"{len(historico_traduzido)} operaciones cargadas desde la tabla 'tunder_bot_logs'.")
         return historico_traduzido, timestamps, latest_operation_id
 
     except Exception as e:
@@ -116,33 +116,33 @@ def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: s
     if len(historico) < 1:
         return {'should_operate': False, 'reason': 'Esperando historial mínimo (1 operación)'}
 
-    # 2. Verificar se há nova operação desde a última análise
+    # 2. Verificar si hay nueva operación desde el último análisis
     nova_operacao = (latest_operation_id != pattern_state['last_analyzed_operation_id'])
     if nova_operacao:
         pattern_state['last_analyzed_operation_id'] = latest_operation_id
-        logger.info(f"Nova operação detectada: ID {latest_operation_id}")
+        logger.info(f"Nueva operación detectada: ID {latest_operation_id}")
     
-    # 3. Análise das últimas operações em ordem cronológica (mais antiga para mais recente)
-    # O histórico vem em ordem DESC (mais recente primeiro), então invertemos para análise cronológica
+    # 3. Análisis de las últimas operaciones en orden cronológico (más antigua a más reciente)
+    # El historial viene en orden DESC (más reciente primero), entonces invertimos para análisis cronológico
     historico_cronologico = list(reversed(historico))
     
-    # 4. Verificar padrão L na última operação (posição final do histórico cronológico)
+    # 4. Verificar patrón L en la última operación (posición final del historial cronológico)
     ultima_operacao = historico_cronologico[-1] if len(historico_cronologico) >= 1 else None
     
-    # Debug: mostrar a última operação analisada
-    logger.debug(f"Histórico completo (cronológico): {historico_cronologico}")
-    logger.debug(f"Última operação analisada: {ultima_operacao}")
-    logger.debug(f"Estado atual do padrão: {pattern_state}")
+    # Debug: mostrar la última operación analizada
+    logger.debug(f"Historial completo (cronológico): {historico_cronologico}")
+    logger.debug(f"Última operación analizada: {ultima_operacao}")
+    logger.debug(f"Estado actual del patrón: {pattern_state}")
     
-    # 5. Se já temos um padrão detectado e estamos aguardando a primeira operação
+    # 5. Si ya tenemos un patrón detectado y estamos esperando la primera operación
     if pattern_state['waiting_first_operation'] and nova_operacao:
-        # Nova operação após padrão L detectado
-        primeira_operacao_pos_padrao = historico[0]  # Operação mais recente
+        # Nueva operación después del patrón L detectado
+        primeira_operacao_pos_padrao = historico[0]  # Operación más reciente
         pattern_state['pattern_detected'] = False
         pattern_state['waiting_first_operation'] = False
         pattern_state['pattern_timestamp'] = None
         
-        logger.info(f"Primeira operação após padrão L executada: {primeira_operacao_pos_padrao}")
+        logger.info(f"Primera operación después del patrón L ejecutada: {primeira_operacao_pos_padrao}")
         
         return {
             'should_operate': False,
@@ -154,7 +154,7 @@ def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: s
             'first_operation_result': primeira_operacao_pos_padrao
         }
     
-    # 6. Se já estamos aguardando primeira operação, manter sinal ativo
+    # 6. Si ya estamos esperando la primera operación, mantener señal activa
     if pattern_state['waiting_first_operation']:
         return {
             'should_operate': True,
@@ -166,14 +166,14 @@ def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: s
             'confidence': 95
         }
     
-    # 7. Verificar se a última operação forma o padrão L
+    # 7. Verificar si la última operación forma el patrón L
     if ultima_operacao == 'LOSS':
-        # Padrão L detectado pela primeira vez!
+        # ¡Patrón L detectado por primera vez!
         pattern_state['pattern_detected'] = True
         pattern_state['waiting_first_operation'] = True
         pattern_state['pattern_timestamp'] = datetime.now().isoformat()
         
-        logger.info("PADRÃO L DETECTADO! Ativando sinal...")
+        logger.info("¡PATRÓN L DETECTADO! Activando señal...")
         
         return {
             'should_operate': True,
@@ -185,7 +185,7 @@ def analisar_estrategia_momentum_medio(historico: List[str], ultimo_timestamp: s
             'confidence': 95
         }
     
-    # 8. Condição padrão - mostrar padrão atual da última operação
+    # 8. Condición estándar - mostrar patrón actual de la última operación
     padrao_atual = 'L' if ultima_operacao == 'LOSS' else 'W' if ultima_operacao == 'WIN' else 'N/A'
     return {
         'should_operate': False, 
@@ -217,7 +217,7 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
             return signal_id
         return None
     except Exception as e:
-        logger.error(f"Fallo al enviar señal a Supabase: {e}", exc_info=True)
+        logger.error(f"Error al enviar señal a Supabase: {e}", exc_info=True)
         return None
 
 
@@ -225,46 +225,45 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 
 def main_loop():
-    """Bucle principal del bot de análisis L Pattern."""
-    logger.info("=== INICIANDO EXECUTOR L PATTERN ===")
+    """Bucle principal del bot de análisis de patrón L."""
+    print("=" * 60)
+    print("INICIANDO EXECUTOR L PATTERN")
+    print("Detectar patrón L (1 pérdida)")
+    print("=" * 60)
+    
+    logger.info("Iniciando Executor L Pattern - Análisis de patrón L")
+    
+    # Configuración de Supabase
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
-        logger.critical("Fallo fatal al conectar con Supabase. Cerrando.")
+        logger.critical("Error fatal al conectar con Supabase. Cerrando.")
         return
 
-    logger.info("Bot inicializado exitosamente.")
-    print("\n[INICIO] Iniciando bot EXECUTOR L PATTERN")
-    print("[INFO] Configuración: Análisis de la última operación")
-    print("[INFO] Objetivo: Detectar patrão L (1 perda)")
-    print("[INFO] Intervalo de análisis: 5 segundos")
-    print("[INFO] Actualizaciones automáticas para Supabase")
-    print("-" * 60)
-    print("\nPresiona Ctrl+C para detener.\n")
-
-    last_update_time = 0  # Control para actualizaciones regulares
+    last_update_time = 0
+    update_interval = 30  # Actualizar cada 30 segundos
 
     while True:
         try:
             current_time = time.time()
-            historico, timestamps, latest_id = buscar_operacoes_historico(supabase)
+            
+            # Buscar operaciones históricas
+            historico, timestamps, latest_operation_id = buscar_operacoes_historico(supabase)
             
             if not historico:
-                print("Esperando datos del historial...")
+                logger.warning("Sin historial disponible. Esperando...")
+                print("[AGUARDO] Sin historial disponible. Esperando...")
                 time.sleep(ANALISE_INTERVALO)
                 continue
-
-            # Analiza la estrategia L-L-L Pattern
-            resultado_analise = analisar_estrategia_momentum_medio(historico, timestamps[0], latest_id)
             
-            # La lógica de decisión es ahora mucho más simple.
-            # Envía la señal si las condiciones son cumplidas O cada 5 segundos para mantener el status actualizado.
-            if resultado_analise['should_operate'] or (current_time - last_update_time >= ANALISE_INTERVALO):
-                if resultado_analise['should_operate']:
-                    print(f"\n[SEÑAL] {resultado_analise['reason']}")
-                else:
-                    print(f"[AGUARDO] {resultado_analise['reason']}")
-
-                signal_id = enviar_sinal_supabase(supabase, resultado_analise)
+            # Analizar estrategia
+            resultado = analisar_estrategia_momentum_medio(historico, timestamps[0] if timestamps else "", latest_operation_id)
+            
+            # Mostrar estado actual
+            if current_time - last_update_time >= update_interval:
+                print(f"[AGUARDO] {resultado['reason']}")
+                logger.info(f"Estado actual: {resultado['reason']}")
+                
+                signal_id = enviar_sinal_supabase(supabase, resultado)
                 
                 if signal_id:
                     print(f"[OK] Señal/Actualización enviada con ID: {signal_id}")

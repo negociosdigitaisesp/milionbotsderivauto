@@ -33,19 +33,21 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s',
     handlers=[
-        logging.FileHandler('radartunder1.5_operations.log', encoding='utf-8'),
+        logging.FileHandler('radartunder3.5_operations.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
+# Silenciar logs de bibliotecas externas
 for lib in ['httpx', 'httpcore', 'supabase', 'postgrest']:
     logging.getLogger(lib).setLevel(logging.WARNING)
 
-BOT_NAME = 'executor_momentum_calmo_ll_v1'
-ANALISE_INTERVALO = 5
-OPERACOES_HISTORICO = 35
-OPERACOES_MINIMAS = 2  # Requisito mínimo para WW
+# Configuración del bot
+BOT_NAME = 'radartunder3.5'
+ANALISE_INTERVALO = 5  # Intervalo de análisis en segundos
+OPERACOES_HISTORICO = 35  # Número de operaciones históricas a analizar
+OPERACOES_MINIMAS = 2  # Mínimo de operaciones para detectar patrón LL
 
 
 
@@ -58,10 +60,10 @@ def retry_supabase_operation(max_retries=3, delay=2):
                     return func(*args, **kwargs)
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        logger.warning(f"Tentativa {attempt + 1} falhou: {e}. Tentando novamente...")
+                        logger.warning(f"Intento {attempt + 1} falló: {e}. Intentando nuevamente...")
                         time.sleep(delay)
                     else:
-                        logger.error(f"Todas as {max_retries} tentativas para {func.__name__} falharam.")
+                        logger.error(f"Todos los {max_retries} intentos para {func.__name__} fallaron.")
                         raise e
         return wrapper
     return decorator
@@ -104,7 +106,7 @@ def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: s
     
     # 1. Validación Mínima de Datos
     if len(historico) < OPERACOES_MINIMAS:
-        return {'should_operate': False, 'reason': 'Aguardando Padrao, Espere...'}
+        return {'should_operate': False, 'reason': 'Esperando patrón, aguarde...'}
 
     # 2. Verificación del Gatillo LL (2 LOSS consecutivos)
     ultimas_2_cronologica = list(reversed(historico[:2]))
@@ -118,21 +120,21 @@ def analisar_estrategia_momentum_calmo(historico: List[str], ultimo_timestamp: s
     
     # 3. Condición Estándar
     padrao_atual = ''.join(['W' if op == 'WIN' else 'L' for op in ultimas_2_cronologica])
-    return {'should_operate': False, 'reason': 'Aguardando Padrao, Espere...'}
+    return {'should_operate': False, 'reason': 'Esperando patrón, aguarde...'}
 
 @retry_supabase_operation()
 def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
     """Envía la señal a la tabla de Supabase."""
     try:
         record = {
-            'bot_name': BOT_NAME,
+            'bot_name': signal_data.get('bot_name', BOT_NAME),
             'is_safe_to_operate': signal_data.get('should_operate', False),
             'reason': signal_data.get('reason', 'N/A'),
             'strategy_used': signal_data.get('strategy', 'N/A'),
             'strategy_confidence': signal_data.get('confidence', 0),
-            'pattern_found_at': datetime.now().isoformat() if signal_data.get('should_operate') else None,
-            'last_update': datetime.now().isoformat(),  # Sempre atualiza o timestamp
-            'last_operations': str(signal_data.get('last_operations', [])),  # Últimas operações
+            'pattern_found_at': signal_data.get('timestamp', datetime.now().isoformat()),
+            'last_update': datetime.now().isoformat(),
+            'last_operations': str(signal_data.get('last_operations', [])),
         }
         response = supabase.table('radar_de_apalancamiento_signals').upsert(record, on_conflict='bot_name').execute()
         
@@ -142,7 +144,7 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
             return signal_id
         return None
     except Exception as e:
-        logger.error(f"Fallo al enviar señal a Supabase: {e}", exc_info=True)
+        logger.error(f"Error al enviar señal a Supabase: {e}", exc_info=True)
         return None
 
 
@@ -150,63 +152,70 @@ def enviar_sinal_supabase(supabase: Client, signal_data: Dict) -> Optional[int]:
 
 
 def main_loop():
-    """Bucle principal del bot de análisis Momentum-Calmo-LL."""
-    logger.info("=== INICIANDO EXECUTOR MOMENTUM-CALMO-LL ===")
+    """Bucle principal del bot de análisis de patrones LL."""
+    print("=" * 60)
+    print("INICIANDO RADAR TUNDER 3.5")
+    print("Detectar patrón LL (2 pérdidas consecutivas)")
+    print("=" * 60)
+    
+    logger.info("Iniciando Radar Tunder 3.5 - Análisis de patrón LL")
+    
+    # Configuración de Supabase
     supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
     if not supabase:
-        logger.critical("Fallo fatal al conectar con Supabase. Cerrando.")
+        logger.critical("Error fatal al conectar con Supabase. Cerrando.")
         return
 
-    logger.info("Bot inicializado exitosamente.")
-    print("\n[INICIO] Iniciando bot EXECUTOR MOMENTUM-CALMO-LL")
-    print("[INFO] Configuração: Análisis de las últimas 2 operaciones")
-    print("[INFO] Objetivo: Detectar patrón LL (2 LOSS consecutivos)")
-    print("[INFO] Estratégia: Entrada após 2 LOSS consecutivos (sem filtros de horário)")
-    print("[INFO] Intervalo de análisis: 5 segundos")
-    print("[INFO] Actualizaciones automáticas para Supabase")
-    print("-" * 60)
-    print("\nPresiona Ctrl+C para detener.\n")
-
-    last_update_time = 0  # Control para atualizações regulares
+    last_update_time = 0
+    update_interval = 30  # Actualizar cada 30 segundos
 
     while True:
         try:
             current_time = time.time()
-            historico, timestamps, latest_id = buscar_operacoes_historico(supabase)
+            
+            # Buscar operaciones históricas
+            historico, timestamps, latest_operation_id = buscar_operacoes_historico(supabase)
             
             if not historico:
-                print("Esperando datos del historial...")
+                logger.warning("Sin historial disponible. Esperando...")
+                print("[AGUARDO] Sin historial disponible. Esperando...")
                 time.sleep(ANALISE_INTERVALO)
                 continue
-
-            # Analisa a estratégia Momentum-Calmo
-            resultado_analise = analisar_estrategia_momentum_calmo(historico, timestamps[0])
             
-            # A lógica de decisão é agora muito mais simples.
-            # Envia o sinal se as condições forem atendidas OU a cada 5 segundos para manter o status atualizado.
-            if resultado_analise['should_operate'] or (current_time - last_update_time >= ANALISE_INTERVALO):
-                if resultado_analise['should_operate']:
-                    print(f"\n[SEÑAL] {resultado_analise['reason']}")
-                else:
-                    print(f"[AGUARDO] {resultado_analise['reason']}")
-
-                signal_id = enviar_sinal_supabase(supabase, resultado_analise)
+            # Analizar estrategia
+            resultado = analisar_estrategia_momentum_calmo(historico, timestamps[0] if timestamps else "")
+            
+            # Mostrar estado actual
+            if current_time - last_update_time >= update_interval:
+                print(f"[AGUARDO] {resultado['reason']}")
+                logger.info(f"Estado actual: {resultado['reason']}")
+                
+                # Preparar datos para envío
+                signal_data = {
+                    'bot_name': BOT_NAME,
+                    'should_operate': resultado['should_operate'],
+                    'reason': resultado['reason'],
+                    'timestamp': datetime.now().isoformat(),
+                    'last_operations': historico[:5] if len(historico) >= 5 else historico
+                }
+                
+                signal_id = enviar_sinal_supabase(supabase, signal_data)
                 
                 if signal_id:
-                    print(f"[OK] Sinal/Atualização enviado com ID: {signal_id}")
+                    print(f"[OK] Señal/Actualización enviada con ID: {signal_id}")
                     last_update_time = current_time
                 else:
-                    print("[ERROR] Erro ao enviar sinal/atualização")
+                    print("[ERROR] Error al enviar señal/actualización")
             
             time.sleep(ANALISE_INTERVALO)
             
         except KeyboardInterrupt:
-            logger.info("Bot interrompido pelo usuário.")
-            print("\n[STOP] Bot parado pelo usuário.")
+            logger.info("Bot interrumpido por el usuario.")
+            print("\n[STOP] Bot detenido por el usuario.")
             break
         except Exception as e:
-            logger.error(f"Erro no loop principal: {e}", exc_info=True)
-            print(f"[ERROR] Erro: {e}")
+            logger.error(f"Error en el bucle principal: {e}", exc_info=True)
+            print(f"[ERROR] Error: {e}")
             time.sleep(ANALISE_INTERVALO)
 
 if __name__ == "__main__":
